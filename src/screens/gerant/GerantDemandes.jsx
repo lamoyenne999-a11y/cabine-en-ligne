@@ -1,4 +1,4 @@
-import React, { useEffect, useRef, useState } from 'react';
+import React, { useState } from 'react';
 import { View, Text, StyleSheet } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { colors, radius, space, font } from '../../theme';
@@ -7,124 +7,95 @@ import { Page } from '../../components/Shell';
 import { Dialog, DialogButtons } from '../../components/modals';
 import { useStore } from '../../store';
 
-const iconFor = (type) => ({
-  unites: 'phone-portrait-outline', minutes: 'call-outline', internet: 'wifi-outline',
-}[type] || 'phone-portrait-outline');
-
-function useNow() {
-  const [now, setNow] = useState(Date.now());
-  useEffect(() => {
-    const id = setInterval(() => setNow(Date.now()), 1000);
-    return () => clearInterval(id);
-  }, []);
-  return now;
-}
+const STATUS = {
+  pending: { label: 'En attente', color: colors.warn, bg: colors.warnBg, icon: 'time' },
+  accepted: { label: 'Acceptée', color: colors.primary, bg: colors.primarySoft, icon: 'checkmark-circle' },
+  declined: { label: 'Refusée', color: colors.danger, bg: colors.dangerBg, icon: 'close-circle' },
+  paid: { label: 'Payée', color: '#2E7BF6', bg: '#E7F0FE', icon: 'wallet' },
+  completed: { label: 'Complétée', color: colors.success, bg: colors.successBg, icon: 'checkmark-done' },
+};
 
 export default function GerantDemandes() {
-  const { state, confirmDemande } = useStore();
-  const now = useNow();
-  const mount = useRef(Date.now());
-  const [confirmId, setConfirmId] = useState(null);
-  const [showSuccess, setShowSuccess] = useState(false);
+  const { state, acceptDemande, declineDemande, completeDemande } = useStore();
+  const [confirm, setConfirm] = useState(null); // { id, action }
+  const demandes = state.gerantDemandes || [];
 
-  const pending = state.demandes.filter((d) => d.status === 'en_attente');
-
-  const remaining = (d) => Math.max(0, d.expiresIn - Math.floor((now - mount.current) / 1000));
-  const fmt = (sec) => `${Math.floor(sec / 60)}:${String(sec % 60).padStart(2, '0')}`;
-
-  const doConfirm = () => {
-    confirmDemande(confirmId);
-    setConfirmId(null);
-    setShowSuccess(true);
+  const doAction = () => {
+    if (!confirm) return;
+    if (confirm.action === 'accept') acceptDemande(confirm.id);
+    else if (confirm.action === 'decline') declineDemande(confirm.id);
+    else if (confirm.action === 'complete') completeDemande(confirm.id);
+    setConfirm(null);
   };
 
   return (
-    <Page title="Demandes">
-      <View style={s.banner}>
-        <Ionicons name="notifications" size={20} color={colors.success} />
-        <T size={font.body} weight="800" color={colors.success} style={{ marginLeft: 10 }}>
-          {pending.length} demande{pending.length !== 1 ? 's' : ''} en attente
-        </T>
-      </View>
-
-      {pending.map((d) => {
-        const left = remaining(d);
-        const expired = left <= 0;
+    <Page title="Demandes reçues">
+      {demandes.length === 0 ? (
+        <Card style={{ alignItems: 'center', paddingVertical: 32 }}>
+          <Ionicons name="notifications-off-outline" size={40} color={colors.muted2} />
+          <T size={font.body} weight="700" color={colors.muted} style={{ marginTop: 10 }}>Aucune demande</T>
+          <T size={font.sm} weight="600" color={colors.muted2} style={{ marginTop: 4, textAlign: 'center' }}>
+            Les demandes de vos clients apparaîtront ici.
+          </T>
+        </Card>
+      ) : demandes.map((d) => {
+        const st = STATUS[d.status] || STATUS.pending;
+        const isPending = d.status === 'pending';
+        const isPaid = d.status === 'paid';
         return (
-          <Card key={d.id} style={{ marginBottom: space.md }}>
+          <Card key={d.id} style={{ marginBottom: space.sm }}>
             <View style={{ flexDirection: 'row', alignItems: 'center' }}>
               <View style={[s.icon, { backgroundColor: colors.primarySoft }]}>
-                <Ionicons name={iconFor(d.type)} size={22} color={colors.primary} />
+                <Ionicons name={d.type === 'internet' ? 'wifi-outline' : d.type === 'minutes' ? 'call-outline' : 'phone-portrait-outline'} size={22} color={colors.primary} />
               </View>
               <View style={{ flex: 1, marginLeft: 12 }}>
                 <T size={font.h3} weight="800" color={colors.text}>{d.type === 'unites' ? 'Unités' : d.type === 'minutes' ? 'Minutes' : 'Internet'}</T>
-                <View style={{ flexDirection: 'row', alignItems: 'center', marginTop: 3 }}>
-                  <Ionicons name="time-outline" size={13} color={colors.muted} />
-                  <T size={font.xs} weight="600" color={colors.muted} style={{ marginLeft: 4 }}>Il y a 2 minutes</T>
-                </View>
+                <T size={font.xs} weight="600" color={colors.muted} style={{ marginTop: 2 }}>Client : {d.clientName} · pour {d.benefName}</T>
               </View>
-              <T size={font.h3} weight="800" color={colors.primary}>
-                {d.amount.toLocaleString('fr-FR').replace(/\u202f/g, ' ')} XOF
-              </T>
+              <View style={{ alignItems: 'flex-end' }}>
+                <T size={font.h3} weight="800" color={colors.primary}>{d.amount.toLocaleString('fr-FR').replace(/\u202f/g, ' ')} XOF</T>
+                <Pill icon={st.icon} color={st.color} bg={st.bg} style={{ marginTop: 6 }}>{st.label}</Pill>
+              </View>
             </View>
 
             <View style={s.infoRow}>
-              <T size={font.sm} weight="600" color={colors.textSoft}>Client :</T>
-              <T size={font.body} weight="700" color={colors.text}>{d.client}</T>
-            </View>
-            <View style={[s.infoRow, { borderTopWidth: 1, borderTopColor: colors.border }]}>
-              <T size={font.sm} weight="600" color={colors.textSoft}>Bénéficiaire :</T>
-              <T size={font.body} weight="700" color={colors.text}>{d.benef || d.client}</T>
+              <T size={font.sm} weight="600" color={colors.muted}>Bénéficiaire :</T>
+              <T size={font.sm} weight="700" color={colors.text}>{d.benefName} ({d.benefPhone})</T>
             </View>
 
-            <View style={s.timer}>
-              <Ionicons name="alarm-outline" size={15} color={expired ? colors.danger : colors.warn} />
-              <T size={font.sm} weight="700" color={expired ? colors.danger : colors.warn} style={{ marginLeft: 6 }}>
-                {expired ? 'Demande expirée' : `Expire dans ${fmt(left)}`}
+            {isPending && (
+              <View style={s.actions}>
+                <Btn title="Refuser" icon="close" outline color={colors.danger} onPress={() => setConfirm({ id: d.id, action: 'decline' })} style={{ flex: 1, marginRight: 6 }} />
+                <Btn title="Accepter" icon="checkmark" onPress={() => setConfirm({ id: d.id, action: 'accept' })} style={{ flex: 1 }} />
+              </View>
+            )}
+            {isPaid && (
+              <Btn title="J'ai servi le client" icon="checkmark-done" onPress={() => setConfirm({ id: d.id, action: 'complete' })} style={{ marginTop: space.md }} />
+            )}
+            {d.status === 'accepted' && (
+              <T size={font.sm} weight="600" color={colors.muted} style={{ marginTop: 12, textAlign: 'center' }}>
+                En attente du paiement Wave du client ({d.gerantWave ? 'marchand ' + d.gerantWave : ''}).
               </T>
-            </View>
-
-            <Btn
-              title="Confirmer la demande"
-              icon="checkmark-circle-outline"
-              onPress={() => setConfirmId(d.id)}
-              disabled={expired}
-              style={{ marginTop: space.md }}
-            />
+            )}
           </Card>
         );
       })}
 
-      {/* Confirm dialog */}
-      <Dialog visible={!!confirmId}>
-        <T size={font.h3} weight="800" color={colors.text} style={{ textAlign: 'center' }}>Confirmer la demande</T>
-        <T size={font.sm} weight="600" color={colors.muted} style={{ textAlign: 'center', marginTop: 6, marginBottom: 6 }}>
-          Avez-vous traité cette demande avec succès ?
+      <Dialog visible={!!confirm}>
+        <T size={font.h3} weight="800" color={colors.text} style={{ textAlign: 'center' }}>
+          {confirm?.action === 'accept' ? 'Accepter la demande' : confirm?.action === 'decline' ? 'Refuser la demande' : 'Confirmer le service'}
         </T>
-        <DialogButtons cancel="Annuler" confirm="Confirmer" onCancel={() => setConfirmId(null)} onConfirm={doConfirm} />
-      </Dialog>
-
-      {/* Success dialog */}
-      <Dialog visible={showSuccess}>
-        <T size={font.h3} weight="800" color={colors.text} style={{ textAlign: 'center' }}>Succès</T>
         <T size={font.sm} weight="600" color={colors.muted} style={{ textAlign: 'center', marginTop: 6, marginBottom: 6 }}>
-          La demande a été confirmée et créditée à votre compte.
+          {confirm?.action === 'accept' ? 'Le client vous enverra le paiement via votre Wave marchand.' : confirm?.action === 'decline' ? 'La demande sera signalée comme refusée.' : 'Vous avez bien crédité le bénéficiaire ?'}
         </T>
-        <DialogButtons confirm="OK" onConfirm={() => setShowSuccess(false)} />
+        <DialogButtons cancel="Annuler" confirm="Confirmer" onCancel={() => setConfirm(null)} onConfirm={doAction} />
       </Dialog>
     </Page>
   );
 }
 
 const s = StyleSheet.create({
-  banner: {
-    flexDirection: 'row', alignItems: 'center', backgroundColor: colors.successBg,
-    borderRadius: radius.md, padding: 14, marginBottom: space.lg,
-  },
   icon: { width: 46, height: 46, borderRadius: 23, alignItems: 'center', justifyContent: 'center' },
-  infoRow: { flexDirection: 'row', justifyContent: 'space-between', paddingVertical: 12, marginTop: 4 },
-  timer: {
-    flexDirection: 'row', alignItems: 'center', justifyContent: 'center',
-    backgroundColor: colors.warnBg, borderRadius: radius.md, paddingVertical: 10, marginTop: 4,
-  },
+  infoRow: { flexDirection: 'row', justifyContent: 'space-between', paddingVertical: 12, marginTop: 4, borderTopWidth: 1, borderTopColor: colors.border },
+  actions: { flexDirection: 'row', marginTop: space.md },
 });

@@ -9,53 +9,72 @@ const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
 // ==================================================================
 //  Couche de persistance (double backend)
-//  - Si DATABASE_URL est défini  -> PostgreSQL (production, durable).
-//      Les données sont stockées dans une table `app_state` (JSONB),
-//      persistées à chaque écriture et rechargées au démarrage.
-//  - Sinon                        -> fichier JSON (dev / tests).
+//  - DATABASE_URL défini -> PostgreSQL (production, durable).
+//  - Sinon               -> fichier JSON (dev / tests).
+//  L'interface est identique (getDb / save / insert / find / …).
 //
-//  L'interface exposée est la même (getDb / save / insert / find / …)
-//  et s'appuie sur un miroir en mémoire pour les lectures. Aucune
-//  route n'a besoin d'être modifiée.
+//  MODÈLE (v2 — zéro argent stocké sur l'app) :
+//   - users        : clients + gérants (login par téléphone)
+//   - gerants      : contacts "gérants" ajoutés par un client
+//   - demandes     : demandes de services (unités/minutes/internet)
+//   - Aucune notion de solde / caisse.
 // ==================================================================
 
 const DATA_FILE = process.env.DB_FILE || path.join(__dirname, '..', 'data', 'db.json');
 const DATABASE_URL = process.env.DATABASE_URL || '';
-const COLLECTIONS = ['users', 'balances', 'subscriptions', 'gerants', 'clients', 'transactions', 'demandes'];
+const COLLECTIONS = ['users', 'gerants', 'demandes'];
 
-let db = null;
-let pool = null;
-let usingPg = false;
+const now = Date.now();
+const in30 = () => now + 30 * 24 * 3600 * 1000;
 
-// ------------------------- Seed / données de démo -------------------------
 const seed = () => ({
   users: [
-    { id: 'u_client', role: 'client', name: 'Jean Dupont', phone: '0101010101', email: 'jean@example.com', passwordHash: '', createdAt: Date.now() },
-    { id: 'u_gerant', role: 'gerant', name: 'Marie Diallo', phone: '0202020202', email: 'marie@example.com', passwordHash: '', createdAt: Date.now() },
+    // --- Clients de démo ---
+    { id: 'u_client', role: 'client', name: 'Jean Dupont', phone: '0101010101', email: 'jean@example.com', passwordHash: '$2b$10$V3Ed.oiA.jq72LkYfH7z2.xU8v3P1k/uXYeFKrazPJBotSmf.kbrO', waveNumber: '0101010101', subscription: { status: 'trial', trialEndsAt: in30(), subscribedUntil: 0 }, createdAt: now },
+    // --- Gérants de démo (chacun a son Wave marchand) ---
+    { id: 'u_amadou', role: 'gerant', name: 'Boutique Amadou', phone: '771234567', email: 'amadou@example.com', passwordHash: '$2b$10$V3Ed.oiA.jq72LkYfH7z2.xU8v3P1k/uXYeFKrazPJBotSmf.kbrO', waveNumber: '771234567', subscription: { status: 'trial', trialEndsAt: in30(), subscribedUntil: 0 }, createdAt: now },
+    { id: 'u_fatou', role: 'gerant', name: 'Kiosque Fatou', phone: '789876543', email: 'fatou@example.com', passwordHash: '$2b$10$V3Ed.oiA.jq72LkYfH7z2.xU8v3P1k/uXYeFKrazPJBotSmf.kbrO', waveNumber: '789876543', subscription: { status: 'trial', trialEndsAt: in30(), subscribedUntil: 0 }, createdAt: now },
+    { id: 'u_moussa', role: 'gerant', name: 'Cabine Moussa', phone: '765554433', email: 'moussa@example.com', passwordHash: '$2b$10$V3Ed.oiA.jq72LkYfH7z2.xU8v3P1k/uXYeFKrazPJBotSmf.kbrO', waveNumber: '765554433', subscription: { status: 'trial', trialEndsAt: in30(), subscribedUntil: 0 }, createdAt: now },
+    { id: 'u_marie', role: 'gerant', name: 'Cabine Marie', phone: '0202020202', email: 'marie@example.com', passwordHash: '$2b$10$V3Ed.oiA.jq72LkYfH7z2.xU8v3P1k/uXYeFKrazPJBotSmf.kbrO', waveNumber: '0202020202', subscription: { status: 'trial', trialEndsAt: in30(), subscribedUntil: 0 }, createdAt: now },
   ],
-  balances: { u_client: 15000, u_gerant: 45000 },
-  subscriptions: { u_client: { plan: 'minutes', name: 'Forfait Minutes', amount: 3000, renews: '15/10/2026' } },
+
+  // Gérants que le client de démo a déjà ajoutés (contacts)
   gerants: [
-    { id: 'g1', ownerId: 'u_client', name: 'Boutique Amadou', phone: '771234567', rating: 4.8, tx: 156, online: true },
-    { id: 'g2', ownerId: 'u_client', name: 'Kiosque Fatou', phone: '789876543', rating: 4.6, tx: 89, online: false },
-    { id: 'g3', ownerId: 'u_client', name: 'Cabine Moussa', phone: '765554433', rating: 4.2, tx: 234, online: true },
+    { id: 'g1', ownerId: 'u_client', userId: 'u_amadou', name: 'Boutique Amadou', phone: '771234567', waveNumber: '771234567', rating: 4.8, online: true },
+    { id: 'g2', ownerId: 'u_client', userId: 'u_fatou', name: 'Kiosque Fatou', phone: '789876543', waveNumber: '789876543', rating: 4.6, online: false },
+    { id: 'g3', ownerId: 'u_client', userId: 'u_moussa', name: 'Cabine Moussa', phone: '765554433', waveNumber: '765554433', rating: 4.2, online: true },
   ],
-  clients: [
-    { id: 'c1', ownerId: 'u_gerant', name: 'Jean Dupont', phone: '771112233', tx: 45, online: true, added: '09/09/2025' },
-    { id: 'c2', ownerId: 'u_gerant', name: 'Marie Diallo', phone: '784445566', tx: 23, online: true, added: '12/09/2025' },
-    { id: 'c3', ownerId: 'u_gerant', name: 'Ibrahima Fall', phone: '767778899', tx: 67, online: false, added: '04/02/2025' },
-  ],
-  transactions: [
-    { id: 'tx_client_seed_1', role: 'client', type: 'recharge', label: 'Recharge', amount: 10000, date: '14 sept. à 21:51', userId: 'u_client', status: 'reussi' },
-    { id: 'tx_client_seed_2', role: 'client', type: 'internet', label: 'internet', amount: -2000, date: '14 sept. à 18:51', userId: 'u_client', pour: '789876543', status: 'reussi' },
-    { id: 'tx_client_seed_3', role: 'client', type: 'minutes', label: 'minutes', amount: -1500, date: '13 sept. à 23:51', userId: 'u_client', pour: '771234567', status: 'reussi' },
-    { id: 'tx_gerant_seed_1', role: 'gerant', type: 'unites', label: 'units', amount: 5000, date: 'Il y a 3 jours', userId: 'u_gerant', pour: 'Jean Dupont', status: 'reussi' },
-    { id: 'tx_gerant_seed_2', role: 'gerant', type: 'retrait', label: 'Retrait Wave', amount: -10000, date: 'Il y a 2 jours', userId: 'u_gerant', status: 'reussi' },
-    { id: 'tx_gerant_seed_3', role: 'gerant', type: 'internet', label: 'internet', amount: 3000, date: 'Hier', userId: 'u_gerant', pour: 'Fatou Sow', status: 'reussi' },
-  ],
+
+  // Quelques demandes d'exemple pour la démo (historique + totaux)
   demandes: [
-    { id: 'd_seed_1', ref: 'demande:seed1', type: 'minutes', amount: 3000, client: 'Moussa Ndiaye', clientId: 'u_client', benef: '765554433', gerantId: 'g3', gerantPhone: '765554433', gerantName: 'Cabine Moussa', createdAt: Date.now() - 5 * 60000, expiresIn: 220, status: 'en_attente', paid: false },
-    { id: 'd_seed_2', ref: 'demande:seed2', type: 'internet', amount: 2000, client: 'Fatou Sow', clientId: 'u_client', benef: '781234567', gerantId: 'g2', gerantPhone: '789876543', gerantName: 'Kiosque Fatou', createdAt: Date.now() - 2 * 3600000, expiresIn: 150, status: 'en_attente', paid: false },
+    {
+      id: 'd_demo_1', ref: 'demande:demo1',
+      clientId: 'u_client', clientName: 'Jean Dupont', clientPhone: '0101010101',
+      gerantId: 'g1', gerantUserId: 'u_amadou', gerantName: 'Boutique Amadou', gerantPhone: '771234567', gerantWave: '771234567',
+      type: 'internet', amount: 3000, benefName: 'Jean Dupont', benefPhone: '0101010101',
+      status: 'completed', createdAt: now - 5 * 24 * 3600 * 1000, acceptedAt: now - 5 * 24 * 3600 * 1000 + 120000, paidAt: now - 5 * 24 * 3600 * 1000 + 240000,
+    },
+    {
+      id: 'd_demo_2', ref: 'demande:demo2',
+      clientId: 'u_client', clientName: 'Jean Dupont', clientPhone: '0101010101',
+      gerantId: 'g2', gerantUserId: 'u_fatou', gerantName: 'Kiosque Fatou', gerantPhone: '789876543', gerantWave: '789876543',
+      type: 'unites', amount: 1500, benefName: 'Jean Dupont', benefPhone: '0101010101',
+      status: 'paid', createdAt: now - 2 * 24 * 3600 * 1000, acceptedAt: now - 2 * 24 * 3600 * 1000 + 60000, paidAt: now - 2 * 24 * 3600 * 1000 + 180000,
+    },
+    {
+      id: 'd_demo_3', ref: 'demande:demo3',
+      clientId: 'u_client', clientName: 'Jean Dupont', clientPhone: '0101010101',
+      gerantId: 'g3', gerantUserId: 'u_moussa', gerantName: 'Cabine Moussa', gerantPhone: '765554433', gerantWave: '765554433',
+      type: 'minutes', amount: 1000, benefName: 'Mariam', benefPhone: '0707070707',
+      status: 'declined', createdAt: now - 1 * 24 * 3600 * 1000, acceptedAt: 0, paidAt: 0,
+    },
+    {
+      id: 'd_demo_4', ref: 'demande:demo4',
+      clientId: 'u_client', clientName: 'Jean Dupont', clientPhone: '0101010101',
+      gerantId: 'g1', gerantUserId: 'u_amadou', gerantName: 'Boutique Amadou', gerantPhone: '771234567', gerantWave: '771234567',
+      type: 'minutes', amount: 2000, benefName: 'Jean Dupont', benefPhone: '0101010101',
+      status: 'pending', createdAt: now - 3 * 3600 * 1000, acceptedAt: 0, paidAt: 0,
+    },
   ],
 });
 
@@ -73,13 +92,7 @@ function writeFile() {
 
 // ------------------------- PostgreSQL (production) -------------------------
 async function ensureSchema(p) {
-  await p.query(`
-    CREATE TABLE IF NOT EXISTS app_state (
-      key        text PRIMARY KEY,
-      data       jsonb NOT NULL,
-      updated_at timestamptz NOT NULL DEFAULT now()
-    )
-  `);
+  await p.query(`CREATE TABLE IF NOT EXISTS app_state (key text PRIMARY KEY, data jsonb NOT NULL, updated_at timestamptz NOT NULL DEFAULT now())`);
 }
 async function loadFromPg(p) {
   const { rows } = await p.query('SELECT data FROM app_state WHERE key = $1', ['app']);
@@ -96,7 +109,6 @@ async function persistToPg(p) {
 // ------------------------- Initialisation -------------------------
 export async function initDb() {
   if (db) return db;
-
   if (DATABASE_URL) {
     try {
       pool = new Pool({ connectionString: DATABASE_URL, ssl: DATABASE_URL.includes('render') ? { rejectUnauthorized: false } : undefined });
@@ -105,32 +117,31 @@ export async function initDb() {
       db = loaded && loaded.users ? loaded : seed();
       usingPg = true;
       if (!loaded) await persistToPg(pool);
-      console.log(`[db] PostgreSQL connecté (${COLLECTIONS.length} collections)`);
+      console.log(`[db] PostgreSQL connecté`);
       return db;
     } catch (e) {
-      console.error('[db] PostgreSQL indisponible, repli sur fichier JSON :', e.message);
+      console.error('[db] PostgreSQL indisponible, repli JSON :', e.message);
       pool = null;
     }
   }
-
   db = loadFile();
   writeFile();
   return db;
 }
 
+let db = null;
+let pool = null;
+let usingPg = false;
+
 function persist() {
-  if (usingPg && pool) {
-    persistToPg(pool).catch((e) => console.error('[db] persist PostgreSQL :', e.message));
-  } else {
-    writeFile();
-  }
+  if (usingPg && pool) persistToPg(pool).catch((e) => console.error('[db] persist PostgreSQL :', e.message));
+  else writeFile();
 }
 
 export function getDb() {
   if (!db) throw new Error('Base non initialisée : appelez initDb() au démarrage');
   return db;
 }
-
 export function save() { persist(); }
 
 // ------------------------- Helpers (interface inchangée) -------------------------
@@ -141,26 +152,15 @@ export function insert(collection, item) {
   save();
   return record;
 }
-
-export function find(collection, pred) {
-  return getDb()[collection].filter(pred);
-}
-
-export function findOne(collection, pred) {
-  return getDb()[collection].find(pred) || null;
-}
-
+export function find(collection, pred) { return getDb()[collection].filter(pred); }
+export function findOne(collection, pred) { return getDb()[collection].find(pred) || null; }
 export function update(collection, pred, patch) {
   const d = getDb();
   let updated = null;
-  d[collection] = d[collection].map((r) => {
-    if (pred(r)) { updated = { ...r, ...patch }; return updated; }
-    return r;
-  });
+  d[collection] = d[collection].map((r) => { if (pred(r)) { updated = { ...r, ...patch }; return updated; } return r; });
   save();
   return updated;
 }
-
 export function remove(collection, pred) {
   const d = getDb();
   d[collection] = d[collection].filter((r) => !pred(r));

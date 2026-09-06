@@ -2,14 +2,11 @@ import { API_URL } from './config';
 
 // ============================================================
 //  Client API — appelle le backend Node/Express (server/).
-//  API_URL est '' en web (même origine, l'app et le serveur de
-//  preview proxifient /api vers le backend) ou l'URL du backend
-//  sur appareil. Les chemins ci-dessous sont absolus.
+//  API_URL est '' en web (même origine, proxy) ou l'URL du backend.
 // ============================================================
 
 let authToken = null;
-
-export function setToken(token) { authToken = token; }
+export function setToken(t) { authToken = t; }
 export function clearToken() { authToken = null; }
 export function getToken() { return authToken; }
 
@@ -32,30 +29,37 @@ async function request(method, path, body) {
 export const api = {
   health: () => request('GET', '/health'),
 
-  register: (payload) => request('POST', '/api/auth/register', payload),
-  login: (payload) => request('POST', '/api/auth/login', payload),
+  // ---- auth (identifiant = téléphone) ----
+  register: (p) => request('POST', '/api/auth/register', p),
+  login: (p) => request('POST', '/api/auth/login', p),
   me: () => request('GET', '/api/auth/me'),
 
+  // ---- public (liens de partage) ----
+  public: {
+    profile: (id) => request('GET', `/api/public/u/${id}`),
+  },
+
+  // ---- client ----
   client: {
     gerants: () => request('GET', '/api/client/gerants'),
     addGerant: (p) => request('POST', '/api/client/gerants', p),
-    deleteGerant: (id) => request('DELETE', `/api/client/gerants/${id}`),
+    removeGerant: (id) => request('DELETE', `/api/client/gerants/${id}`),
     createDemande: (p) => request('POST', '/api/client/demandes', p),
-    subscribe: (p) => request('POST', '/api/client/subscribe', p),
-    subscription: () => request('GET', '/api/client/subscription'),
+    myDemandes: () => request('GET', '/api/client/demandes'),
     history: () => request('GET', '/api/client/history'),
-    balance: () => request('GET', '/api/client/balance'),
+    markPaid: (id) => request('POST', `/api/client/demandes/${id}/paid`),
+    subscription: () => request('GET', '/api/client/subscription'),
+    subscribe: () => request('POST', '/api/client/subscribe'),
   },
 
+  // ---- gérant ----
   gerant: {
-    dashboard: () => request('GET', '/api/gerant/dashboard'),
     demandes: () => request('GET', '/api/gerant/demandes'),
-    confirmDemande: (id) => request('POST', `/api/gerant/demandes/${id}/confirm`),
-    clients: () => request('GET', '/api/gerant/clients'),
-    addClient: (p) => request('POST', '/api/gerant/clients', p),
-    deleteClient: (id) => request('DELETE', `/api/gerant/clients/${id}`),
     history: () => request('GET', '/api/gerant/history'),
-    balance: () => request('GET', '/api/gerant/balance'),
-    withdraw: (amount) => request('POST', '/api/gerant/withdraw', { amount }),
+    accept: (id) => request('POST', `/api/gerant/demandes/${id}/accept`),
+    decline: (id) => request('POST', `/api/gerant/demandes/${id}/decline`),
+    complete: (id) => request('POST', `/api/gerant/demandes/${id}/complete`),
+    subscription: () => request('GET', '/api/gerant/subscription'),
+    subscribe: () => request('POST', '/api/gerant/subscribe'),
   },
 };

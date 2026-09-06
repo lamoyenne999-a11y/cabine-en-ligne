@@ -1,11 +1,13 @@
 # Cabine En Ligne — Backend API (Node/Express)
 
 API REST qui fait tourner **Cabine En Ligne** : comptes clients/gérants, demandes de
-recharge, abonnements, soldes et **paiements Wave**.
+service (unités / minutes / internet), abonnements, et **liens de profil publics**.
 
-> Le paiement Wave est **mocké** par défaut (`WAVE_MODE=mock`) : la simulation reproduit
-> fidèlement le cycle *Checkout → webhook → Payout* sans toucher au réseau. Pour passer au
-> vrai Wave, mets **`WAVE_MODE=live`** et tes clés API (voir `WAVE_INTEGRATION.md`).
+> ⚠️ **Modèle v2 — zéro argent stocké sur l'app.** Le backend n'a **ni solde, ni caisse,
+> ni rechargement, ni retrait**. Les paiements se font **en direct via Wave** entre le
+> client (compte Wave normal) et le gérant (Wave marchand). L'app ne fait que montrer le
+> numéro Wave marchand. La passerelle Wave est **mockée** par défaut (`WAVE_MODE=mock`) ;
+> pour le réel, voir `WAVE_INTEGRATION.md`.
 
 ---
 
@@ -20,9 +22,9 @@ node src/index.js          # ou : npm run dev
 Par défaut l'API écoute sur **`http://localhost:4000`**. La base est un **fichier JSON**
 (`server/data/db.json`), recréée automatiquement si absente.
 
-### Lancer les tests de bout en bout
+### Lancer les tests de bout en bout (21 tests v2)
 ```bash
-node test.js        # 16 vérifications, mode Wave mock
+node test.js        # API par défaut : http://localhost:4000
 ```
 
 ---
@@ -34,80 +36,78 @@ node test.js        # 16 vérifications, mode Wave mock
 |---------|-------|-------------|
 | GET | `/health` | État + mode Wave |
 
-### Authentification
+### Authentification (identifiant = téléphone)
 | Méthode | Route | Description |
 |---------|-------|-------------|
-| POST | `/api/auth/register` | Créer un compte `{ role, name, phone, email?, password }` |
+| POST | `/api/auth/register` | Créer un compte `{ role, name, phone, email?, password }` → essai gratuit 30 j |
 | POST | `/api/auth/login` | Connexion `{ phone, password }` |
 | GET | `/api/auth/me` | Profil courant (JWT) |
+
+### Profil public (liens de partage, **sans authentification**)
+| Méthode | Route | Description |
+|---------|-------|-------------|
+| GET | `/api/public/u/:id` | Profil public d'un utilisateur (nom, téléphone, Wave marchand, rôle) |
 
 ### Côté Client (`/api/client`, jeton client requis)
 | Méthode | Route | Description |
 |---------|-------|-------------|
-| GET | `/gerants` | Gérants disponibles |
-| POST | `/gerants` | Ajouter un gérant |
-| DELETE | `/gerants/:id` | Supprimer un gérant |
-| POST | `/demandes` | **Nouvelle demande** → déclenche un **Checkout Wave** (paiement direct au gérant) |
-| POST | `/subscribe` | **S'abonner** via Wave |
-| GET | `/subscription` | Abonnement actif |
-| GET | `/history` | Transactions du client |
-| GET | `/balance` | Solde client |
+| GET | `/gerants` | Gérants ajoutés par le client |
+| POST | `/gerants` | Ajouter un gérant `{ phone, name }` |
+| DELETE | `/gerants/:id` | Retirer un gérant |
+| POST | `/demandes` | **Nouvelle demande** `{ gerantId, type, amount, benefName?, benefPhone? }` |
+| GET | `/demandes` | Demandes du client (+ `summary`) |
+| GET | `/history` | **Historique** : demandes + `summary` (`totalSpent`, comptages par statut) |
+| POST | `/demandes/:id/paid` | Le client a payé via Wave (paiement direct) |
+| GET | `/subscription` | Abonnement (essai actif restant) |
+| POST | `/subscribe` | Activer l'abonnement (100 FCFA / mois) |
 
 ### Côté Gérant (`/api/gerant`, jeton gérant requis)
 | Méthode | Route | Description |
 |---------|-------|-------------|
-| GET | `/dashboard` | Solde + stats + revenus |
-| GET | `/demandes` | Demandes à traiter |
-| POST | `/demandes/:id/confirm` | **Confirmer** → crédite le solde du gérant |
-| GET | `/clients` | Clients du gérant |
-| POST | `/clients` | Ajouter un client |
-| DELETE | `/clients/:id` | Supprimer un client |
-| GET | `/history` | Transactions du gérant |
-| GET | `/balance` | Solde CEL du gérant |
-| POST | `/withdraw` | **Retirer via Wave** (vérifie le solde + Payout) |
-
-### Webhooks Wave
-| Méthode | Route | Description |
-|---------|-------|-------------|
-| POST | `/api/webhooks/wave` | Reçoit les événements Wave réels (signature HMAC vérifiée) |
+| GET | `/demandes` | Demandes reçues (en attente) + `summary` |
+| GET | `/history` | **Historique** : demandes + `summary` (`totalServed`, comptages par statut) |
+| POST | `/demandes/:id/accept` | **Accepter** |
+| POST | `/demandes/:id/decline` | **Refuser** |
+| POST | `/demandes/:id/complete` | **J'ai servi le client** (crédité) |
+| GET | `/profile` | Nom + téléphone + Wave marchand |
+| GET | `/subscription` | Abonnement |
+| POST | `/subscribe` | Activer l'abonnement |
+| GET | `/public/:id` | Profil public (même API que /api/public/u/:id) |
 
 ---
 
-## 💰 Flux de paiement (mock == réel)
+## 💰 Cycle d'une demande (zéro argent sur l'app)
 
 ```
-CLIENT paie (Checkout)  →  webhook "payment.succeeded"
-   ├─ demande de recharge : la demande passe à "payée", la transaction client à "réussie"
-   └─ abonnement          : l'abonnement est activé
+CLIENT crée une demande (pending)
+   └─ GÉRANT voit la demande en attente → ACCEPTE (accepted) ou REFUSE (declined)
 
-GÉRANT confirme le traitement  →  son solde CEL est crédité du montant de la demande
+CLIENT accepté → paie EN DIRECT via son app Wave au numéro Wave marchand du gérant
+   └─ CLIENT appuie sur « J'ai payé »  →  demande : paid
 
-GÉRANT retire  →  vérif du solde + Payout Wave
-   ├─ "payout.succeeded" : transaction "réussie"
-   └─ "payout.failed"    : transaction "annulée" + solde remboursé
+GÉRANT a crédité le client → « J'ai servi le client »  →  demande : completed
 ```
+
+Le montant ne transite jamais par `cabine-en-ligne` : le client paie son propre compte
+Wave, le gérant reçoit sur son **Wave marchand**.
 
 ---
 
-## 🛠️ Structure
+## 🗄️ Persistance
 
-```
-server/
-├─ src/
-│  ├─ index.js           # démarrage
-│  ├─ app.js             # assemble l'app Express + branche les webhooks Wave
-│  ├─ config.js          # variables d'environnement (.env)
-│  ├─ db.js              # persistance (JSON) — remplaçable par Postgres
-│  ├─ middleware/
-│  │  ├─ auth.js         # JWT + rôles + hash de mot de passe
-│  │  └─ error.js
-│  ├─ routes/            # auth, client, gerant, webhooks
-│  └─ services/
-│     ├─ waveService.js  # ⭐ passerelle Wave (mock / live) + HMAC
-│     └─ flowService.js  # logique métier des événements Wave
-├─ test.js               # tests de bout en bout
-├─ .env.example
-└─ package.json
+- **JSON** (dev/tests) : `server/data/db.json`.
+- **PostgreSQL** (production) : définis `DATABASE_URL`. Le module `db.js` propose les mêmes
+  opérations (`getDb`, `save`, `insert`, `find`, `findOne`, `update`, `remove`) et expose
+  les collections `users`, `gerants`, `demandes`.
+
+```js
+// users   : { id, role: client|gerant, name, phone, email, passwordHash, waveNumber,
+//            subscription: { status: trial|active|expired, trialEndsAt, subscribedUntil }, createdAt }
+// gerants : { id, ownerId (client), userId (gérant), name, phone, waveNumber, rating, online }
+// demandes: { id, ref, clientId, clientName, clientPhone, gerantId, gerantUserId,
+//            gerantName, gerantPhone, gerantWave, type: unites|minutes|internet, amount,
+//            benefName, benefPhone, status: pending|accepted|declined|paid|completed,
+//            createdAt, acceptedAt, paidAt }
 ```
 
 ---
@@ -119,12 +119,3 @@ Copie `.env.example` vers `.env` et adapte :
 - `WAVE_MODE=mock` (démo) ou `live` (réel).
 - `WAVE_API_KEY`, `WAVE_WEBHOOK_SECRET` : en mode live.
 - `PHONE_PREFIX=+225` (Côte d'Ivoire) ou `+221` (Sénégal), etc.
-
----
-
-## 🗄️ Passer en base de données réelle
-
-Le module `db.js` stocke tout dans un fichier JSON pour la simplicité. Pour la production,
-remplace son contenu par un client SQL (Postgres) en exposant les **mêmes fonctions** :
-`getDb`, `save`, `insert`, `find`, `findOne`, `update`, `remove`. Le reste du backend n'a
-pas à changer.

@@ -1,200 +1,178 @@
-import { getDb, save, insert, findOne, update } from '../db.js';
-import { wave } from './waveService.js';
+import { getDb, save, insert, findOne, find, update, remove } from '../db.js';
 
 // ==================================================================
-//  Logique métier : relie les événements Wave à la vie de l'app.
-//  - Paiement client réussi -> la demande est "payée", la transaction
-//    client passe à réussie.
-//  - Le gérant CONFIRME le traitement -> son solde CEL est crédité.
-//  - Retrait gérant -> vérif solde + Payout (remboursé si échec).
+//  Logique métier (v2 — zéro argent stocké sur l'app)
+//  - L'app ne stocke AUCUN argent : elle met en relation.
+//  - Le client paie DIRECTEMENT au gérant (Wave marchand) hors app.
+//  - Le gérant accepte / refuse les demandes puis sert le client.
+//  - Abonnement 100 FCFA/mois + 1 mois d'essai gratuit.
 // ==================================================================
 
-const TYPE_LABEL = {
-  unites: 'units',
-  minutes: 'minutes',
-  internet: 'internet',
-  abonnement: 'Abonnement',
-  retrait: 'Retrait Wave',
-  recharge: 'Recharge',
-};
+const MONTH_MS = 30 * 24 * 3600 * 1000;
+const SUB_PRICE = 100; // FCFA / mois
 
-function nowLabel() {
-  return new Date().toLocaleString('fr-FR', { day: '2-digit', month: 'short', hour: '2-digit', minute: '2-digit' });
-}
+// Libellé des types de service
+export const TYPE_LABEL = { unites: 'Unités', minutes: 'Minutes', internet: 'Internet' };
 
-export function addTransaction(tx) {
-  return insert('transactions', {
-    role: tx.role,
-    type: tx.type,
-    label: tx.label,
-    amount: tx.amount,
-    date: nowLabel(),
-    pour: tx.pour || '',
-    status: tx.status || 'reussi',
-    sub: tx.sub || '',
-    userId: tx.userId || '',
-    meta: tx.meta || {},
-  });
-}
-
-// ----- Crée une demande (client) + transaction client + session Checkout -----
-export async function createDemande({ client, type, amount, beneficiary, gerantId }) {
-  const gerant = findOne('gerants', (g) => g.id === gerantId);
-  if (!gerant) throw Object.assign(new Error('Gérant introuvable'), { status: 404 });
-
-  const ref = `demande:${Date.now()}`;
-  const d = insert('demandes', {
-    ref,
-    type,
-    amount,
-    client: client.name,
-    clientId: client.id,
-    benef: beneficiary || client.name,
-    gerantId,
-    gerantPhone: gerant.phone,
-    gerantName: gerant.name,
-    createdAt: Date.now(),
-    expiresIn: 300,
-    status: 'en_attente',
-    paid: false,
-  });
-
-  addTransaction({
-    role: 'client', type, label: TYPE_LABEL[type] || type,
-    amount: -amount, pour: beneficiary || client.name, status: 'en_attente',
-    userId: client.id, meta: { demandeId: d.id, ref },
-  });
-
-  const session = await wave.createCheckout({
-    amount,
-    client_reference: ref,
-    description: `${type} pour ${gerant.name}`,
-    metadata: { demandeId: d.id, gerantId, clientId: client.id },
-  });
-
-  return { demande: d, checkout: session };
-}
-
-// ----- Abonnement (client) via Checkout -----
-export async function subscribe({ client, plan, name, amount, renews }) {
-  const ref = `sub:${Date.now()}`;
-  const session = await wave.createCheckout({
-    amount,
-    client_reference: ref,
-    description: `Abonnement ${name}`,
-    metadata: { clientId: client.id, plan, name, amount, renews },
-  });
-  return { checkout: session, ref };
-}
-
-// ----- Retrait du gérant -----
-export async function withdraw({ gerant, amount }) {
-  const db = getDb();
-  const bal = db.balances[gerant.id] || 0;
-  if (amount <= 0) throw Object.assign(new Error('Montant invalide'), { status: 400 });
-  if (amount > bal) throw Object.assign(new Error('Solde insuffisant'), { status: 400 });
-
-  const ref = `withdraw:${Date.now()}`;
-  db.balances[gerant.id] = bal - amount;
-  save();
-
-  const tx = addTransaction({
-    role: 'gerant', type: 'retrait', label: TYPE_LABEL.retrait,
-    amount: -amount, status: 'en_attente',
-    userId: gerant.id, meta: { ref, userId: gerant.id, mobile: gerant.phone, revert: true },
-  });
-
-  const payout = await wave.createPayout({
-    amount,
-    mobile: gerant.phone,
-    name: gerant.name,
-    client_reference: ref,
-  });
-  return { tx, payout };
-}
-
-// ----- Confirme le traitement d'une demande (crédite le gérant connecté) -----
-export function confirmDemande({ demandeId, gerant }) {
-  const d = findOne('demandes', (x) => x.id === demandeId);
-  if (!d) throw Object.assign(new Error('Demande introuvable'), { status: 404 });
-  if (d.status === 'complete') return { demande: d, already: true };
-
-  if (d.paid === false) {
-    throw Object.assign(new Error('Le client n\'a pas encore payé cette demande'), { status: 400 });
+// ---- Abonnement ----
+export function subscriptionFor(user) {
+  const s = user.subscription || { status: 'trial', trialEndsAt: 0, subscribedUntil: 0 };
+  const now = Date.now();
+  if (s.status === 'active' && s.subscribedUntil > now) {
+    return { status: 'active', price: SUB_PRICE, trialEndsAt: s.trialEndsAt, subscribedUntil: s.subscribedUntil, daysLeft: Math.ceil((s.subscribedUntil - now) / 86400000) };
   }
-
-  // Crédite le solde CEL du gérant connecté
-  const db = getDb();
-  db.balances[gerant.id] = (db.balances[gerant.id] || 0) + d.amount;
-  save();
-
-  addTransaction({
-    role: 'gerant', type: d.type, label: TYPE_LABEL[d.type] || d.type,
-    amount: d.amount, pour: d.client, status: 'reussi',
-    userId: gerant.id, meta: { demandeId: d.id, ref: d.ref },
-  });
-
-  update('demandes', (x) => x.id === demandeId, { status: 'complete' });
-
-  // La transaction client liée passe à réussie (elle est payée)
-  const ct = findOne('transactions', (x) => x.meta?.demandeId === demandeId);
-  if (ct) update('transactions', (x) => x.id === ct.id, { status: 'reussi' });
-
-  const updated = findOne('demandes', (x) => x.id === demandeId);
-  return { demande: updated, already: false };
+  if (s.status === 'trial' && s.trialEndsAt > now) {
+    return { status: 'trial', price: SUB_PRICE, trialEndsAt: s.trialEndsAt, subscribedUntil: 0, daysLeft: Math.ceil((s.trialEndsAt - now) / 86400000) };
+  }
+  return { status: 'expired', price: SUB_PRICE, trialEndsAt: s.trialEndsAt, subscribedUntil: s.subscribedUntil, daysLeft: 0 };
 }
 
-// ==================================================================
-//  Traitement des événements Wave
-// ==================================================================
-export async function onWaveEvent(event) {
-  const { type, data } = event;
-  if (type === 'payment.succeeded') await onPaymentSucceeded(data);
-  else if (type === 'payout.succeeded') await onPayoutSucceeded(data);
-  else if (type === 'payout.failed') await onPayoutFailed(data);
+export function activateSubscription(user) {
+  const now = Date.now();
+  const s = user.subscription || {};
+  const prev = s.subscribedUntil > now ? s.subscribedUntil : now;
+  const subscribedUntil = prev + MONTH_MS;
+  update('users', (u) => u.id === user.id, { subscription: { status: 'active', trialEndsAt: s.trialEndsAt || now + MONTH_MS, subscribedUntil } });
+  return subscriptionFor({ ...user, subscription: { status: 'active', trialEndsAt: s.trialEndsAt || now + MONTH_MS, subscribedUntil } });
 }
 
-async function onPaymentSucceeded(data) {
-  const ref = data.reference || data.client_reference;
-  const value = data.amount?.value || data.value || 0;
+export const SUB_PRICE_FCFA = SUB_PRICE;
 
-  if (ref?.startsWith('demande:')) {
-    const d = findOne('demandes', (x) => x.ref === ref);
-    if (d) {
-      update('demandes', (x) => x.id === d.id, { paid: true });
-      const ct = findOne('transactions', (x) => x.meta?.demandeId === d.id);
-      if (ct) update('transactions', (x) => x.id === ct.id, { status: 'reussi' });
-    }
-  } else if (ref?.startsWith('sub:')) {
-    const m = data.metadata || {};
-    const db = getDb();
-    db.subscriptions[m.clientId] = {
-      plan: m.plan || 'minutes',
-      name: m.name || 'Forfait',
-      amount: value,
-      renews: m.renews || '15/10/2026',
-    };
-    save();
-    addTransaction({
-      role: 'client', type: 'abonnement', label: TYPE_LABEL.abonnement,
-      amount: -value, status: 'reussi', userId: m.clientId, meta: { ref },
+// ---- Public profile (lien de partage) ----
+export function publicProfile(id) {
+  const u = findOne('users', (x) => x.id === id);
+  if (!u) return null;
+  return { id: u.id, name: u.name, phone: u.phone, role: u.role, waveNumber: u.waveNumber };
+}
+
+// ---- Gérants (contacts) d'un client ----
+export function gerantsFor(clientId) {
+  return find('gerants', (g) => g.ownerId === clientId);
+}
+
+export function addGerant({ clientId, phone, name }) {
+  const phoneTrim = String(phone || '').replace(/[^0-9]/g, '');
+  if (!phoneTrim) throw Object.assign(new Error('Numéro requis'), { status: 400 });
+
+  // Gérant déjà ajouté ?
+  const existing = findOne('gerants', (g) => g.ownerId === clientId && g.phone === phoneTrim);
+  if (existing) return { gerant: existing, created: false };
+
+  // Cherche un utilisateur enregistré avec ce numéro
+  let user = findOne('users', (u) => u.phone === phoneTrim && u.role === 'gerant');
+  let newUser;
+  if (!user) {
+    // Crée un compte gérant (activé plus tard) pour que le lien/le traitement fonctionnent
+    newUser = insert('users', {
+      role: 'gerant',
+      name: name || `Gérant ${phoneTrim.slice(-4)}`,
+      phone: phoneTrim,
+      email: '',
+      passwordHash: '',
+      waveNumber: phoneTrim,
+      subscription: { status: 'trial', trialEndsAt: Date.now() + MONTH_MS, subscribedUntil: 0 },
+      createdAt: Date.now(),
     });
+    user = newUser;
   }
+
+  const gerant = insert('gerants', {
+    ownerId: clientId,
+    userId: user.id,
+    name: user.name,
+    phone: user.phone,
+    waveNumber: user.waveNumber,
+    rating: 4.0,
+    online: true,
+  });
+  return { gerant, created: true };
 }
 
-async function onPayoutSucceeded(data) {
-  const ref = data.reference || data.client_reference;
-  const tx = findOne('transactions', (x) => x.meta?.ref === ref);
-  if (tx) update('transactions', (x) => x.id === tx.id, { status: 'reussi' });
+export function removeGerant({ clientId, gerantId }) {
+  remove('gerants', (g) => g.id === gerantId && g.ownerId === clientId);
 }
 
-async function onPayoutFailed(data) {
-  const ref = data.reference || data.client_reference;
-  const tx = findOne('transactions', (x) => x.meta?.ref === ref);
-  if (tx && tx.meta?.revert) {
-    update('transactions', (x) => x.id === tx.id, { status: 'annule' });
-    const db = getDb();
-    db.balances[tx.meta.userId] = (db.balances[tx.meta.userId] || 0) + Math.abs(tx.amount);
-    save();
+// ---- Demandes ----
+export function createDemande({ client, gerantId, type, amount, benefName, benefPhone }) {
+  const g = findOne('gerants', (g) => g.id === gerantId);
+  if (!g) throw Object.assign(new Error('Gérant introuvable'), { status: 404 });
+  if (!['unites', 'minutes', 'internet'].includes(type)) throw Object.assign(new Error('Type invalide'), { status: 400 });
+  if (!(parseInt(amount, 10) > 0)) throw Object.assign(new Error('Montant invalide'), { status: 400 });
+
+  const d = insert('demandes', {
+    ref: `demande:${Date.now()}`,
+    clientId: client.id,
+    clientName: client.name,
+    clientPhone: client.phone,
+    gerantId: g.id,
+    gerantUserId: g.userId || '',
+    gerantName: g.name,
+    gerantPhone: g.phone,
+    gerantWave: g.waveNumber,
+    type,
+    amount: parseInt(amount, 10),
+    benefName: benefName || client.name,
+    benefPhone: benefPhone || client.phone,
+    status: 'pending',           // pending | accepted | declined | paid | completed
+    createdAt: Date.now(),
+    acceptedAt: 0,
+    paidAt: 0,
+  });
+  return d;
+}
+
+export function demandesForClient(clientId) {
+  return find('demandes', (d) => d.clientId === clientId).sort((a, b) => b.createdAt - a.createdAt);
+}
+
+export function demandesForGerant(userId) {
+  return find('demandes', (d) => d.gerantUserId === userId).sort((a, b) => b.createdAt - a.createdAt);
+}
+
+// ---- Résumé / historique (v2 : on suit les demandes, pas d'argent stocké) ----
+export function demandeSummary(demandes) {
+  const counts = { pending: 0, accepted: 0, declined: 0, paid: 0, completed: 0 };
+  let totalSpent = 0; // somme payée par le client (paid + completed)
+  let totalServed = 0; // somme servie par le gérant (completed)
+  for (const d of demandes || []) {
+    if (counts[d.status] !== undefined) counts[d.status] += 1;
+    if (d.status === 'paid' || d.status === 'completed') totalSpent += d.amount || 0;
+    if (d.status === 'completed') totalServed += d.amount || 0;
   }
+  return { count: (demandes || []).length, counts, totalSpent, totalServed };
+}
+
+export function clientHistory(clientId) {
+  const demandes = demandesForClient(clientId);
+  return { demandes, summary: demandeSummary(demandes) };
+}
+
+export function gerantHistory(userId) {
+  const demandes = demandesForGerant(userId);
+  return { demandes, summary: demandeSummary(demandes) };
+}
+
+export function decideDemande({ id, gerantUserId, decision }) {
+  const d = findOne('demandes', (x) => x.id === id && x.gerantUserId === gerantUserId);
+  if (!d) throw Object.assign(new Error('Demande introuvable'), { status: 404 });
+  if (d.status !== 'pending') throw Object.assign(new Error('Demande déjà traitée'), { status: 400 });
+  const status = decision === 'accept' ? 'accepted' : 'declined';
+  update('demandes', (x) => x.id === id, { status, acceptedAt: Date.now() });
+  return findOne('demandes', (x) => x.id === id);
+}
+
+export function markPaid({ id, clientId }) {
+  const d = findOne('demandes', (x) => x.id === id && x.clientId === clientId);
+  if (!d) throw Object.assign(new Error('Demande introuvable'), { status: 404 });
+  if (d.status !== 'accepted') throw Object.assign(new Error('Demande non acceptée'), { status: 400 });
+  update('demandes', (x) => x.id === id, { status: 'paid', paidAt: Date.now() });
+  return findOne('demandes', (x) => x.id === id);
+}
+
+export function markCompleted({ id, gerantUserId }) {
+  const d = findOne('demandes', (x) => x.id === id && x.gerantUserId === gerantUserId);
+  if (!d) throw Object.assign(new Error('Demande introuvable'), { status: 404 });
+  if (d.status !== 'paid') throw Object.assign(new Error('Demande non payée'), { status: 400 });
+  update('demandes', (x) => x.id === id, { status: 'completed' });
+  return findOne('demandes', (x) => x.id === id);
 }

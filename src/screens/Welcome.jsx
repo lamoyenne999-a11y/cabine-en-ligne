@@ -18,7 +18,7 @@ export default function Welcome({ onSelect }) {
         <Logo size={104} />
         <T size={32} weight="900" color="#fff" style={{ marginTop: 20 }}>Cabine En Ligne</T>
         <T size={font.body} weight="600" color="rgba(255,255,255,0.85)" style={{ marginTop: 6 }}>
-          Votre solution de recharge mobile
+          Rechargez vos unités, minutes et internet en direct, par un gérant de cabine.
         </T>
 
         <View style={s.features}>
@@ -46,7 +46,7 @@ export default function Welcome({ onSelect }) {
             <View style={{ marginLeft: 16, flex: 1 }}>
               <T size={font.h3} weight="800" color={colors.primary}>Je suis Client</T>
               <T size={font.sm} weight="600" color={colors.muted} style={{ marginTop: 3 }}>
-                Rechargez et gérez vos services
+                Demandez unités, minutes ou internet
               </T>
             </View>
           </View>
@@ -60,14 +60,14 @@ export default function Welcome({ onSelect }) {
             <View style={{ marginLeft: 16, flex: 1 }}>
               <T size={font.h3} weight="800" color="#fff">Je suis Gérant</T>
               <T size={font.sm} weight="600" color="rgba(255,255,255,0.8)" style={{ marginTop: 3 }}>
-                Gérez les demandes clients
+                Recevez et traitez les demandes
               </T>
             </View>
           </View>
         </Pressable>
 
         <T size={font.xs} weight="600" color={colors.muted2} style={{ textAlign: 'center', marginTop: space.xxl }}>
-          Version de démonstration
+          © Cabine En Ligne
         </T>
       </View>
     </ScrollView>

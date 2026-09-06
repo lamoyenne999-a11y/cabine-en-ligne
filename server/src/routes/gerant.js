@@ -1,64 +1,44 @@
 import { Router } from 'express';
-import { find, findOne, insert, remove, getDb } from '../db.js';
 import { requireAuth, requireRole } from '../middleware/auth.js';
-import { confirmDemande, withdraw } from '../services/flowService.js';
+import { demandesForGerant, gerantHistory, demandeSummary, decideDemande, markCompleted, subscriptionFor, activateSubscription, publicProfile } from '../services/flowService.js';
 
 const router = Router();
 router.use(requireAuth, requireRole('gerant'));
 
-// ----- Tableau de bord -----
-router.get('/dashboard', (req, res) => {
-  const db = getDb();
-  res.json({
-    balance: db.balances[req.user.id] || 0,
-    stats: { today: 12, week: 67, month: 245 },
-    revenue: { today: 35000, week: 185000, month: 750000 },
-  });
-});
-
-// ----- Demandes (à traiter) -----
+// ---- Demandes reçues ----
 router.get('/demandes', (req, res) => {
-  res.json({ demandes: find('demandes', (d) => d.status !== 'complete') });
+  const demandes = demandesForGerant(req.user.id);
+  res.json({ demandes, summary: demandeSummary(demandes) });
 });
 
-router.post('/demandes/:id/confirm', (req, res) => {
-  const { demande, already } = confirmDemande({ demandeId: req.params.id, gerant: req.user });
-  res.json({ demande, already });
+// Historique + synthèse (total servi, demandes traitées)
+router.get('/history', (req, res) => res.json(gerantHistory(req.user.id)));
+
+router.post('/demandes/:id/accept', (req, res) => {
+  res.json({ demande: decideDemande({ id: req.params.id, gerantUserId: req.user.id, decision: 'accept' }) });
 });
 
-// ----- Clients du gérant -----
-router.get('/clients', (req, res) => {
-  res.json({ clients: find('clients', (c) => c.ownerId === req.user.id || true) });
+router.post('/demandes/:id/decline', (req, res) => {
+  res.json({ demande: decideDemande({ id: req.params.id, gerantUserId: req.user.id, decision: 'decline' }) });
 });
 
-router.post('/clients', (req, res) => {
-  const { name, phone } = req.body || {};
-  if (!name?.trim() || !phone?.trim()) return res.status(400).json({ error: 'Champs requis' });
-  const c = insert('clients', { ownerId: req.user.id, name: name.trim(), phone: phone.trim(), tx: 0, online: true, added: new Date().toLocaleDateString('fr-FR') });
-  res.status(201).json({ client: c });
+// Quand le gérant a servi le client (crédité les unités/minutes/internet)
+router.post('/demandes/:id/complete', (req, res) => {
+  res.json({ demande: markCompleted({ id: req.params.id, gerantUserId: req.user.id }) });
 });
 
-router.delete('/clients/:id', (req, res) => {
-  remove('clients', (c) => c.id === req.params.id);
-  res.json({ ok: true });
-});
+// ---- Profil / Wave marchand ----
+router.get('/profile', (req, res) => res.json({ user: { name: req.user.name, phone: req.user.phone, waveNumber: req.user.waveNumber } }));
 
-// ----- Historique / solde / retrait -----
-router.get('/history', (req, res) => {
-  res.json({ transactions: find('transactions', (t) => t.role === 'gerant' && t.userId === req.user.id) });
-});
+// ---- Abonnement ----
+router.get('/subscription', (req, res) => res.json({ subscription: subscriptionFor(req.user) }));
+router.post('/subscribe', (req, res) => res.json({ subscription: activateSubscription(req.user) }));
 
-router.get('/balance', (req, res) => {
-  const db = getDb();
-  res.json({ balance: db.balances[req.user.id] || 0 });
-});
-
-router.post('/withdraw', async (req, res, next) => {
-  try {
-    const amount = parseInt(req.body?.amount, 10) || 0;
-    const { tx, payout } = await withdraw({ gerant: req.user, amount });
-    res.status(201).json({ tx, payout });
-  } catch (e) { next(e); }
+// ---- Profil public ----
+router.get('/public/:id', (req, res) => {
+  const p = publicProfile(req.params.id);
+  if (!p) return res.status(404).json({ error: 'Profil introuvable' });
+  res.json({ profile: p });
 });
 
 export default router;

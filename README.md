@@ -1,90 +1,99 @@
-# Cabine En Ligne — Prototype React Native (Expo)
+# Cabine En Ligne — App web + PWA
 
-Application **mobile** deux-en-un qui connecte des **clients** (particuliers qui veulent
-recharger leurs unités / minutes / internet) et des **gérants de cabines** qui traitent
-ces demandes et sont payés en direct.
+Application **simple** qui connecte des **clients** (particuliers qui veulent acheter des
+**unités**, des **minutes** ou de l'**internet**) et des **gérants de cabines** qui traitent
+ces demandes et se font **payer en direct via Wave**.
 
-> Cette version est un **prototype cliquable et fonctionnel** (`React Native` + `Expo`).
-> Le paiement **Wave** y est **simulé** (aucune clé API nécessaire). Le guide pour brancher
-> le vrai Wave se trouve dans [`WAVE_INTEGRATION.md`](./WAVE_INTEGRATION.md).
-
----
-
-## 🧭 Le nouveau modèle Wave
-
-Par rapport à l'idée de départ, **plus de « rechargement du solde CEL »**. Wave sert à :
-
-1. **Payer le gérant directement** — quand un client envoie une demande, il paie le gérant
-   de la cabine via Wave (paiement direct, pas de pré-chargement d'un solde).
-2. **Souscrire à un abonnement** — le client paie un forfait mensuel (Unités, Minutes,
-   Internet) via Wave.
-
-Le **gérant**, lui, garde un solde (ses gains) qu'il peut **retirer via Wave**.
+> ⚠️ **L'app ne stocke JAMAIS d'argent.** Elle ne joue pas le rôle d'un portefeuille mobile
+> ni d'une agence. Elle **met en relation** clients et gérants : le client paie avec son
+> propre compte **Wave** (numéro normal), le gérant reçoit sur son **Wave marchand**.
+> L'app affiche simplement le **numéro** auquel envoyer l'argent. → aucune caisse, aucun solde,
+> aucun rechargement, aucun retrait sur l'app.
 
 ---
 
-## 🚀 Lancer le projet
+## ✨ Fonctionnalités (v2 — simple)
+
+- **Connexion par numéro de téléphone** (le numéro est l'identifiant).
+- **1 mois d'essai gratuit**, puis **abonnement 100 FCFA / mois**.
+- Les **clients ajoutent / retirent des gérants librement**.
+- Chaque utilisateur a un **lien de profil public** à partager → les autres vous trouvent,
+  vous ajoutent et vous envoient des demandes.
+- Les **clients créent des demandes** de **unités / minutes / internet** (montant,
+  bénéficiaire, gérant).
+- Les **gérants reçoivent la demande directement** et **acceptent ou refusent**.
+- **Paiement en direct via Wave** : l'app montre le numéro Wave marchand + « J'ai payé ».
+  Le gérant indique ensuite qu'il a servi le client.
+- **Historique & totaux** : chaque utilisateur a un onglet **Historique**.
+  - **Client** : toutes ses transactions + **total dépensé** et statistiques par statut.
+  - **Gérant** : toutes les demandes traitées + **total servi** et statistiques par statut.
+- **PWA installable** sur iPhone et Android — une seule app web.
+
+---
+
+## 🚀 Lancer en local
 
 ```bash
 cd cabine-en-ligne
-npm install          # (node_modules n'est pas sauvegardé : à refaire après redémarrage)
-npx expo start
+npm install                        # (node_modules non sauvegardé : à refaire après redémarrage)
+
+# 1) Backend (API) — terminal 1
+npm run api                        # -> http://localhost:4000
+
+# 2) Application (aperçu façon production) — terminal 2
+npm run preview                    # build web + PWA, sert l'app + proxy /api -> http://localhost:8080
 ```
 
-Puis :
-
-- **Web** : appuyer sur `w` (ou `npm run web`) — le plus simple pour la démo.
-- **Android** : `npm run android` (exige un émulateur / appareil avec Expo Go).
-- **iOS** : `npm run ios` (exige un Mac + simulateur).
-
-> Le raccourci `npm run web` lance le serveur web sur `http://localhost:8081`.
-> L'aperçu préparé pour toi utilise un build web statique servi sur le port `8080`.
+> En dev interactif tu peux aussi : `npx expo start --web`.
+> Le serveur de prévisualisation (`serve.js`) sert `dist/` et proxifie `/api` → `:4000`,
+> donc **pas de CORS** (même origine). En mode web l'app appelle l'API en relatif (`/api`).
 
 ---
 
 ## 👤 Comptes de démonstration
 
-| Rôle | Téléphone | Mot de passe |
-|------|-----------|--------------|
-| **Client** | `0101010101` | *(n'importe lequel — ou vide)* |
-| **Gérant** | `0202020202` | *(idem)* |
+| Rôle | Numéro | Mot de passe |
+|------|--------|--------------|
+| **Client** | `0101010101` | `demo123` |
+| **Gérant** | `771234567` | `demo123` |
 
-Le champ téléphone est **pré-rempli** selon le profil choisi. Il suffit d'appuyer sur
-**« Se connecter »**.
+Le numéro est **pré-rempli** selon le profil choisi sur l'écran d'accueil. Saisis `demo123`.
 
-## 📝 Créer un compte (S'inscrire)
-
-Depuis l'écran **Connexion**, appuie sur **« S'inscrire »** pour créer un nouveau compte
-Client ou Gérant. Renseigne ton nom, ton numéro, (un email optionnel) et un mot de passe
-(au moins 4 caractères, à confirmer). La validation vérifie les champs et la concordance
-des mots de passe, puis te connecte directement avec ton profil.
+D'autres gérants démo : `789876543` (Kiosque Fatou), `765554433` (Cabine Moussa),
+`0202020202` (Cabine Marie). Tous ont `demo123`.
 
 ---
 
-## 🎮 Parcours à tester
+## 📝 Créer un compte
 
-### Côté Client
-1. **Accueil** : voir son abonnement actif, choisir une demande.
-2. **Nouvelle demande** : choisir `Unités / Minutes / Internet`, saisir un montant, choisir
-   `Pour moi` ou `Pour quelqu'un` (+ numéro), **choisir un gérant**, puis **Envoyer la demande**.
-   → Le client est **payé via Wave au gérant** (modale Wave simulée) → la demande part au gérant.
-3. **Abonnements** : choisir un forfait et le **payer via Wave** (active l'abonnement).
-4. **Historique** : voir les transactions (+/−) et leur statut.
-5. **Gérants** : ajouter / supprimer des gérants.
-6. **Profil** : préférences (masquer le solde, notifications), déconnexion.
+Depuis l'écran **Connexion** → **« S'inscrire »**. Renseigne le **nom** (ou nom de cabine
+pour un gérant), ton **numéro de téléphone** et un mot de passe (≥ 4 caractères, confirmé).
+Tu bénéficies immédiatement de **1 mois d'essai gratuit**.
 
-### Côté Gérant
-1. **Tableau de bord** : solde CEL, statistiques, revenus, **Retirer via Wave**.
-2. **Demandes** : la demande envoyée par le client apparaît avec un **compte à rebours**,
-   puis **Confirmer la demande** → la somme est créditée au solde du gérant.
-3. **Statistique** : taux de réussite, clients servis, graphique des revenus de la semaine.
-4. **Historique** : gains et retraits, filtres par catégorie / statut.
-5. **Clients** : gérer la liste des clients.
-6. **Profil** : retirer les gains, déconnexion.
+---
 
-> 💡 Pour voir le fonctionnement **bout-en-bout** : en tant que **client**, envoyez une
-> demande à un gérant *en ligne*. Puis connectez-vous en **gérant** et confirmez-la.
-> Le client verra alors sa transaction passer à « Réussi ».
+## 🎮 Parcours à tester (bout en bout)
+
+**Côté Client**
+1. **Accueil** : vois ton abonnement (essai actif) et crée une **Nouvelle demande**.
+2. Choisis **Unités / Minutes / Internet**, saisis un montant, choisis le bénéficiaire
+   (`Pour moi` ou `Pour quelqu'un`) et **un gérant**, puis **Envoyer la demande**.
+3. **Historique** : la transaction apparaît (En attente → À payer → Payée → Complétée),
+   avec le **total dépensé** en tête.
+4. **Gérants** : ajoute / retire des gérants (ou via ton **lien de profil** partagé).
+
+**Côté Gérant**
+1. Connecte-toi comme **gérant** (ex. `771234567` / `demo123`).
+2. **Demandes** : la demande apparaît → **Accepter** ou **Refuser**.
+3. Une fois acceptée, le client va « payer » → le gérant voit « Payée » → **J'ai servi le client**.
+4. **Historique** : toutes les demandes traitées + **total servi**.
+
+**Paiement** : quand la demande est acceptée, le client ouvre son app **Wave**, envoie le
+montant au **numéro Wave marchand** affiché, puis appuie sur **« J'ai payé »**. Le gérant
+reçoit l'argent sur son Wave marchand. **Aucun argent ne transite par l'app.**
+
+> 💡 **Lien de partage** : depuis **Profil**, copie ton lien (`https://…/?u=ID`). Quiconque
+> l'ouvre voit ta page publique et peut **t'ajouter** et **transacter** avec toi.
 
 ---
 
@@ -92,101 +101,75 @@ des mots de passe, puis te connecte directement avec ton profil.
 
 ```
 cabine-en-ligne/
-├─ App.js                      # racine : Welcome → Login → Client / Gérant
+├─ App.js                  # racine : Welcome → Login/Signup → Client / Gérant + ?u=ID (profil public)
 ├─ src/
-│  ├─ theme.js                 # palette violette + helpers (xof, ombres…)
-│  ├─ store.jsx                # état global (useReducer) + données de démo
+│  ├─ api.js               # client HTTP (auth, public, client, gérant)
+│  ├─ store.jsx            # état global + bascule auto API / démo locale
+│  ├─ config.js            # API_URL + buildShareUrl()
+│  ├─ theme.js             # palette, espacements, helpers
 │  ├─ components/
-│  │  ├─ ui.jsx                # boutons, champs, tuiles, pastilles…
-│  │  ├─ Shell.jsx             # en-tête violet + barre d'onglets mobile
-│  │  ├─ Logo.jsx              # logo « A la cabine EN LIGNE » (dessiné)
-│  │  └─ modals.jsx            # BottomSheet + Dialog + WaveModal (simulation)
+│  │  ├─ ui.jsx            # T, Card, Btn, Field, Pill, Segmented, ListRow…
+│  │  ├─ Shell.jsx         # Header / Page / TabBar
+│  │  ├─ WavePay.jsx       # WavePaySheet : montre le numéro marchand + « J'ai payé »
+│  │  ├─ modals.jsx        # BottomSheet + Dialog
+│  │  ├─ Logo.jsx          # logo officiel (assets/cabine-logo.png)
+│  │  └─ ConnectionBadge.jsx
 │  └─ screens/
-│     ├─ Welcome.jsx
-│     ├─ Login.jsx
-│     ├─ client/               # Accueil, Abonnements, Historique, Gérants, Profil
-│     └─ gerant/               # Tableau, Demandes, Stat., Historique, Clients, Profil
-└─ WAVE_INTEGRATION.md         # guide pour passer à un paiement Wave réel
+│     ├─ Welcome.jsx / Login.jsx / Signup.jsx / PublicProfile.jsx
+│     ├─ client/  (ClientApp, ClientHome, ClientHistory, ClientGerants, ClientProfile)
+│     └─ gerant/  (GerantApp, GerantDemandes, GerantHistory, GerantProfile)
+└─ server/                 # backend Express + base + passerelle Wave (mock)
 ```
 
 ---
 
-## 🛠️ Notes techniques
+## 🧩 Backend
 
-- **Framework** : Expo SDK 57 (React Native 0.86 + React 19).
-- **Web** : l'app se rend aussi sur navigateur via `react-native-web` (aucun module natif requis).
-- **Paiement Wave** : `WaveModal` simule les étapes *Vérification → Traitement → Succès*.
-  C'est le point de remplacement par l'API réelle (voir le guide).
-- **Compte à rebours** des demandes : calcul en direct, se met à jour chaque seconde.
-- Les données sont **en mémoire** (rechargées à chaque redémarrage de la page).
-
----
-
-### En production (app installable — PWA)
-
-L'app est aussi **installable** comme une app native sur mobile (iOS et Android) :
-
-```bash
-npm run build:web    # build web + PWA (manifest, icônes, service worker)
-node serve.js        # sert l'app (dist/) + proxifie /api -> http://localhost:8080
-```
-
-- **iOS (iPhone)** : ouvrir le lien dans Safari → **Partager** → **« Sur l'écran d'accueil »**.
-  L'app se lance alors **plein écran**, avec son logo, comme une vraie app.
-- **Android** : ouvrir le lien → **Installer l'application** (proposé automatiquement),
-  ou via le menu du navigateur. Elle s'ajoute à l'écran d'accueil.
-
-Une seule app (web) qui **se comporte comme une app native** sur les deux plateformes.
-
-## 🧩 Backend (paiement Wave + base de données)
-
-Un **backend Node/Express complet** est inclus dans `server/`, avec une **base de données**
-et une **passerelle Wave** (mockée par défaut, prête à être branchée sur `api.wave.com`).
-Il expose toute l'API : comptes, demandes, abonnements, soldes et retraits.
+Backend **Node/Express** dans `server/`, avec base **JSON** (dev) ou **PostgreSQL**
+(production, `DATABASE_URL`), et passerelle **Wave** (mock par défaut, prête pour
+`api.wave.com`).
 
 ```bash
 cd server
 npm install
-node src/index.js        # API sur http://localhost:4000
-node test.js             # 16 tests de bout en bout (mode Wave mock)
+npm run test:api            # node test.js — 21 tests v2 (mode Wave mock)
+node src/index.js           # API sur http://localhost:4000
 ```
 
-Voir **`server/README.md`** pour le détail des routes et `WAVE_INTEGRATION.md` pour brancher
-le vrai Wave.
+Le **modèle de données v2** (zéro argent) :
+
+- `users` : `{ id, role: client|gerant, name, phone, email, passwordHash, waveNumber,
+  subscription: { status: trial|active|expired, trialEndsAt, subscribedUntil }, createdAt }`
+- `gerants` : `{ id, ownerId (client), userId (gérant), name, phone, waveNumber, rating, online }`
+- `demandes` : `{ id, ref, clientId, clientName, clientPhone, gerantId, gerantUserId,
+  gerantName, gerantPhone, gerantWave, type: unites|minutes|internet, amount, benefName,
+  benefPhone, status: pending|accepted|declined|paid|completed, createdAt, acceptedAt, paidAt }`
 
 ---
 
-## 🔌 Front-end connecté à l'API
+## 📲 Installer comme app (PWA)
 
-Le prototype est maintenant **relié au backend** : quand **l'API est joignable**, l'app joue
-avec les vraies données du serveur ; sinon, elle bascule automatiquement sur la **démo locale**
-(les données en mémoire). Une pastille en haut à gauche de chaque espace indique le mode :
-🟢 **Connecté à l'API** / ⚪ **Mode démo**.
+Une seule app web, installable sur les deux plateformes :
 
-### Lancer tout l'ensemble
 ```bash
-# 1) Backend (dans un terminal)
-npm run api                 # -> http://localhost:4000
-
-# 2) Front (dans un autre terminal)
-npx expo start --web        # serveur de dev Expo (avec le proxy API intégré par Metro)
-#  ou, pour un aperçu façon production :
-npm run preview             # build web + serveur (app + proxy /api) -> http://localhost:8080
+npm run build:web           # build web + PWA (manifest, icônes, service worker)
+node serve.js               # sert dist/ + proxifie /api -> http://localhost:8080
 ```
 
-En web dev (`expo start --web`), Metro proxyfie déjà `/api` vers le backend. En production,
-`serve.js` fait la même chose sur un seul port. Il n'y a donc **pas de problème de CORS**.
-
-> Pour tester sur téléphone avec `expo start`, renseigne l'IP de ta machine dans
-> `src/config.js` (`detectBaseUrl`) pour que l'API soit joignable depuis l'appareil.
+- **iOS (iPhone)** : ouvre le lien dans **Safari** → **Partager** → **« Sur l'écran d'accueil »**.
+- **Android** : ouvre le lien → **Installer l'application** (proposé automatiquement).
 
 ---
 
-## Prochaines étapes (production)
+## 🔌 Bascule auto API / démo locale
 
-1. ✔️ Relier l'app mobile au backend — **fait** (bascule auto API / démo).
-2. Authentification réelle (téléphone + mot de passe / OTP) — déjà côté API.
-3. Intégration **Wave Business API** pour les paiements réels (voir guide).
-4. Notifications push pour signaler les demandes au gérant.
-5. Passer la base JSON à **Postgres** (module `db.js` prêt à être remplacé).
-6. **Persister la session** (garder le JWT au redémarrage pour rester connecté).
+Quand **l'API est joignable**, l'app travaille avec les vraies données du serveur ; sinon
+elle bascule sur la **démo locale** (données en mémoire). La **connexion** et la **création
+des comptes** restent donc utilisables même sans API.
+
+---
+
+## Intégration Wave réelle
+
+Voir **`WAVE_INTEGRATION.md`** pour brancher la passerelle sur `api.wave.com`
+(Checkout, Payout, Webhooks HMAC-SHA256, pays CI `+225`).

@@ -1,12 +1,11 @@
 import React, { useState } from 'react';
-import {
-  View, Text, TextInput, Pressable, ScrollView, StyleSheet, ActivityIndicator,
-} from 'react-native';
+import { View, Text, TextInput, Pressable, StyleSheet } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
-import { colors, radius, space, font, shadow } from '../../theme';
+import { colors, radius, space, font } from '../../theme';
 import { T, Btn, Card, SectionTitle, Segmented } from '../../components/ui';
 import { Header } from '../../components/Shell';
-import { BottomSheet, Dialog, DialogButtons, WaveModal } from '../../components/modals';
+import { BottomSheet, Dialog, DialogButtons } from '../../components/modals';
+import { WavePaySheet, PLATFORM_WAVE, PLATFORM_NAME } from '../../components/WavePay';
 import { useStore } from '../../store';
 
 const TYPES = [
@@ -15,79 +14,70 @@ const TYPES = [
   { key: 'internet', label: 'Internet', icon: 'wifi-outline' },
 ];
 
+function SubBanner({ sub, onSubscribe }) {
+  const status = sub?.status || 'trial';
+  const daysLeft = sub?.daysLeft ?? 30;
+  const isExpired = status === 'expired';
+  const showSubButton = isExpired || daysLeft <= 5;
+  return (
+    <Card style={s.subBanner}>
+      <View style={s.subIcon}>
+        <Ionicons name={status === 'active' ? 'checkmark-done' : 'sparkles'} size={22} color={colors.primary} />
+      </View>
+      <View style={{ flex: 1, marginLeft: 12 }}>
+        <T size={font.xs} weight="700" color={colors.primary}>
+          {status === 'active' ? 'ABONNEMENT ACTIF' : status === 'expired' ? 'ABONNEMENT EXPIRÉ' : 'ESSAI GRATUIT'}
+        </T>
+        <T size={font.body} weight="800" color={colors.text}>
+          {status === 'active' ? `Actif — ${daysLeft} j restants` : status === 'expired' ? 'Réabonnez-vous pour continuer' : `${daysLeft} jours d'essai restants`}
+        </T>
+        <T size={font.xs} weight="600" color={colors.muted} style={{ marginTop: 2 }}>100 FCFA / mois après l'essai</T>
+      </View>
+      {showSubButton && (
+        <Pressable onPress={onSubscribe} style={s.payBtn}>
+          <T size={font.xs} weight="800" color="#fff">S'abonner</T>
+        </Pressable>
+      )}
+    </Card>
+  );
+}
+
 export default function ClientHome() {
-  const { state, sendDemande, subscribe } = useStore();
+  const { state, createDemande, subscribe } = useStore();
   const [type, setType] = useState('unites');
   const [amount, setAmount] = useState('');
   const [who, setWho] = useState('moi');
+  const [benefName, setBenefName] = useState('');
   const [benefPhone, setBenefPhone] = useState('');
   const [gerantId, setGerantId] = useState(null);
-
   const [showGerants, setShowGerants] = useState(false);
-  const [phase, setPhase] = useState('idle'); // idle | searching | pay | sent | sub
+  const [showSub, setShowSub] = useState(false);
+  const [sent, setSent] = useState(false);
 
   const gerant = state.gerants.find((g) => g.id === gerantId);
-  const sub = state.activeSubscription;
   const amountNum = parseInt(amount, 10) || 0;
-  const displayPhone = who === 'autre' ? benefPhone : (state.user?.phone || '');
 
-  const handleSendDemande = () => {
+  const submit = () => {
     if (amountNum <= 0) return;
     if (!gerantId) { setShowGerants(true); return; }
-    setPhase('searching');
-    setTimeout(() => setPhase('pay'), 1700);
+    createDemande({
+      gerantId,
+      gerantName: gerant.name,
+      gerantWave: gerant.waveNumber,
+      type,
+      amount: amountNum,
+      benefName: who === 'autre' ? benefName : (state.user?.name || 'Moi'),
+      benefPhone: who === 'autre' ? benefPhone : (state.user?.phone || ''),
+    });
+    setAmount(''); setWho('moi'); setBenefName(''); setBenefPhone('');
+    setSent(true);
   };
-
-  const resetForm = () => {
-    setAmount('');
-    setWho('moi');
-    setBenefPhone('');
-    setPhase('idle');
-  };
-
-  const onWaveSuccess = () => {
-    sendDemande({ type, amount: amountNum, beneficiary: displayPhone, gerantId });
-    setPhase('sent');
-    resetForm();
-  };
-
-  const paySubscription = () => setPhase('sub');
 
   return (
     <View style={{ flex: 1, backgroundColor: colors.bg }}>
       <Header title="Accueil" noPad />
-      <ScrollView contentContainerStyle={s.content} showsVerticalScrollIndicator={false}>
-        {/* Active subscription banner */}
-        <Card style={s.subBanner}>
-          {sub ? (
-            <>
-              <View style={s.subIcon}>
-                <Ionicons name="sparkles" size={22} color={colors.primary} />
-              </View>
-              <View style={{ flex: 1, marginLeft: 12 }}>
-                <T size={font.xs} weight="700" color={colors.primary}>ABONNEMENT ACTIF</T>
-                <T size={font.h3} weight="800" color={colors.text}>{sub.name}</T>
-                <T size={font.xs} weight="600" color={colors.muted} style={{ marginTop: 2 }}>
-                  {state.hideBalance ? '• • • • XOF' : sub.amount.toLocaleString('fr-FR').replace(/\u202f/g, ' ') + ' XOF'} · renouvelé le {sub.renews}
-                </T>
-              </View>
-              <Pressable onPress={paySubscription} style={s.payBtn}>
-                <T size={font.xs} weight="800" color="#fff">Payer</T>
-              </Pressable>
-            </>
-          ) : (
-            <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', width: '100%' }}>
-              <View>
-                <T size={font.h3} weight="800" color={colors.text}>Aucun abonnement</T>
-                <T size={font.xs} weight="600" color={colors.muted} style={{ marginTop: 2 }}>Choisissez un forfait</T>
-              </View>
-              <Pressable onPress={paySubscription} style={s.payBtn}>
-                <T size={font.xs} weight="800" color="#fff">S'abonner</T>
-              </Pressable>
-            </View>
-          )}
-        </Card>
-
+      <View style={s.content}>
+        <SubBanner sub={state.subscription} onSubscribe={() => setShowSub(true)} />
         <SectionTitle style={{ marginTop: 4 }}>Nouvelle demande</SectionTitle>
 
         {/* Type selector */}
@@ -109,101 +99,55 @@ export default function ClientHome() {
         <Card style={{ marginTop: space.lg }}>
           <T size={font.sm} weight="700" color={colors.textSoft} style={{ marginBottom: 7 }}>Montant (XOF)</T>
           <View style={s.input}>
-            <TextInput
-              value={amount}
-              onChangeText={(t) => setAmount(t.replace(/[^0-9]/g, ''))}
-              placeholder="Ex: 5000"
-              placeholderTextColor={colors.muted2}
-              keyboardType="number-pad"
-              style={s.inputText}
-            />
+            <TextInput value={amount} onChangeText={(t) => setAmount(t.replace(/[^0-9]/g, ''))} placeholder="Ex : 2000" placeholderTextColor={colors.muted2} keyboardType="number-pad" style={s.inputText} />
           </View>
 
-          <T size={font.sm} weight="700" color={colors.textSoft} style={{ marginTop: space.lg, marginBottom: 10 }}>
-            Bénéficiaire
-          </T>
-          <Segmented
-            value={who}
-            onChange={setWho}
-            options={[
-              { value: 'moi', label: 'Pour moi' },
-              { value: 'autre', label: "Pour quelqu'un" },
-            ]}
-          />
+          <T size={font.sm} weight="700" color={colors.textSoft} style={{ marginTop: space.lg, marginBottom: 10 }}>Bénéficiaire</T>
+          <Segmented value={who} onChange={setWho} options={[{ value: 'moi', label: 'Pour moi' }, { value: 'autre', label: 'Pour quelqu\'un' }]} />
 
           {who === 'autre' && (
             <>
-              <T size={font.sm} weight="700" color={colors.textSoft} style={{ marginTop: space.lg, marginBottom: 7 }}>
-                Numéro du bénéficiaire
-              </T>
-              <View style={s.input}>
-                <Ionicons name="call-outline" size={18} color={colors.primary} style={{ marginRight: 10 }} />
-                <TextInput
-                  value={benefPhone}
-                  onChangeText={(t) => setBenefPhone(t.replace(/[^0-9]/g, ''))}
-                  placeholder="Ex: 77 123 45 67"
-                  placeholderTextColor={colors.muted2}
-                  keyboardType="phone-pad"
-                  style={s.inputText}
-                />
-              </View>
+              <T size={font.sm} weight="700" color={colors.textSoft} style={{ marginTop: space.lg, marginBottom: 7 }}>Nom du bénéficiaire</T>
+              <View style={s.input}><Ionicons name="person-outline" size={18} color={colors.primary} style={{ marginRight: 10 }} /><TextInput value={benefName} onChangeText={setBenefName} placeholder="Ex : Moussa" placeholderTextColor={colors.muted2} style={s.inputText} /></View>
+              <T size={font.sm} weight="700" color={colors.textSoft} style={{ marginTop: space.lg, marginBottom: 7 }}>Numéro du bénéficiaire</T>
+              <View style={s.input}><Ionicons name="call-outline" size={18} color={colors.primary} style={{ marginRight: 10 }} /><TextInput value={benefPhone} onChangeText={(t) => setBenefPhone(t.replace(/[^0-9]/g, ''))} placeholder="Ex : 07 07 07 07 07" placeholderTextColor={colors.muted2} keyboardType="phone-pad" style={s.inputText} /></View>
             </>
           )}
 
           <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginTop: space.lg }}>
-            <T size={font.sm} weight="700" color={colors.textSoft}>Choisir un gérant</T>
-            {gerant ? (
-              <View style={{ flexDirection: 'row', alignItems: 'center' }}>
-                <View style={{ width: 8, height: 8, borderRadius: 4, backgroundColor: colors.success, marginRight: 5 }} />
-                <T size={font.xs} weight="700" color={colors.success}>En ligne</T>
-              </View>
-            ) : null}
+            <T size={font.sm} weight="700" color={colors.textSoft}>Gérant</T>
+            <View style={{ flexDirection: 'row', alignItems: 'center' }}>
+              <View style={{ width: 8, height: 8, borderRadius: 4, backgroundColor: gerant?.online ? colors.success : colors.muted2, marginRight: 5 }} />
+              <T size={font.xs} weight="700" color={gerant?.online ? colors.success : colors.muted}>{gerant?.online ? 'En ligne' : 'Hors ligne'}</T>
+            </View>
           </View>
           <Pressable onPress={() => setShowGerants(true)} style={[s.input, { marginTop: 8 }]}>
             <View style={s.gerantPick}>
-              <Ionicons name={gerant ? 'storefront' : 'people-outline'} size={20} color={colors.primary} style={{ marginRight: 10 }} />
-              <Text style={[s.inputText, gerant ? { color: colors.text, fontWeight: '700' } : null]} numberOfLines={1}>
-                {gerant ? `${gerant.name}` : 'Sélectionner un gérant'}
-              </Text>
-              {gerant ? <T size={font.xs} weight="600" color={colors.muted2} style={{ marginHorizontal: 8 }}>{gerant.phone}</T> : null}
+              <Ionicons name="storefront-outline" size={20} color={colors.primary} style={{ marginRight: 10 }} />
+              <Text style={[s.inputText, gerant ? { color: colors.text, fontWeight: '700' } : null]} numberOfLines={1}>{gerant ? gerant.name : 'Sélectionner un gérant'}</Text>
               <Ionicons name="chevron-down" size={18} color={colors.muted2} />
             </View>
           </Pressable>
 
-          <Btn
-            title="Envoyer la demande"
-            icon="paper-plane"
-            onPress={handleSendDemande}
-            style={{ marginTop: space.lg }}
-          />
+          <Btn title="Envoyer la demande" icon="paper-plane" onPress={submit} style={{ marginTop: space.lg }} />
           <T size={font.xs} weight="600" color={colors.muted2} style={{ textAlign: 'center', marginTop: 10 }}>
-            Le gérant vous créditera via la demande. Paiement direct via Wave.
+            Le gérant vous créditera après votre paiement Wave direct. Aucun argent n'est stocké sur l'app.
           </T>
         </Card>
-      </ScrollView>
+      </View>
 
-      {/* Gérant picker sheet */}
+      {/* Gérant picker */}
       <BottomSheet visible={showGerants} onClose={() => setShowGerants(false)}>
         <View style={s.sheetHandle} />
         <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: space.md }}>
           <T size={font.h3} weight="800" color={colors.text}>Choisir un gérant</T>
-          <Pressable onPress={() => setShowGerants(false)}>
-            <Ionicons name="close" size={24} color={colors.muted} />
-          </Pressable>
+          <Pressable onPress={() => setShowGerants(false)}><Ionicons name="close" size={24} color={colors.muted} /></Pressable>
         </View>
         {state.gerants.map((g) => (
-          <Pressable
-            key={g.id}
-            onPress={() => { setGerantId(g.id); setShowGerants(false); }}
-            style={[s.gerantRow, gerantId === g.id && s.gerantRowOn]}
-          >
+          <Pressable key={g.id} onPress={() => { setGerantId(g.id); setShowGerants(false); }} style={[s.gerantRow, gerantId === g.id && { opacity: 0.7 }]}>
             <View style={{ flex: 1 }}>
               <T size={font.body} weight="800" color={colors.text}>{g.name}</T>
               <T size={font.sm} weight="600" color={colors.muted} style={{ marginTop: 2 }}>{g.phone}</T>
-              <View style={{ flexDirection: 'row', alignItems: 'center', marginTop: 4 }}>
-                <Ionicons name="star" size={13} color={colors.warn} />
-                <T size={font.xs} weight="700" color={colors.warn} style={{ marginLeft: 3 }}>{g.rating}</T>
-              </View>
             </View>
             <View style={{ flexDirection: 'row', alignItems: 'center' }}>
               <View style={{ width: 8, height: 8, borderRadius: 4, backgroundColor: g.online ? colors.success : colors.muted2, marginRight: 5 }} />
@@ -214,82 +158,36 @@ export default function ClientHome() {
         <Btn title="Valider" onPress={() => setShowGerants(false)} style={{ marginTop: space.lg }} />
       </BottomSheet>
 
-      {/* Searching overlay */}
-      <Dialog visible={phase === 'searching'}>
-        <View style={{ alignItems: 'center', paddingVertical: 12 }}>
-          <ActivityIndicator size="large" color={colors.primary} />
-          <T size={font.h3} weight="800" color={colors.text} style={{ marginTop: 18 }}>Recherche de gérants…</T>
-          <T size={font.sm} weight="600" color={colors.muted} style={{ marginTop: 6, textAlign: 'center' }}>
-            Votre demande est en cours de traitement
-          </T>
-        </View>
-      </Dialog>
-
-      {/* Sent success dialog */}
-      <Dialog visible={phase === 'sent'}>
+      {/* Demande envoyée */}
+      <Dialog visible={sent}>
         <View style={{ alignItems: 'center', paddingVertical: 10 }}>
           <Ionicons name="checkmark-circle" size={72} color={colors.success} />
           <T size={font.h3} weight="800" color={colors.text} style={{ marginTop: 14 }}>Demande envoyée !</T>
           <T size={font.sm} weight="600" color={colors.muted} style={{ marginTop: 6, textAlign: 'center' }}>
-            Votre demande a été transférée à {gerant?.name || 'un gérant'}. Suivez son traitement dans l'historique.
+            {gerant?.name} va l'accepter ou la refuser. Suivez-la dans « Mes demandes ».
           </T>
         </View>
-        <DialogButtons confirm="OK" onConfirm={() => setPhase('idle')} />
+        <DialogButtons confirm="OK" onConfirm={() => setSent(false)} />
       </Dialog>
 
-      {/* Wave direct payment to gérant */}
-      <WaveModal
-        visible={phase === 'pay'}
-        onClose={() => setPhase('idle')}
-        onSuccess={onWaveSuccess}
-        title="Paiement au gérant"
-        amount={amountNum}
-        recipient={gerant?.name}
-        recipientDetail={gerant?.phone}
-      />
-
-      {/* Wave subscription payment */}
-      <WaveModal
-        visible={phase === 'sub'}
-        onClose={() => setPhase('idle')}
-        onSuccess={() => {
-          subscribe({ plan: sub?.plan || 'minutes', name: sub?.name || 'Forfait Minutes', amount: sub?.amount || 3000, renews: '14/10/2026' });
-          setPhase('idle');
-        }}
-        title="Abonnement"
-        amount={sub?.amount || 3000}
-        recipient="Cabine En Ligne"
-        recipientDetail="Compte abonnement"
-      />
+      {/* Abonnement */}
+      <WavePaySheet visible={showSub} onClose={() => setShowSub(false)} onConfirm={() => { subscribe(); setShowSub(false); }} title="Abonnement mensuel" amount={100} merchant={PLATFORM_WAVE} merchantName={PLATFORM_NAME} subtitle="100 FCFA / mois après votre mois d'essai gratuit" />
     </View>
   );
 }
 
 const s = StyleSheet.create({
   content: { paddingHorizontal: space.lg, paddingBottom: 120, paddingTop: space.md },
-  subBanner: { flexDirection: 'row', alignItems: 'center', marginBottom: space.xl, padding: space.md },
+  subBanner: { flexDirection: 'row', alignItems: 'center', marginBottom: space.lg, padding: space.md },
   subIcon: { width: 44, height: 44, borderRadius: 22, backgroundColor: colors.primarySoft, alignItems: 'center', justifyContent: 'center' },
-  payBtn: {
-    backgroundColor: colors.primary, paddingHorizontal: 16, paddingVertical: 9,
-    borderRadius: radius.pill, marginLeft: 8,
-  },
+  payBtn: { backgroundColor: colors.primary, paddingHorizontal: 16, paddingVertical: 9, borderRadius: radius.pill, marginLeft: 8 },
   typeRow: { flexDirection: 'row', justifyContent: 'space-between' },
-  typeCard: {
-    flex: 1, alignItems: 'center', backgroundColor: '#fff', borderRadius: radius.md,
-    paddingVertical: 18, marginHorizontal: 4, borderWidth: 1.6, borderColor: colors.border,
-  },
+  typeCard: { flex: 1, alignItems: 'center', backgroundColor: '#fff', borderRadius: radius.md, paddingVertical: 18, marginHorizontal: 4, borderWidth: 1.6, borderColor: colors.border },
   typeCardOn: { backgroundColor: colors.primary, borderColor: colors.primary },
   typeIcon: { marginBottom: 8 },
-  input: {
-    flexDirection: 'row', alignItems: 'center', backgroundColor: colors.bg,
-    borderRadius: radius.md, paddingHorizontal: 14, height: 52,
-  },
+  input: { flexDirection: 'row', alignItems: 'center', backgroundColor: colors.bg, borderRadius: radius.md, paddingHorizontal: 14, height: 52 },
   inputText: { flex: 1, fontSize: font.body, color: colors.text, paddingVertical: 0, outlineStyle: 'none' },
   sheetHandle: { width: 44, height: 5, borderRadius: 3, backgroundColor: colors.muted2, alignSelf: 'center', marginBottom: 16 },
-  gerantRow: {
-    flexDirection: 'row', alignItems: 'center', paddingVertical: 14,
-    borderBottomWidth: 1, borderBottomColor: colors.border,
-  },
-  gerantRowOn: { opacity: 0.7 },
+  gerantRow: { flexDirection: 'row', alignItems: 'center', paddingVertical: 14, borderBottomWidth: 1, borderBottomColor: colors.border },
   gerantPick: { flexDirection: 'row', alignItems: 'center', flex: 1 },
 });

@@ -1,11 +1,13 @@
 // ==================================================================
-//  Test de bout en bout de l'API Cabine En Ligne (mode Wave mock)
-//  Usage : node test.js   (le serveur doit tourner sur le port 4000)
+//  Test de bout en bout — Cabine En Ligne v2 (ZÉRO argent stocké)
+//  Modèle : clients <-> gérants, demandes (unités/minutes/internet),
+//  paiement direct Wave hors app, abonnement 100 FCFA + 1 mois d'essai.
+//  Usage : node test.js   (un serveur doit tourner ; API par défaut :4000)
 // ==================================================================
 const BASE = process.env.API || 'http://localhost:4000/api';
+const PWD = process.env.DEMO_PWD || 'demo123';
 
 let pass = 0, fail = 0;
-
 function check(label, cond) {
   if (cond) { pass++; console.log(`  ✅ ${label}`); }
   else { fail++; console.log(`  ❌ ${label}`); }
@@ -20,85 +22,104 @@ async function req(method, path, body, token) {
     body: body ? JSON.stringify(body) : undefined,
   });
   const text = await r.text();
-  let j;
-  try { j = JSON.parse(text); } catch { j = { raw: text }; }
+  let j; try { j = JSON.parse(text); } catch { j = { raw: text }; }
   return { status: r.status, json: j };
 }
 
-const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
-
 async function main() {
-  console.log('\n===== Test Cabine En Ligne (Wave = mock) =====\n');
+  console.log('\n===== Test Cabine En Ligne v2 (Wave = mock) =====\n');
 
-  // Health
+  // Santé
   const health = await req('GET', '/../health');
-  check('API démarrée (health 200)', health.status === 200);
+  check('API démarrée (health 200)', health.status === 200 && health.json.status === 'ok');
 
-  // Register client
+  // Inscription client (1 mois d'essai gratuit)
   const uniq = Date.now().toString().slice(-6);
   const reg = await req('POST', '/auth/register', {
-    role: 'client', name: 'Awa Cissé', phone: '07' + uniq, email: 'awa@example.com', password: '1234',
+    role: 'client', name: 'Awa Cissé', phone: '07' + uniq, password: '1234',
   });
   check('Inscription client 201', reg.status === 201);
+  check('Inscription : essai gratuit (status trial)', reg.json.subscription?.status === 'trial');
+  check('Inscription : 30 jours d\'essai', reg.json.subscription?.daysLeft === 30 || reg.json.subscription?.daysLeft === 29);
   const ct = reg.json.token;
 
-  // Login gerant demo
-  const lg = await req('POST', '/auth/login', { phone: '0202020202', password: '' });
-  check('Connexion gérant 200', lg.status === 200);
+  // Connexion gérant démo (identifiant = téléphone)
+  const lg = await req('POST', '/auth/login', { phone: '771234567', password: PWD });
+  check('Connexion gérant par téléphone 200', lg.status === 200 && lg.json.user?.role === 'gerant');
   const gt = lg.json.token;
 
-  // Balances initiales
-  const b0 = await req('GET', '/gerant/balance', null, gt);
-  check('Solde gérant initial > 0', b0.json.balance > 0);
-  const bal0 = b0.json.balance;
+  // Aucune notion de solde : le champ solde ne doit pas exister
+  check('Pas de solde dans la réponse d\'auth', !('balance' in (lg.json.user || {})));
 
-  // Create demande
+  // Profil public via lien de partage (sans authentification)
+  const pp = await req('GET', `/public/u/${lg.json.user.id}`);
+  check('Profil public accessibles sans token', pp.status === 200 && pp.json.profile?.id === 'u_amadou');
+  check('Profil public expose le Wave marchand', !!pp.json.profile?.waveNumber);
+
+  // Ajout d'un gérant par le nouveau client (via le lien public)
+  const addg = await req('POST', '/client/gerants', { phone: '771234567', name: 'Boutique Amadou' }, ct);
+  check('Ajout de gérant 201', addg.status === 201 && !!addg.json.gerant?.id);
+  const gerantId = addg.json.gerant?.id;
+
+  // Création d'une demande (unités)
   const dm = await req('POST', '/client/demandes', {
-    type: 'minutes', amount: 2500, beneficiary: '765554433', gerantId: 'g3',
+    gerantId, gerantName: 'Boutique Amadou', gerantWave: '771234567',
+    type: 'unites', amount: 2000, benefName: 'Awa', benefPhone: '07' + uniq,
   }, ct);
-  check('Création demande 201', dm.status === 201);
-  check('Checkout Wave retourné', !!dm.json.checkout?.id);
-  const demandeId = dm.json.demande.id;
+  check('Création demande 201', dm.status === 201 && dm.json.demande?.status === 'pending');
+  const demandeId = dm.json.demande?.id;
 
-  // Le gérant ne devrait PAS pouvoir confirmer avant paiement
-  await sleep(100);
-  const preConfirm = await req('POST', `/gerant/demandes/${demandeId}/confirm`, {}, gt);
-  // (selon timing le webhook mock peut déjà être passé; on n'assert pas strictement)
+  // Le gérant voit la demande en attente
+  const gd = await req('GET', '/gerant/demandes', null, gt);
+  const pending = (gd.json.demandes || []).find((d) => d.id === demandeId);
+  check('Gérant voit la demande en attente', !!pending && pending.status === 'pending');
 
-  // Attendre le webhook mock (payment.succeeded)
-  check('Attente webhook Wave simulé…', true);
-  await sleep(2500);
+  // Le gérant accepte
+  const acc = await req('POST', `/gerant/demandes/${demandeId}/accept`, {}, gt);
+  check('Acceptation gérant OK', acc.status === 200 && acc.json.demande?.status === 'accepted');
 
-  // Confirmer
-  const conf = await req('POST', `/gerant/demandes/${demandeId}/confirm`, {}, gt);
-  check('Confirmation demande OK', conf.status === 200);
-  check('Demande passée à complete', conf.json.demande?.status === 'complete');
+  // Le client la voit « à payer »
+  const cd = await req('GET', '/client/demandes', null, ct);
+  const seen = (cd.json.demandes || []).find((d) => d.id === demandeId);
+  check('Client voit la demande acceptée', seen?.status === 'accepted');
+  check('Demande expose le Wave marchand du gérant', seen?.gerantWave === '771234567');
 
-  // Balance augmentée de 2500
-  const b1 = await req('GET', '/gerant/balance', null, gt);
-  check(`Solde gérant +2500 (${bal0} -> ${b1.json.balance})`, b1.json.balance === bal0 + 2500);
+  // Paiement direct Wave (hors app) : le client signale qu'il a payé
+  const paid = await req('POST', `/client/demandes/${demandeId}/paid`, {}, ct);
+  check('Client signale le paiement (paid)', paid.status === 200 && paid.json.demande?.status === 'paid');
 
-  // Historique gérant contient un gain
-  const gh = await req('GET', '/gerant/history', null, gt);
-  check('Gain visible dans historique gérant', gh.json.transactions.some((t) => t.amount === 2500 && t.status === 'reussi'));
+  // Le gérant complète le service
+  const comp = await req('POST', `/gerant/demandes/${demandeId}/complete`, {}, gt);
+  check('Gérant complète la demande', comp.status === 200 && comp.json.demande?.status === 'completed');
 
-  // Retrait via Wave
-  const wd = await req('POST', '/gerant/withdraw', { amount: 2500 }, gt);
-  check('Retrait accepté', wd.status === 201);
-  await sleep(2500);
-  const b2 = await req('GET', '/gerant/balance', null, gt);
-  check(`Solde gérant après retrait (${b1.json.balance} -> ${b2.json.balance})`, b2.json.balance === b1.json.balance - 2500);
+  // État final côté client
+  const cf = await req('GET', '/client/demandes', null, ct);
+  const fin = (cf.json.demandes || []).find((d) => d.id === demandeId);
+  check('Demande finalement « completed »', fin?.status === 'completed');
 
-  // Abonnement via Wave
-  const sub = await req('POST', '/client/subscribe', { plan: 'internet', name: 'Forfait Internet', amount: 4500, renews: '15/10/2026' }, ct);
-  check('Abonnement créé', sub.status === 201);
-  await sleep(2500);
-  const subs = await req('GET', '/client/subscription', null, ct);
-  check('Abonnement activé après paiement', subs.json.subscription?.name === 'Forfait Internet');
-
-  // Historique client
+  // Historique client : total dépensé = somme des achats
   const ch = await req('GET', '/client/history', null, ct);
-  check('Historique client contient la transaction', ch.json.transactions.length >= 1);
+  check('Historique client : total dépensé = 2000', ch.json.summary?.totalSpent === 2000);
+  check('Historique client : 1 demande complétée', ch.json.summary?.counts?.completed === 1);
+  check('Historique client : liste des transactions', (ch.json.demandes || []).length === 1);
+
+  // Historique gérant : total servi = somme des commandes servies
+  const gh = await req('GET', '/gerant/history', null, gt);
+  check('Historique gérant : total servi = 2000', gh.json.summary?.totalServed === 2000);
+  check('Historique gérant : 1 demande complétée', gh.json.summary?.counts?.completed === 1);
+  check('Historique gérant : toutes les demandes', (gh.json.demandes || []).length === 1);
+
+  // Abonnement client : essai puis activation à 100 FCFA/mois
+  const s0 = await req('GET', '/client/subscription', null, ct);
+  check('Abonnement client en essai', s0.json.subscription?.status === 'trial');
+  const s1 = await req('POST', '/client/subscribe', {}, ct);
+  check('Activation abonnement 100 FCFA', s1.json.subscription?.status === 'active' && s1.json.subscription?.price === 100);
+
+  // Retrait du gérant (ajout/retrait libres)
+  const rm = await req('DELETE', `/client/gerants/${gerantId}`, null, ct);
+  check('Retrait du gérant OK', rm.status === 200 && rm.json?.ok === true);
+  const cg2 = await req('GET', '/client/gerants', null, ct);
+  check('Le gérant n\'est plus dans la liste', !(cg2.json.gerants || []).some((g) => g.id === gerantId));
 
   console.log(`\n===== Résultat : ${pass} OK / ${fail} échec(s) =====\n`);
   process.exit(fail === 0 ? 0 : 1);
