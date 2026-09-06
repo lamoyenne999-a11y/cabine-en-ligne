@@ -1,11 +1,11 @@
 import React, { useState } from 'react';
-import { View, Text, TextInput, Pressable, StyleSheet } from 'react-native';
+import { View, Text, TextInput, Pressable, StyleSheet, ScrollView } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { colors, radius, space, font } from '../../theme';
 import { T, Btn, Card, SectionTitle, Segmented } from '../../components/ui';
 import { Header } from '../../components/Shell';
 import { BottomSheet, Dialog, DialogButtons } from '../../components/modals';
-import { WavePaySheet, PLATFORM_WAVE, PLATFORM_NAME } from '../../components/WavePay';
+import { WavePaySheet, PLATFORM_WAVE, PLATFORM_NAME, PLATFORM_PAY_LINK } from '../../components/WavePay';
 import { useStore } from '../../store';
 
 const TYPES = [
@@ -76,7 +76,10 @@ export default function ClientHome() {
   return (
     <View style={{ flex: 1, backgroundColor: colors.bg }}>
       <Header title="Accueil" noPad />
-      <View style={s.content}>
+      <ScrollView
+        contentContainerStyle={s.content}
+        showsVerticalScrollIndicator={false}
+      >
         <SubBanner sub={state.subscription} onSubscribe={() => setShowSub(true)} />
         <SectionTitle style={{ marginTop: 4 }}>Nouvelle demande</SectionTitle>
 
@@ -134,7 +137,7 @@ export default function ClientHome() {
             Le gérant vous créditera après votre paiement Wave direct. Aucun argent n'est stocké sur l'app.
           </T>
         </Card>
-      </View>
+      </ScrollView>
 
       {/* Gérant picker */}
       <BottomSheet visible={showGerants} onClose={() => setShowGerants(false)}>
@@ -164,14 +167,14 @@ export default function ClientHome() {
           <Ionicons name="checkmark-circle" size={72} color={colors.success} />
           <T size={font.h3} weight="800" color={colors.text} style={{ marginTop: 14 }}>Demande envoyée !</T>
           <T size={font.sm} weight="600" color={colors.muted} style={{ marginTop: 6, textAlign: 'center' }}>
-            {gerant?.name} va l'accepter ou la refuser. Suivez-la dans « Mes demandes ».
+            {gerant?.name} va l'accepter ou la refuser. Suivez-la dans votre Historique.
           </T>
         </View>
         <DialogButtons confirm="OK" onConfirm={() => setSent(false)} />
       </Dialog>
 
       {/* Abonnement */}
-      <WavePaySheet visible={showSub} onClose={() => setShowSub(false)} onConfirm={() => { subscribe(); setShowSub(false); }} title="Abonnement mensuel" amount={100} merchant={PLATFORM_WAVE} merchantName={PLATFORM_NAME} subtitle="100 FCFA / mois après votre mois d'essai gratuit" />
+      <WavePaySheet visible={showSub} onClose={() => setShowSub(false)} onConfirm={() => { subscribe(); setShowSub(false); }} title="Abonnement mensuel" amount={100} merchant={PLATFORM_WAVE} merchantName={PLATFORM_NAME} payLink={PLATFORM_PAY_LINK} subtitle="100 FCFA / mois après votre mois d'essai gratuit" />
     </View>
   );
 }

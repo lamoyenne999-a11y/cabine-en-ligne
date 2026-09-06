@@ -4,9 +4,10 @@ import { Ionicons } from '@expo/vector-icons';
 import { colors, radius, space, font } from '../../theme';
 import { T, Card, ListRow, Pill } from '../../components/ui';
 import { Page } from '../../components/Shell';
-import { WavePaySheet, PLATFORM_WAVE, PLATFORM_NAME } from '../../components/WavePay';
+import { WavePaySheet, PLATFORM_WAVE, PLATFORM_NAME, PLATFORM_PAY_LINK } from '../../components/WavePay';
 import { useStore } from '../../store';
 import { buildShareUrl } from '../../config';
+import Help from '../Help';
 
 export default function ClientProfile({ onLogout }) {
   const { state, subscribe } = useStore();
@@ -14,6 +15,8 @@ export default function ClientProfile({ onLogout }) {
   const sub = state.subscription;
   const [showSub, setShowSub] = useState(false);
   const [copied, setCopied] = useState(false);
+  const [showHelp, setShowHelp] = useState(false);
+  if (showHelp) return <Help onBack={() => setShowHelp(false)} />;
   const shareUrl = u ? buildShareUrl(u.id) : '';
 
   const copy = () => {
@@ -53,7 +56,7 @@ export default function ClientProfile({ onLogout }) {
       </Card>
 
       <Card style={{ marginTop: space.lg }}>
-        <ListRow icon="help-circle-outline" label="Aide & Support" onPress={() => {}} />
+        <ListRow icon="help-circle-outline" label="Aide & Support" onPress={() => setShowHelp(true)} />
       </Card>
 
       <Card onPress={onLogout} style={{ marginTop: space.lg, backgroundColor: colors.danger, alignItems: 'center', paddingVertical: 16 }}>
@@ -63,7 +66,7 @@ export default function ClientProfile({ onLogout }) {
         </View>
       </Card>
 
-      <WavePaySheet visible={showSub} onClose={() => setShowSub(false)} onConfirm={() => { subscribe(); setShowSub(false); }} title="Abonnement mensuel" amount={100} merchant={PLATFORM_WAVE} merchantName={PLATFORM_NAME} subtitle="100 FCFA / mois" />
+      <WavePaySheet visible={showSub} onClose={() => setShowSub(false)} onConfirm={() => { subscribe(); setShowSub(false); }} title="Abonnement mensuel" amount={100} merchant={PLATFORM_WAVE} merchantName={PLATFORM_NAME} payLink={PLATFORM_PAY_LINK} subtitle="100 FCFA / mois" />
     </Page>
   );
 }
