@@ -6,8 +6,6 @@ import { T, Btn, Card, SectionTitle, Segmented } from '../../components/ui';
 import { Header } from '../../components/Shell';
 import { BottomSheet, Dialog, DialogButtons } from '../../components/modals';
 import { WavePaySheet, WavePayBox } from '../../components/WavePay';
-import SubscribeSheet from '../../components/Subscribe';
-import SubBanner from '../../components/SubBanner';
 import { useStore } from '../../store';
 
 const money = (n) => `${(n || 0).toLocaleString('fr-FR').replace(/\u202f/g, ' ')} F`;
@@ -20,10 +18,8 @@ const TYPES = [
 
 const TYPE_LABEL = { unites: 'Unités', minutes: 'Minutes', internet: 'Internet' };
 
-/* Bannière d'abonnement déplacée dans src/components/SubBanner.jsx (partagée client/gérant) */
-
 export default function ClientHome() {
-  const { state, createDemande, subscribe, markPaid, cancelDemande, refresh } = useStore();
+  const { state, createDemande, markPaid, cancelDemande, refresh } = useStore();
   // Recharge les gérants dès l'ouverture de l'écran pour afficher le lien
   // Wave marchand ajouté par un gérant (même s'il l'a ajouté après connexion).
   useEffect(() => { refresh(); }, []); // eslint-disable-line
@@ -36,7 +32,6 @@ export default function ClientHome() {
   // gérant inscrit proposé par l'app (userId = compte gérant).
   const [sel, setSel] = useState(null);
   const [showGerants, setShowGerants] = useState(false);
-  const [showSub, setShowSub] = useState(false);
   const [sent, setSent] = useState(false);
   const [lastDemande, setLastDemande] = useState(null);
   const [paying, setPaying] = useState(null);
@@ -81,7 +76,6 @@ export default function ClientHome() {
         contentContainerStyle={s.content}
         showsVerticalScrollIndicator={false}
       >
-        <SubBanner sub={state.subscription} onSubscribe={() => setShowSub(true)} />
         <SectionTitle style={{ marginTop: 4 }}>Nouvelle demande</SectionTitle>
 
         {/* Type selector */}
@@ -271,9 +265,6 @@ export default function ClientHome() {
         merchantName={paying?.gerantName}
         payLink={paying?.gerantPayLink || ''}
       />
-
-      {/* Abonnement */}
-      <SubscribeSheet visible={showSub} onClose={() => setShowSub(false)} onSubscribe={(plan) => subscribe(plan)} subtitle="100 FCFA / mois ou 1000 FCFA / an après votre mois d'essai gratuit." />
     </View>
   );
 }
