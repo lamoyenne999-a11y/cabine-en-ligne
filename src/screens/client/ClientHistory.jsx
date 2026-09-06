@@ -4,7 +4,7 @@ import { Ionicons } from '@expo/vector-icons';
 import { colors, radius, space, font } from '../../theme';
 import { T, Card, Pill, Btn } from '../../components/ui';
 import { Page } from '../../components/Shell';
-import { WavePaySheet } from '../../components/WavePay';
+import { WavePaySheet, WavePayBox } from '../../components/WavePay';
 import { Dialog, DialogButtons } from '../../components/modals';
 import { useStore } from '../../store';
 
@@ -119,25 +119,28 @@ export default function ClientHistory() {
 
             {(d.status === 'pending' || d.status === 'accepted') && (
               <>
-                <View style={s.payBox}>
-                  <Ionicons name="water" size={18} color={colors.wave} />
-                  <T size={font.sm} weight="700" color={colors.wave} style={{ marginLeft: 8, flex: 1 }}>
-                    {d.status === 'pending' ? `Payez dès maintenant ${money(d.amount)} via Wave à ${d.gerantName}` : `Payez ${money(d.amount)} via Wave au marchand ${d.gerantWave}`}
-                  </T>
-                </View>
+                <WavePayBox
+                  amount={d.amount}
+                  merchant={d.gerantWave}
+                  merchantName={d.gerantName}
+                  payLink={d.gerantPayLink || ''}
+                />
                 <Btn title="J'ai payé (Wave)" icon="checkmark" onPress={() => setPaying(d)} style={{ marginTop: space.md }} />
               </>
             )}
             {d.status === 'pending' && (
-              <View style={s.timerBox}>
-                <Ionicons name={isExpired(d, now) ? 'alert-circle' : 'time'} size={16} color={isExpired(d, now) ? colors.danger : colors.muted} />
-                <T size={font.sm} weight="600" color={isExpired(d, now) ? colors.danger : colors.muted} style={{ marginLeft: 8, flex: 1 }}>
-                  {isExpired(d, now) ? `Le gérant n'a pas répondu à temps (${remainingLabel(d, now)}).` : `En attente de réponse du gérant — ${remainingLabel(d, now)}.`}
+              <>
+                <View style={s.timerBox}>
+                  <Ionicons name={isExpired(d, now) ? 'alert-circle' : 'time'} size={16} color={isExpired(d, now) ? colors.danger : colors.muted} />
+                  <T size={font.sm} weight="600" color={isExpired(d, now) ? colors.danger : colors.muted} style={{ marginLeft: 8, flex: 1 }}>
+                    {isExpired(d, now) ? `Le gérant n'a pas répondu à temps (${remainingLabel(d, now)}).` : `En attente de réponse du gérant — ${remainingLabel(d, now)}.`}
+                  </T>
+                </View>
+                <Btn title="Annuler la demande" icon="close-circle" outline color={colors.danger} onPress={() => setCanceling(d)} style={{ marginTop: space.md }} />
+                <T size={font.xs} weight="600" color={colors.muted2} style={{ marginTop: 8 }}>
+                  Vous pouvez annuler si le gérant met trop de temps ou si vous avez déjà réglé avec quelqu'un d'autre.
                 </T>
-              </View>
-            )}
-            {isExpired(d, now) && d.status === 'pending' && (
-              <Btn title="Annuler la demande" icon="close-circle" outline color={colors.danger} onPress={() => setCanceling(d)} style={{ marginTop: space.md }} />
+              </>
             )}
             {d.status === 'declined' && (
               <T size={font.sm} weight="600" color={colors.muted} style={{ marginTop: 12, textAlign: 'center' }}>
@@ -173,7 +176,7 @@ export default function ClientHistory() {
       <Dialog visible={!!canceling}>
         <T size={font.h3} weight="800" color={colors.text} style={{ textAlign: 'center' }}>Annuler la demande ?</T>
         <T size={font.sm} weight="600" color={colors.muted} style={{ textAlign: 'center', marginTop: 6, marginBottom: 6 }}>
-          Le gérant n'a pas répondu à temps. Vous pouvez annuler cette demande de {money(canceling?.amount)}.
+          Vous pouvez annuler cette demande de {money(canceling?.amount)} si {canceling?.gerantName || 'le gérant'} n'a pas encore traité. Le gérant en sera informé.
         </T>
         <DialogButtons cancel="Retour" confirm="Annuler" onCancel={() => setCanceling(null)} onConfirm={() => { if (canceling) cancelDemande(canceling.id); setCanceling(null); }} />
       </Dialog>

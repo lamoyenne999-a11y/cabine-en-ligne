@@ -5,8 +5,10 @@ import { colors, radius, space, font } from '../../theme';
 import { T, Btn, Card, SectionTitle, Segmented } from '../../components/ui';
 import { Header } from '../../components/Shell';
 import { BottomSheet, Dialog, DialogButtons } from '../../components/modals';
-import { WavePaySheet, PLATFORM_WAVE, PLATFORM_NAME, PLATFORM_PAY_LINK } from '../../components/WavePay';
+import { WavePaySheet, WavePayBox, PLATFORM_WAVE, PLATFORM_NAME, PLATFORM_PAY_LINK } from '../../components/WavePay';
 import { useStore } from '../../store';
+
+const money = (n) => `${(n || 0).toLocaleString('fr-FR').replace(/\u202f/g, ' ')} F`;
 
 const TYPES = [
   { key: 'unites', label: 'Unités', icon: 'phone-portrait-outline' },
@@ -43,7 +45,7 @@ function SubBanner({ sub, onSubscribe }) {
 }
 
 export default function ClientHome() {
-  const { state, createDemande, subscribe, markPaid } = useStore();
+  const { state, createDemande, subscribe, markPaid, cancelDemande } = useStore();
   const [type, setType] = useState('unites');
   const [amount, setAmount] = useState('');
   const [who, setWho] = useState('moi');
@@ -171,13 +173,22 @@ export default function ClientHome() {
           <Ionicons name="checkmark-circle" size={72} color={colors.success} />
           <T size={font.h3} weight="800" color={colors.text} style={{ marginTop: 14 }}>Demande envoyée !</T>
           <T size={font.sm} weight="600" color={colors.muted} style={{ marginTop: 6, textAlign: 'center' }}>
-            {gerant?.name} va l'accepter ou la refuser. Vous pouvez payer tout de suite, ou attendre qu'il accepte.
+            {gerant?.name} va l'accepter ou la refuser. Vous pouvez payer dès maintenant via le lien Wave ci-dessous, ou attendre qu'il accepte.
           </T>
         </View>
-        <View style={{ flexDirection: 'row', marginTop: 6 }}>
-          <Btn title="Plus tard" outline onPress={() => setSent(false)} style={{ flex: 1, marginRight: 6 }} />
-          <Btn title="Payer maintenant" icon="water" onPress={() => { setSent(false); setPaying(lastDemande); }} style={{ flex: 1 }} />
+
+        <WavePayBox
+          amount={lastDemande?.amount}
+          merchant={lastDemande?.gerantWave}
+          merchantName={lastDemande?.gerantName}
+          payLink={lastDemande?.gerantPayLink || ''}
+        />
+
+        <View style={{ flexDirection: 'row', marginTop: 16 }}>
+          <Btn title="Plus tard" outline onPress={() => setSent(false)} style={{ flex: 1 }} />
         </View>
+        <Btn title="Payer maintenant" icon="water" onPress={() => { setSent(false); setPaying(lastDemande); }} style={{ marginTop: 10 }} />
+        <Btn title="Annuler ma demande" icon="close-circle" outline color={colors.danger} onPress={() => { if (lastDemande) cancelDemande(lastDemande.id); setSent(false); }} style={{ marginTop: 10 }} />
       </Dialog>
 
       {/* Paiement direct de la demande créée */}

@@ -12,6 +12,57 @@ export const PLATFORM_NAME = 'Cabine En Ligne';
 export const PLATFORM_PAY_LINK = 'https://pay.wave.com/m/M_ci_jUXE1N_gWG8_/c/ci/';
 
 // ============================================================
+//  Boîte d'information « paiement Wave » réutilisable.
+//  Affiche le numéro Wave marchand (copiable) + le lien de
+//  paiement cliquable si le gérant en a fourni un. Utilisée dans
+//  la confirmation de demande, l'historique et les profils.
+// ============================================================
+export function WavePayBox({ amount, merchant, merchantName, payLink }) {
+  const copy = () => {
+    if (merchant && typeof navigator !== 'undefined' && navigator.clipboard) {
+      navigator.clipboard.writeText(merchant).catch(() => {});
+    }
+  };
+  const openLink = () => {
+    if (payLink && typeof Linking !== 'undefined') Linking.openURL(payLink).catch(() => {});
+  };
+  if (!merchant) return null;
+  return (
+    <View style={s.infoBox}>
+      <T size={font.sm} weight="700" color={colors.textSoft} style={{ marginBottom: 4 }}>
+        {amount ? `Envoyez ${(amount || 0).toLocaleString('fr-FR').replace(/\u202f/g, ' ')} XOF au Wave marchand :` : 'Envoyez l\'argent au Wave marchand :'}
+      </T>
+      <View style={s.merchant}>
+        <Ionicons name="storefront" size={18} color={colors.primary} style={{ marginRight: 8 }} />
+        <View style={{ flex: 1 }}>
+          <T size={font.body} weight="800" color={colors.text}>{merchant}</T>
+          <T size={font.xs} weight="600" color={colors.muted}>{merchantName}</T>
+        </View>
+        <Pressable onPress={copy} hitSlop={8} style={s.copyBtn}>
+          <Ionicons name="copy-outline" size={16} color={colors.primary} />
+        </Pressable>
+      </View>
+
+      {payLink ? (
+        <>
+          <Pressable onPress={openLink} style={s.payLinkBtn}>
+            <Ionicons name="open-outline" size={18} color="#fff" style={{ marginRight: 8 }} />
+            <T size={font.body} weight="800" color="#fff">Payer avec Wave en ligne</T>
+          </Pressable>
+          <T size={font.xs} weight="600" color={colors.muted} style={{ textAlign: 'center', marginTop: 6 }}>
+            Ouvre le lien du compte marchand Wave pour régler directement.
+          </T>
+        </>
+      ) : (
+        <T size={font.sm} weight="600" color={colors.muted} style={{ marginTop: 10 }}>
+          Ouvrez votre application <T size={font.sm} weight="800" color={colors.wave}>Wave</T> et envoyez la somme à ce numéro. Aucun argent n'est stocké sur l'app.
+        </T>
+      )}
+    </View>
+  );
+}
+
+// ============================================================
 //  Paiement direct via Wave — l'argent ne passe PAS par l'app.
 //  On affiche simplement le numéro Wave (marchand) auquel le
 //  client doit envoyer l'argent depuis sa propre app Wave.
@@ -21,14 +72,6 @@ export const PLATFORM_PAY_LINK = 'https://pay.wave.com/m/M_ci_jUXE1N_gWG8_/c/ci/
 export function WavePaySheet({ visible, onClose, onConfirm, title, amount, merchant, merchantName, subtitle, payLink }) {
   if (!visible) return null;
   const amt = `${(amount || 0).toLocaleString('fr-FR').replace(/\u202f/g, ' ')} XOF`;
-  const copy = () => {
-    if (merchant && typeof navigator !== 'undefined' && navigator.clipboard) {
-      navigator.clipboard.writeText(merchant).catch(() => {});
-    }
-  };
-  const openLink = () => {
-    if (payLink && typeof Linking !== 'undefined') Linking.openURL(payLink).catch(() => {});
-  };
 
   return (
     <Dialog visible={visible} onClose={onClose}>
@@ -41,35 +84,7 @@ export function WavePaySheet({ visible, onClose, onConfirm, title, amount, merch
         {subtitle ? <T size={font.sm} weight="600" color={colors.muted} style={{ marginTop: 4, textAlign: 'center' }}>{subtitle}</T> : null}
       </View>
 
-      <View style={s.infoBox}>
-        <T size={font.sm} weight="700" color={colors.textSoft} style={{ marginBottom: 4 }}>Envoyez l'argent au Wave marchand :</T>
-        <View style={s.merchant}>
-          <Ionicons name="storefront" size={18} color={colors.primary} style={{ marginRight: 8 }} />
-          <View style={{ flex: 1 }}>
-            <T size={font.body} weight="800" color={colors.text}>{merchant}</T>
-            <T size={font.xs} weight="600" color={colors.muted}>{merchantName}</T>
-          </View>
-          <Pressable onPress={copy} hitSlop={8} style={s.copyBtn}>
-            <Ionicons name="copy-outline" size={16} color={colors.primary} />
-          </Pressable>
-        </View>
-        <T size={font.sm} weight="600" color={colors.muted} style={{ marginTop: 10 }}>
-          Ouvrez votre application <T size={font.sm} weight="800" color={colors.wave}>Wave</T> et envoyez
-          la somme à ce numéro. Aucun argent n'est stocké sur l'app.
-        </T>
-
-        {payLink ? (
-          <>
-            <Pressable onPress={openLink} style={s.payLinkBtn}>
-              <Ionicons name="open-outline" size={18} color="#fff" style={{ marginRight: 8 }} />
-              <T size={font.body} weight="800" color="#fff">Payer avec Wave en ligne</T>
-            </Pressable>
-            <T size={font.xs} weight="600" color={colors.muted} style={{ textAlign: 'center', marginTop: 6 }}>
-              Ouvre le lien du compte marchand Wave pour régler directement.
-            </T>
-          </>
-        ) : null}
-      </View>
+      <WavePayBox amount={amount} merchant={merchant} merchantName={merchantName} payLink={payLink} />
 
       <DialogButtons
         cancel="Annuler"
