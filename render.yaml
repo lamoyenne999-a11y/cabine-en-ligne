@@ -1,8 +1,15 @@
 # ============================================================
 #  Render — déploiement "tout-en-un"
-#  Une seule Web Service : sert le front PWA + l'API.
+#  Web Service (sert le front PWA + l'API) + base PostgreSQL.
+#  Render crée la base et injecte DATABASE_URL automatiquement.
 #  Tableau de bord Render -> New -> Blueprint -> ce fichier.
 # ============================================================
+databases:
+  - name: cabine-en-ligne-db
+    plan: free
+    databaseName: cabine
+    user: cabine
+
 services:
   - type: web
     name: cabine-en-ligne
@@ -17,6 +24,10 @@ services:
     envVars:
       - key: NODE_ENV
         value: production
+      - key: DATABASE_URL
+        fromDatabase:
+          name: cabine-en-ligne-db
+          property: connectionString
       - key: WAVE_MODE
         value: mock        # passez à "live" + clés API pour le vrai paiement
       - key: WAVE_API_KEY
@@ -26,6 +37,6 @@ services:
       - key: JWT_SECRET
         generateValue: true
       - key: PHONE_PREFIX
-        value: "+225"
+        value: "+225"      # Côte d'Ivoire
       - key: EXPO_PUBLIC_API_URL
         value: ""          # même origine : le serveur proxyfie /api

@@ -10,8 +10,8 @@ import gerantRoutes from './routes/gerant.js';
 import webhookRoutes from './routes/webhooks.js';
 import { notFound, errorHandler } from './middleware/error.js';
 
-export function createApp() {
-  initDb();
+export async function createApp() {
+  await initDb();
 
   // Branche les événements Wave (webhooks) sur la logique métier
   wave.onEvent(onWaveEvent);

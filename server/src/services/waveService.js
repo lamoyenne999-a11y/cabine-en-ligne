@@ -149,9 +149,17 @@ class WaveGateway {
     if (this.eventHandler) await this.eventHandler(event);
   }
 
+  // Normalise un numéro vers le format international attendu par Wave.
+  // "771234567" (Côte d'Ivoire, +225) -> "+225771234567".
   #normalizeMobile(mobile) {
-    const m = String(mobile).replace(/[^0-9]/g, '');
-    return m.startsWith('00') ? `+${m.slice(2)}` : `+${m}`;
+    let m = String(mobile).replace(/[^0-9]/g, '');
+    if (m.startsWith('00')) m = m.slice(2);           // "00225..." -> "225..."
+    if (!m.startsWith('+')) {
+      const prefix = (config.phonePrefix || '+225').replace('+', '');
+      // Nombre local (9 chiffres en CI) -> ajoute l'indicatif pays
+      if (m.length <= 9 && !m.startsWith(prefix)) m = prefix + m;
+    }
+    return m.startsWith('+') ? m : `+${m}`;
   }
 }
 

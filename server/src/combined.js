@@ -15,7 +15,7 @@ import { config } from './config.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const DIST = path.join(__dirname, '..', '..', 'dist'); // racine du projet /dist
-const app = createApp(); // Express (routes /api/* + /health + webhook)
+const app = await createApp(); // Express (routes /api/* + /health + webhook)
 
 const MIME = {
   '.html': 'text/html', '.js': 'text/javascript', '.mjs': 'text/javascript',
