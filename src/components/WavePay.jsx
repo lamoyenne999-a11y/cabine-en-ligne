@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useState } from 'react';
 import { View, Text, Pressable, StyleSheet, Linking } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { colors, radius, space, font } from '../theme';
@@ -18,32 +18,38 @@ export const PLATFORM_PAY_LINK = 'https://pay.wave.com/m/M_ci_jUXE1N_gWG8_/c/ci/
 //  la confirmation de demande, l'historique et les profils.
 // ============================================================
 export function WavePayBox({ amount, merchant, merchantName, payLink }) {
+  const [copied, setCopied] = useState(false);
   const copy = () => {
     if (merchant && typeof navigator !== 'undefined' && navigator.clipboard) {
       navigator.clipboard.writeText(merchant).catch(() => {});
     }
+    setCopied(true);
+    setTimeout(() => setCopied(false), 1800);
   };
   const openLink = () => {
     if (payLink && typeof Linking !== 'undefined') Linking.openURL(payLink).catch(() => {});
   };
   if (!merchant) return null;
+  const hasLink = !!payLink;
   return (
     <View style={s.infoBox}>
       <T size={font.sm} weight="700" color={colors.textSoft} style={{ marginBottom: 4 }}>
         {amount ? `Envoyez ${(amount || 0).toLocaleString('fr-FR').replace(/\u202f/g, ' ')} XOF au Wave marchand :` : 'Envoyez l\'argent au Wave marchand :'}
       </T>
+
+      {/* Le numéro est cliquable : paiement en 1 clic si lien dispo, sinon copie */}
       <View style={s.merchant}>
         <Ionicons name="storefront" size={18} color={colors.primary} style={{ marginRight: 8 }} />
-        <View style={{ flex: 1 }}>
+        <Pressable onPress={hasLink ? openLink : copy} style={{ flex: 1 }}>
           <T size={font.body} weight="800" color={colors.text}>{merchant}</T>
           <T size={font.xs} weight="600" color={colors.muted}>{merchantName}</T>
-        </View>
+        </Pressable>
         <Pressable onPress={copy} hitSlop={8} style={s.copyBtn}>
-          <Ionicons name="copy-outline" size={16} color={colors.primary} />
+          <Ionicons name={copied ? 'checkmark' : 'copy-outline'} size={16} color={colors.primary} />
         </Pressable>
       </View>
 
-      {payLink ? (
+      {hasLink ? (
         <>
           <Pressable onPress={openLink} style={s.payLinkBtn}>
             <Ionicons name="open-outline" size={18} color="#fff" style={{ marginRight: 8 }} />
@@ -54,9 +60,14 @@ export function WavePayBox({ amount, merchant, merchantName, payLink }) {
           </T>
         </>
       ) : (
-        <T size={font.sm} weight="600" color={colors.muted} style={{ marginTop: 10 }}>
-          Ouvrez votre application <T size={font.sm} weight="800" color={colors.wave}>Wave</T> et envoyez la somme à ce numéro. Aucun argent n'est stocké sur l'app.
-        </T>
+        <>
+          <T size={font.sm} weight="600" color={copied ? colors.success : colors.muted} style={{ marginTop: 10 }}>
+            {copied ? 'Numéro copié — collez-le dans votre app Wave.' : (<>Appuyez sur le numéro pour le copier, puis ouvrez l'app <T size={font.sm} weight="800" color={colors.wave}>Wave</T> et collez-le. Aucun argent n'est stocké sur l'app.</>)}
+          </T>
+          <T size={font.xs} weight="600" color={colors.muted2} style={{ marginTop: 6 }}>
+            Dès que le gérant ajoute son lien Wave marchand, le paiement se fera en un seul clic.
+          </T>
+        </>
       )}
     </View>
   );
