@@ -26,7 +26,6 @@ export default function ClientHome() {
   const [type, setType] = useState('unites');
   const [amount, setAmount] = useState('');
   const [who, setWho] = useState('moi');
-  const [benefName, setBenefName] = useState('');
   const [benefPhone, setBenefPhone] = useState('');
   // Gérant sélectionné : soit un contact déjà ajouté (id = contact), soit un
   // gérant inscrit proposé par l'app (userId = compte gérant).
@@ -49,7 +48,6 @@ export default function ClientHome() {
     if (amountNum <= 0) e.amount = 'Indiquez le montant à recharger.';
     if (!sel) e.gerant = 'Sélectionnez un gérant.';
     if (who === 'autre') {
-      if (!benefName.trim()) e.benefName = 'Indiquez le nom de la personne à créditer.';
       if (!benefPhone.trim()) e.benefPhone = 'Indiquez le numéro de la personne à créditer.';
     }
     return e;
@@ -70,14 +68,15 @@ export default function ClientHome() {
       gerantPayLink: sel.payLink || '',
       type,
       amount: amountNum,
-      benefName: who === 'autre' ? benefName : (state.user?.name || 'Moi'),
+      // Pour quelqu'un : on n'identifie le bénéficiaire que par son numéro (pas de nom).
+      benefName: who === 'autre' ? benefPhone : (state.user?.name || 'Moi'),
       benefPhone: who === 'autre' ? benefPhone : (state.user?.phone || ''),
     };
     // Affiche la confirmation immédiatement (pas de blocage sur le réseau),
     // puis remplace par la vraie demande dès qu'elle est créée.
     setSent(true);
     // Réinitialise tout le formulaire pour qu'une nouvelle demande soit facile.
-    setAmount(''); setWho('moi'); setBenefName(''); setBenefPhone(''); setType('unites'); setSel(null);
+    setAmount(''); setWho('moi'); setBenefPhone(''); setType('unites'); setSel(null);
     try {
       const created = await createDemande(payload);
       if (created && created.id) setLastDemande(created);
@@ -119,14 +118,11 @@ export default function ClientHome() {
           {errors.amount && <T size={font.sm} weight="600" color={colors.danger} style={s.errText}>{errors.amount}</T>}
 
           <T size={font.sm} weight="700" color={colors.textSoft} style={{ marginTop: space.lg, marginBottom: 10 }}>Bénéficiaire</T>
-          <Segmented value={who} onChange={(v) => { setWho(v); setErrors((prev) => ({ ...prev, benefName: undefined, benefPhone: undefined })); }} options={[{ value: 'moi', label: 'Pour moi' }, { value: 'autre', label: 'Pour quelqu\'un' }]} />
+          <Segmented value={who} onChange={(v) => { setWho(v); setErrors((prev) => ({ ...prev, benefPhone: undefined })); }} options={[{ value: 'moi', label: 'Pour moi' }, { value: 'autre', label: 'Pour quelqu\'un' }]} />
 
           {who === 'autre' && (
             <>
-              <T size={font.sm} weight="700" color={colors.textSoft} style={{ marginTop: space.lg, marginBottom: 7 }}>Nom du bénéficiaire <T color={colors.danger}>*</T></T>
-              <View style={[s.input, errors.benefName && s.err]}><Ionicons name="person-outline" size={18} color={errors.benefName ? colors.danger : colors.primary} style={{ marginRight: 10 }} /><TextInput value={benefName} onChangeText={(t) => { setBenefName(t); clearErr('benefName'); }} placeholder="Ex : Moussa" placeholderTextColor={colors.muted2} style={s.inputText} /></View>
-              {errors.benefName && <T size={font.sm} weight="600" color={colors.danger} style={s.errText}>{errors.benefName}</T>}
-              <T size={font.sm} weight="700" color={colors.textSoft} style={{ marginTop: space.lg, marginBottom: 7 }}>Numéro du bénéficiaire <T color={colors.danger}>*</T></T>
+              <T size={font.sm} weight="700" color={colors.textSoft} style={{ marginTop: space.lg, marginBottom: 7 }}>Numéro de la personne à créditer <T color={colors.danger}>*</T></T>
               <View style={[s.input, errors.benefPhone && s.err]}><Ionicons name="call-outline" size={18} color={errors.benefPhone ? colors.danger : colors.primary} style={{ marginRight: 10 }} /><TextInput value={benefPhone} onChangeText={(t) => { setBenefPhone(t.replace(/[^0-9]/g, '')); clearErr('benefPhone'); }} placeholder="Ex : 07 07 07 07 07" placeholderTextColor={colors.muted2} keyboardType="phone-pad" style={s.inputText} /></View>
               {errors.benefPhone && <T size={font.sm} weight="600" color={colors.danger} style={s.errText}>{errors.benefPhone}</T>}
             </>

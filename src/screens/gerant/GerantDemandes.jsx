@@ -55,7 +55,7 @@ export default function GerantDemandes() {
               </View>
               <View style={{ flex: 1, marginLeft: 12 }}>
                 <T size={font.h3} weight="800" color={colors.text}>{d.type === 'unites' ? 'Unités' : d.type === 'minutes' ? 'Minutes' : 'Internet'}</T>
-                <T size={font.xs} weight="600" color={colors.muted} style={{ marginTop: 2 }}>Client : {d.clientName} · pour {d.benefName}</T>
+                <T size={font.xs} weight="600" color={colors.muted} style={{ marginTop: 2 }}>Client : {d.clientName} · pour {d.benefName === d.benefPhone ? d.benefPhone : d.benefName}</T>
               </View>
               <View style={{ alignItems: 'flex-end' }}>
                 <T size={font.h3} weight="800" color={colors.primary}>{d.amount.toLocaleString('fr-FR').replace(/\u202f/g, ' ')} XOF</T>
@@ -65,7 +65,7 @@ export default function GerantDemandes() {
 
             <View style={s.infoRow}>
               <T size={font.sm} weight="600" color={colors.muted}>Bénéficiaire :</T>
-              <T size={font.sm} weight="700" color={colors.text}>{d.benefName} ({d.benefPhone})</T>
+              <T size={font.sm} weight="700" color={colors.text}>{d.benefName === d.benefPhone ? d.benefPhone : `${d.benefName} (${d.benefPhone})`}</T>
             </View>
 
             {isPending && (

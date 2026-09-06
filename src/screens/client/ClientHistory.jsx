@@ -108,7 +108,7 @@ export default function ClientHistory() {
                   <T size={font.xs} weight="600" color={colors.muted2} style={{ marginLeft: 8 }}>{when(d.createdAt)}</T>
                 </View>
                 <T size={font.xs} weight="600" color={colors.muted} style={{ marginTop: 2 }}>
-                  {d.gerantName || 'Gérant'} · pour {d.benefName}
+                  {d.gerantName || 'Gérant'} · pour {d.benefName === d.benefPhone ? d.benefPhone : d.benefName}
                 </T>
               </View>
               <View style={{ alignItems: 'flex-end' }}>
