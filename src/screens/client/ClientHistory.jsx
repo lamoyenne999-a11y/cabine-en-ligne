@@ -123,6 +123,7 @@ export default function ClientHistory() {
         amount={paying?.amount}
         merchant={paying?.gerantWave}
         merchantName={paying?.gerantName}
+        payLink={paying?.gerantPayLink || ''}
       />
     </Page>
   );

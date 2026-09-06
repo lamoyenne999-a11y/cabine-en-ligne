@@ -1,8 +1,8 @@
 import React, { useState } from 'react';
-import { View, Text, Pressable, StyleSheet } from 'react-native';
+import { View, Text, TextInput, Pressable, StyleSheet } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { colors, radius, space, font } from '../../theme';
-import { T, Card, ListRow, Pill } from '../../components/ui';
+import { T, Card, ListRow, Pill, Btn } from '../../components/ui';
 import { Page } from '../../components/Shell';
 import { WavePaySheet, PLATFORM_WAVE, PLATFORM_NAME, PLATFORM_PAY_LINK } from '../../components/WavePay';
 import { useStore } from '../../store';
@@ -10,18 +10,30 @@ import { buildShareUrl } from '../../config';
 import Help from '../Help';
 
 export default function GerantProfile({ onLogout }) {
-  const { state, subscribe } = useStore();
+  const { state, subscribe, updateGerantProfile } = useStore();
   const u = state.user;
   const sub = state.subscription;
   const [showSub, setShowSub] = useState(false);
   const [copied, setCopied] = useState(false);
   const [showHelp, setShowHelp] = useState(false);
+  const [payLink, setPayLink] = useState(u?.payLink || '');
+  const [saving, setSaving] = useState(false);
+  const [saved, setSaved] = useState(false);
+
   if (showHelp) return <Help onBack={() => setShowHelp(false)} />;
   const shareUrl = u ? buildShareUrl(u.id) : '';
 
   const copy = () => {
     if (typeof navigator !== 'undefined' && navigator.clipboard) navigator.clipboard.writeText(shareUrl).then(() => { setCopied(true); setTimeout(() => setCopied(false), 2000); });
     else { setCopied(true); setTimeout(() => setCopied(false), 2000); }
+  };
+
+  const savePayLink = async () => {
+    setSaving(true);
+    await updateGerantProfile({ payLink: payLink.trim() });
+    setSaving(false);
+    setSaved(true);
+    setTimeout(() => setSaved(false), 2500);
   };
 
   const subStatus = sub?.status || 'trial';
@@ -48,6 +60,30 @@ export default function GerantProfile({ onLogout }) {
             <T size={font.body} weight="800" color={colors.wave}>{u?.waveNumber || u?.phone}</T>
           </View>
         </View>
+      </Card>
+
+      {/* Lien Wave marchand pour recevoir les paiements directs */}
+      <Card style={{ marginTop: space.lg }}>
+        <T size={font.h3} weight="800" color={colors.text} style={{ marginBottom: 4 }}>Mon lien Wave marchand</T>
+        <T size={font.xs} weight="600" color={colors.muted} style={{ marginBottom: 10 }}>
+          Collez ici votre lien de paiement Wave (ex. https://pay.wave.com/m/...). Vos clients pourront cliquer dessus pour vous payer leur transaction directement.
+        </T>
+        <View style={s.input}>
+          <Ionicons name="link-outline" size={18} color={colors.primary} style={{ marginRight: 10 }} />
+          <TextInput
+            value={payLink}
+            onChangeText={setPayLink}
+            placeholder="https://pay.wave.com/m/…"
+            placeholderTextColor={colors.muted2}
+            autoCapitalize="none"
+            autoCorrect={false}
+            style={s.inputText}
+          />
+        </View>
+        <Btn title={saved ? 'Enregistré ✓' : 'Enregistrer mon lien'} icon={saved ? 'checkmark' : 'save-outline'} onPress={savePayLink} loading={saving} style={{ marginTop: space.md }} />
+        <T size={font.xs} weight="600" color={colors.muted2} style={{ textAlign: 'center', marginTop: 8 }}>
+          Ce lien n'est utilisé que pour que le client vous paie en direct. Aucun argent ne passe par l'app.
+        </T>
       </Card>
 
       <Card style={{ marginTop: space.lg }}>
@@ -80,6 +116,8 @@ const s = StyleSheet.create({
   avatar: { width: 84, height: 84, borderRadius: 42, backgroundColor: colors.primary, alignItems: 'center', justifyContent: 'center' },
   subBtn: { backgroundColor: colors.primary, paddingHorizontal: 20, paddingVertical: 10, borderRadius: radius.pill, marginTop: 14 },
   waveBox: { flexDirection: 'row', alignItems: 'center', paddingVertical: 14, borderBottomWidth: 1, borderBottomColor: colors.border },
+  input: { flexDirection: 'row', alignItems: 'center', backgroundColor: colors.bg, borderRadius: radius.md, paddingHorizontal: 14, height: 52 },
+  inputText: { flex: 1, fontSize: font.sm, color: colors.text, paddingVertical: 0, outlineStyle: 'none' },
   linkRow: { flexDirection: 'row', alignItems: 'center', backgroundColor: colors.bg, borderRadius: radius.md, padding: 8 },
   linkText: { flex: 1, fontSize: font.xs, color: colors.primary, marginRight: 8 },
   copyBtn: { width: 40, height: 40, borderRadius: radius.sm, backgroundColor: colors.primary, alignItems: 'center', justifyContent: 'center' },

@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { View, Text, TextInput, Pressable, StyleSheet } from 'react-native';
+import { View, Text, TextInput, Pressable, StyleSheet, Linking } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { colors, radius, space, font } from '../../theme';
 import { T, Btn, Card, Field } from '../../components/ui';
@@ -7,6 +7,8 @@ import { Page } from '../../components/Shell';
 import { BottomSheet } from '../../components/modals';
 import { useStore } from '../../store';
 import { buildShareUrl } from '../../config';
+
+const openPay = (link) => { if (link && typeof Linking !== 'undefined') Linking.openURL(link).catch(() => {}); };
 
 export default function ClientGerants() {
   const { state, addGerant, removeGerant } = useStore();
@@ -81,6 +83,12 @@ export default function ClientGerants() {
                 <Ionicons name="water" size={14} color={colors.wave} />
                 <T size={font.sm} weight="700" color={colors.wave} style={{ marginLeft: 6 }}>Wave marchand : {g.waveNumber}</T>
               </View>
+              {g.payLink ? (
+                <Pressable onPress={() => openPay(g.payLink)} style={s.payBtn}>
+                  <Ionicons name="open-outline" size={14} color="#fff" style={{ marginRight: 6 }} />
+                  <T size={font.xs} weight="800" color="#fff">Payer en ligne via Wave</T>
+                </Pressable>
+              ) : null}
             </View>
             <Pressable onPress={() => removeGerant(g.id)} hitSlop={8} style={{ paddingLeft: 12 }}>
               <Ionicons name="trash-outline" size={20} color={colors.danger} />
@@ -111,4 +119,5 @@ const s = StyleSheet.create({
   linkRow: { flexDirection: 'row', alignItems: 'center', backgroundColor: colors.bg, borderRadius: radius.md, padding: 8 },
   linkText: { flex: 1, fontSize: font.xs, color: colors.primary, marginRight: 8 },
   copyBtn: { width: 40, height: 40, borderRadius: radius.sm, backgroundColor: colors.primary, alignItems: 'center', justifyContent: 'center' },
+  payBtn: { flexDirection: 'row', alignItems: 'center', backgroundColor: colors.waveAccent, borderRadius: radius.pill, paddingHorizontal: 12, paddingVertical: 7, marginTop: 6, alignSelf: 'flex-start' },
 });

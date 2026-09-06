@@ -6,13 +6,13 @@ import { T, Btn, Field } from '../components/ui';
 import Logo from '../components/Logo';
 
 export default function Login({ role, onBack, onLogin, onSignup, connecting }) {
-  const [phone, setPhone] = useState(role === 'gerant' ? '0202020202' : '0101010101');
+  const [phone, setPhone] = useState('');
   const [pwd, setPwd] = useState('');
   const [err, setErr] = useState('');
   const isGerant = role === 'gerant';
 
   const submit = async () => {
-    if (!phone.trim()) return;
+    if (!phone.trim()) { setErr('Veuillez saisir votre numéro de téléphone.'); return; }
     setErr('');
     try {
       await onLogin({ role, phone, password: pwd });

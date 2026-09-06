@@ -32,17 +32,17 @@ const seed = () => ({
     // --- Clients de démo ---
     { id: 'u_client', role: 'client', name: 'Jean Dupont', phone: '0101010101', email: 'jean@example.com', passwordHash: '$2b$10$V3Ed.oiA.jq72LkYfH7z2.xU8v3P1k/uXYeFKrazPJBotSmf.kbrO', waveNumber: '0101010101', subscription: { status: 'trial', trialEndsAt: in30(), subscribedUntil: 0 }, createdAt: now },
     // --- Gérants de démo (chacun a son Wave marchand) ---
-    { id: 'u_amadou', role: 'gerant', name: 'Boutique Amadou', phone: '771234567', email: 'amadou@example.com', passwordHash: '$2b$10$V3Ed.oiA.jq72LkYfH7z2.xU8v3P1k/uXYeFKrazPJBotSmf.kbrO', waveNumber: '771234567', subscription: { status: 'trial', trialEndsAt: in30(), subscribedUntil: 0 }, createdAt: now },
-    { id: 'u_fatou', role: 'gerant', name: 'Kiosque Fatou', phone: '789876543', email: 'fatou@example.com', passwordHash: '$2b$10$V3Ed.oiA.jq72LkYfH7z2.xU8v3P1k/uXYeFKrazPJBotSmf.kbrO', waveNumber: '789876543', subscription: { status: 'trial', trialEndsAt: in30(), subscribedUntil: 0 }, createdAt: now },
-    { id: 'u_moussa', role: 'gerant', name: 'Cabine Moussa', phone: '765554433', email: 'moussa@example.com', passwordHash: '$2b$10$V3Ed.oiA.jq72LkYfH7z2.xU8v3P1k/uXYeFKrazPJBotSmf.kbrO', waveNumber: '765554433', subscription: { status: 'trial', trialEndsAt: in30(), subscribedUntil: 0 }, createdAt: now },
-    { id: 'u_marie', role: 'gerant', name: 'Cabine Marie', phone: '0202020202', email: 'marie@example.com', passwordHash: '$2b$10$V3Ed.oiA.jq72LkYfH7z2.xU8v3P1k/uXYeFKrazPJBotSmf.kbrO', waveNumber: '0202020202', subscription: { status: 'trial', trialEndsAt: in30(), subscribedUntil: 0 }, createdAt: now },
+    { id: 'u_amadou', role: 'gerant', name: 'Boutique Amadou', phone: '771234567', email: 'amadou@example.com', passwordHash: '$2b$10$V3Ed.oiA.jq72LkYfH7z2.xU8v3P1k/uXYeFKrazPJBotSmf.kbrO', waveNumber: '771234567', payLink: '', subscription: { status: 'trial', trialEndsAt: in30(), subscribedUntil: 0 }, createdAt: now },
+    { id: 'u_fatou', role: 'gerant', name: 'Kiosque Fatou', phone: '789876543', email: 'fatou@example.com', passwordHash: '$2b$10$V3Ed.oiA.jq72LkYfH7z2.xU8v3P1k/uXYeFKrazPJBotSmf.kbrO', waveNumber: '789876543', payLink: '', subscription: { status: 'trial', trialEndsAt: in30(), subscribedUntil: 0 }, createdAt: now },
+    { id: 'u_moussa', role: 'gerant', name: 'Cabine Moussa', phone: '765554433', email: 'moussa@example.com', passwordHash: '$2b$10$V3Ed.oiA.jq72LkYfH7z2.xU8v3P1k/uXYeFKrazPJBotSmf.kbrO', waveNumber: '765554433', payLink: '', subscription: { status: 'trial', trialEndsAt: in30(), subscribedUntil: 0 }, createdAt: now },
+    { id: 'u_marie', role: 'gerant', name: 'Cabine Marie', phone: '0202020202', email: 'marie@example.com', passwordHash: '$2b$10$V3Ed.oiA.jq72LkYfH7z2.xU8v3P1k/uXYeFKrazPJBotSmf.kbrO', waveNumber: '0202020202', payLink: '', subscription: { status: 'trial', trialEndsAt: in30(), subscribedUntil: 0 }, createdAt: now },
   ],
 
   // Gérants que le client de démo a déjà ajoutés (contacts)
   gerants: [
-    { id: 'g1', ownerId: 'u_client', userId: 'u_amadou', name: 'Boutique Amadou', phone: '771234567', waveNumber: '771234567', rating: 4.8, online: true },
-    { id: 'g2', ownerId: 'u_client', userId: 'u_fatou', name: 'Kiosque Fatou', phone: '789876543', waveNumber: '789876543', rating: 4.6, online: false },
-    { id: 'g3', ownerId: 'u_client', userId: 'u_moussa', name: 'Cabine Moussa', phone: '765554433', waveNumber: '765554433', rating: 4.2, online: true },
+    { id: 'g1', ownerId: 'u_client', userId: 'u_amadou', name: 'Boutique Amadou', phone: '771234567', waveNumber: '771234567', payLink: '', rating: 4.8, online: true },
+    { id: 'g2', ownerId: 'u_client', userId: 'u_fatou', name: 'Kiosque Fatou', phone: '789876543', waveNumber: '789876543', payLink: '', rating: 4.6, online: false },
+    { id: 'g3', ownerId: 'u_client', userId: 'u_moussa', name: 'Cabine Moussa', phone: '765554433', waveNumber: '765554433', payLink: '', rating: 4.2, online: true },
   ],
 
   // Quelques demandes d'exemple pour la démo (historique + totaux)

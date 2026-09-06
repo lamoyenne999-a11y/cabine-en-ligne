@@ -64,6 +64,7 @@ export default function ClientHome() {
       gerantId,
       gerantName: gerant.name,
       gerantWave: gerant.waveNumber,
+      gerantPayLink: gerant.payLink || '',
       type,
       amount: amountNum,
       benefName: who === 'autre' ? benefName : (state.user?.name || 'Moi'),

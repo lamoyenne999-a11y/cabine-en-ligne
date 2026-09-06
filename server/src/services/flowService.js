@@ -42,7 +42,7 @@ export const SUB_PRICE_FCFA = SUB_PRICE;
 export function publicProfile(id) {
   const u = findOne('users', (x) => x.id === id);
   if (!u) return null;
-  return { id: u.id, name: u.name, phone: u.phone, role: u.role, waveNumber: u.waveNumber };
+  return { id: u.id, name: u.name, phone: u.phone, role: u.role, waveNumber: u.waveNumber, payLink: u.payLink || '' };
 }
 
 // ---- Gérants (contacts) d'un client ----
@@ -70,6 +70,7 @@ export function addGerant({ clientId, phone, name }) {
       email: '',
       passwordHash: '',
       waveNumber: phoneTrim,
+      payLink: '',
       subscription: { status: 'trial', trialEndsAt: Date.now() + MONTH_MS, subscribedUntil: 0 },
       createdAt: Date.now(),
     });
@@ -82,10 +83,37 @@ export function addGerant({ clientId, phone, name }) {
     name: user.name,
     phone: user.phone,
     waveNumber: user.waveNumber,
+    payLink: user.payLink || '',
     rating: 4.0,
     online: true,
   });
   return { gerant, created: true };
+}
+
+// ---- Profil gérant (nom, téléphone, numéro + lien Wave marchand) ----
+export function gerantProfile(user) {
+  return {
+    name: user.name,
+    phone: user.phone,
+    waveNumber: user.waveNumber,
+    payLink: user.payLink || '',
+  };
+}
+
+export function updateGerantProfile({ userId, waveNumber, payLink }) {
+  const patch = {};
+  if (waveNumber !== undefined) patch.waveNumber = String(waveNumber).replace(/[^0-9]/g, '');
+  if (payLink !== undefined) patch.payLink = String(payLink).trim();
+
+  if (Object.keys(patch).length) {
+    update('users', (u) => u.id === userId, patch);
+    // Propage le changement à tous les contacts « gérants » qui le référencent
+    find('gerants', (g) => g.userId === userId).forEach((g) => {
+      update('gerants', (x) => x.id === g.id, patch);
+    });
+  }
+  const u = findOne('users', (x) => x.id === userId);
+  return u ? gerantProfile(u) : null;
 }
 
 export function removeGerant({ clientId, gerantId }) {
@@ -109,6 +137,7 @@ export function createDemande({ client, gerantId, type, amount, benefName, benef
     gerantName: g.name,
     gerantPhone: g.phone,
     gerantWave: g.waveNumber,
+    gerantPayLink: g.payLink || '',
     type,
     amount: parseInt(amount, 10),
     benefName: benefName || client.name,

@@ -18,9 +18,9 @@ const seed = () => ({
 
   // Client : ses gérants (contacts) + ses demandes
   gerants: [
-    { id: 'g1', userId: 'u_amadou', name: 'Boutique Amadou', phone: '771234567', waveNumber: '771234567', rating: 4.8, online: true },
-    { id: 'g2', userId: 'u_fatou', name: 'Kiosque Fatou', phone: '789876543', waveNumber: '789876543', rating: 4.6, online: false },
-    { id: 'g3', userId: 'u_moussa', name: 'Cabine Moussa', phone: '765554433', waveNumber: '765554433', rating: 4.2, online: true },
+    { id: 'g1', userId: 'u_amadou', name: 'Boutique Amadou', phone: '771234567', waveNumber: '771234567', payLink: '', rating: 4.8, online: true },
+    { id: 'g2', userId: 'u_fatou', name: 'Kiosque Fatou', phone: '789876543', waveNumber: '789876543', payLink: '', rating: 4.6, online: false },
+    { id: 'g3', userId: 'u_moussa', name: 'Cabine Moussa', phone: '765554433', waveNumber: '765554433', payLink: '', rating: 4.2, online: true },
   ],
   demandes: [],
 
@@ -68,6 +68,12 @@ function reducer(state, action) {
 
     case 'SET_SUBSCRIPTION':
       return { ...state, subscription: action.payload };
+
+    case 'SET_GERANT_PROFILE':
+      return {
+        ...state,
+        user: state.user ? { ...state.user, ...action.payload } : state.user,
+      };
 
     default:
       return state;
@@ -163,7 +169,7 @@ export function StoreProvider({ children }) {
         return gerant;
       } catch { /* fallback */ }
     }
-    dispatch({ type: 'ADD_GERANT', payload: { id: 'g_' + now(), name: payload.name || `Gérant ${(payload.phone || '').slice(-4)}`, phone: payload.phone, waveNumber: payload.phone, rating: 4.0, online: true } });
+    dispatch({ type: 'ADD_GERANT', payload: { id: 'g_' + now(), name: payload.name || `Gérant ${(payload.phone || '').slice(-4)}`, phone: payload.phone, waveNumber: payload.phone, payLink: payload.payLink || '', rating: 4.0, online: true } });
     return { id: 'g_' + now() };
   }, [online]);
 
@@ -181,7 +187,7 @@ export function StoreProvider({ children }) {
         return demande;
       } catch { /* fallback */ }
     }
-    d = { id: 'd_' + now(), status: 'pending', type: payload.type, amount: payload.amount, gerantName: payload.gerantName, gerantWave: payload.gerantWave, clientName: 'Vous', benefName: payload.benefName, benefPhone: payload.benefPhone, gerantId: payload.gerantId, createdAt: now() };
+    d = { id: 'd_' + now(), status: 'pending', type: payload.type, amount: payload.amount, gerantName: payload.gerantName, gerantWave: payload.gerantWave, gerantPayLink: payload.gerantPayLink || '', clientName: 'Vous', benefName: payload.benefName, benefPhone: payload.benefPhone, gerantId: payload.gerantId, createdAt: now() };
     dispatch({ type: 'ADD_DEMANDE', payload: d });
     return d;
   }, [online]);
@@ -206,6 +212,24 @@ export function StoreProvider({ children }) {
     if (online) { try { await api.gerant.complete(id); } catch {} }
   }, [online]);
 
+  // Mise à jour du profil gérant (numéro + lien Wave marchand)
+  const updateGerantProfile = useCallback(async (patch) => {
+    let updated = null;
+    if (online) {
+      try {
+        const { user } = await api.gerant.updateProfile(patch);
+        updated = user;
+      } catch { updated = { waveNumber: patch.waveNumber, payLink: patch.payLink }; }
+    } else {
+      updated = { waveNumber: patch.waveNumber, payLink: patch.payLink };
+    }
+    if (updated) {
+      dispatch({ type: 'SET_GERANT_PROFILE', payload: updated });
+      // Note : les contacts gérants côté clients seront rafraîchis au prochain refresh.
+    }
+    return updated;
+  }, [online]);
+
   const subscribe = useCallback(async () => {
     const sub = { status: 'active', daysLeft: 30, price: 100 };
     dispatch({ type: 'SET_SUBSCRIPTION', payload: sub });
@@ -214,8 +238,8 @@ export function StoreProvider({ children }) {
   }, [online, state.role]);
 
   const value = useMemo(
-    () => ({ state, dispatch, online, checking, login, register, logout, refresh, addGerant, removeGerant, createDemande, markPaid, acceptDemande, declineDemande, completeDemande, subscribe }),
-    [state, online, checking, login, register, logout, refresh, addGerant, removeGerant, createDemande, markPaid, acceptDemande, declineDemande, completeDemande, subscribe],
+    () => ({ state, dispatch, online, checking, login, register, logout, refresh, addGerant, removeGerant, createDemande, markPaid, acceptDemande, declineDemande, completeDemande, subscribe, updateGerantProfile }),
+    [state, online, checking, login, register, logout, refresh, addGerant, removeGerant, createDemande, markPaid, acceptDemande, declineDemande, completeDemande, subscribe, updateGerantProfile],
   );
   return <Ctx.Provider value={value}>{children}</Ctx.Provider>;
 }

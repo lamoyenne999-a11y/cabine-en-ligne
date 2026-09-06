@@ -1,6 +1,6 @@
 import { Router } from 'express';
 import { requireAuth, requireRole } from '../middleware/auth.js';
-import { demandesForGerant, gerantHistory, demandeSummary, decideDemande, markCompleted, subscriptionFor, activateSubscription, publicProfile } from '../services/flowService.js';
+import { demandesForGerant, gerantHistory, demandeSummary, decideDemande, markCompleted, subscriptionFor, activateSubscription, publicProfile, gerantProfile, updateGerantProfile } from '../services/flowService.js';
 
 const router = Router();
 router.use(requireAuth, requireRole('gerant'));
@@ -28,7 +28,16 @@ router.post('/demandes/:id/complete', (req, res) => {
 });
 
 // ---- Profil / Wave marchand ----
-router.get('/profile', (req, res) => res.json({ user: { name: req.user.name, phone: req.user.phone, waveNumber: req.user.waveNumber } }));
+router.get('/profile', (req, res) => res.json({ user: gerantProfile(req.user) }));
+
+// Mise à jour du numéro + lien Wave marchand (les clients pourront cliquer pour payer)
+router.post('/profile', (req, res) => {
+  try {
+    const { waveNumber, payLink } = req.body || {};
+    const user = updateGerantProfile({ userId: req.user.id, waveNumber, payLink });
+    res.json({ user });
+  } catch (e) { res.status(400).json({ error: e.message }); }
+});
 
 // ---- Abonnement ----
 router.get('/subscription', (req, res) => res.json({ subscription: subscriptionFor(req.user) }));

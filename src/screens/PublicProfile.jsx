@@ -1,11 +1,13 @@
 import React, { useEffect, useState } from 'react';
-import { View, Text, ScrollView, StyleSheet, ActivityIndicator } from 'react-native';
+import { View, Text, ScrollView, StyleSheet, ActivityIndicator, Linking } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { colors, radius, space, font } from '../theme';
 import { T, Btn, Card, Pill } from '../components/ui';
 import { Header } from '../components/Shell';
 import { api } from '../api';
 import { useStore } from '../store';
+
+const openPay = (link) => { if (link && typeof Linking !== 'undefined') Linking.openURL(link).catch(() => {}); };
 
 // Profil public d'un utilisateur, ouvert via son lien de partage /?u=ID.
 const MOCK = {
@@ -89,6 +91,9 @@ export default function PublicProfile({ userId }) {
                   <T size={font.sm} weight="700" color={colors.wave} style={{ marginLeft: 8 }}>Wave marchand : {profile.waveNumber}</T>
                 </View>
               )}
+              {isGerant && profile.payLink ? (
+                <Btn title="Payer via Wave en ligne" icon="open-outline" onPress={() => openPay(profile.payLink)} style={{ alignSelf: 'stretch', marginTop: space.md }} />
+              ) : null}
             </Card>
 
             {isMe ? (

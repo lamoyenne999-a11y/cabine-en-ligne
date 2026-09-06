@@ -56,6 +56,13 @@ async function main() {
   check('Profil public accessibles sans token', pp.status === 200 && pp.json.profile?.id === 'u_amadou');
   check('Profil public expose le Wave marchand', !!pp.json.profile?.waveNumber);
 
+  // Le gérant définit son lien Wave marchand (pour paiement direct)
+  const PAYLINK = 'https://pay.wave.com/m/M_ci_JEUXTEST_/c/ci/';
+  const upd = await req('POST', '/gerant/profile', { payLink: PAYLINK }, gt);
+  check('Gérant met à jour son lien Wave marchand', upd.status === 200 && upd.json.user?.payLink === PAYLINK);
+  const pp2 = await req('GET', `/public/u/${lg.json.user.id}`);
+  check('Profil public expose le lien Wave marchand', pp2.json.profile?.payLink === PAYLINK);
+
   // Ajout d'un gérant par le nouveau client (via le lien public)
   const addg = await req('POST', '/client/gerants', { phone: '771234567', name: 'Boutique Amadou' }, ct);
   check('Ajout de gérant 201', addg.status === 201 && !!addg.json.gerant?.id);
@@ -68,6 +75,10 @@ async function main() {
   }, ct);
   check('Création demande 201', dm.status === 201 && dm.json.demande?.status === 'pending');
   const demandeId = dm.json.demande?.id;
+
+  // Ligne de base : historique gérant AVANT la nouvelle demande (le seed contient des démos)
+  const gh0 = await req('GET', '/gerant/history', null, gt);
+  const base = gh0.json.summary || { totalServed: 0, counts: {} };
 
   // Le gérant voit la demande en attente
   const gd = await req('GET', '/gerant/demandes', null, gt);
@@ -83,6 +94,7 @@ async function main() {
   const seen = (cd.json.demandes || []).find((d) => d.id === demandeId);
   check('Client voit la demande acceptée', seen?.status === 'accepted');
   check('Demande expose le Wave marchand du gérant', seen?.gerantWave === '771234567');
+  check('Demande porte le lien Wave du gérant', seen?.gerantPayLink === PAYLINK);
 
   // Paiement direct Wave (hors app) : le client signale qu'il a payé
   const paid = await req('POST', `/client/demandes/${demandeId}/paid`, {}, ct);
@@ -103,11 +115,11 @@ async function main() {
   check('Historique client : 1 demande complétée', ch.json.summary?.counts?.completed === 1);
   check('Historique client : liste des transactions', (ch.json.demandes || []).length === 1);
 
-  // Historique gérant : total servi = somme des commandes servies
+  // Historique gérant : +2000 servi, +1 complétée, la demande est présente
   const gh = await req('GET', '/gerant/history', null, gt);
-  check('Historique gérant : total servi = 2000', gh.json.summary?.totalServed === 2000);
-  check('Historique gérant : 1 demande complétée', gh.json.summary?.counts?.completed === 1);
-  check('Historique gérant : toutes les demandes', (gh.json.demandes || []).length === 1);
+  check('Historique gérant : total servi +2000', gh.json.summary?.totalServed === base.totalServed + 2000);
+  check('Historique gérant : +1 demande complétée', gh.json.summary?.counts?.completed === (base.counts?.completed || 0) + 1);
+  check('Historique gérant : la demande apparaît', (gh.json.demandes || []).some((d) => d.id === demandeId && d.status === 'completed'));
 
   // Abonnement client : essai puis activation à 100 FCFA/mois
   const s0 = await req('GET', '/client/subscription', null, ct);

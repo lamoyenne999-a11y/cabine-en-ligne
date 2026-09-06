@@ -59,6 +59,8 @@ export const api = {
     accept: (id) => request('POST', `/api/gerant/demandes/${id}/accept`),
     decline: (id) => request('POST', `/api/gerant/demandes/${id}/decline`),
     complete: (id) => request('POST', `/api/gerant/demandes/${id}/complete`),
+    profile: () => request('GET', '/api/gerant/profile'),
+    updateProfile: (p) => request('POST', '/api/gerant/profile', p),
     subscription: () => request('GET', '/api/gerant/subscription'),
     subscribe: () => request('POST', '/api/gerant/subscribe'),
   },
