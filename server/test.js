@@ -50,6 +50,16 @@ async function main() {
   const gt = greg.json.token;
   const gid = greg.json.user.id;
 
+  // ===== Séparation stricte des rôles à la connexion =====
+  const clientAsGerant = await req('POST', '/auth/login', { phone: '07' + uniq, password: '1234', role: 'gerant' });
+  check('Un compte client ne peut PAS se connecter en gérant (403)', clientAsGerant.status === 403);
+  const gerantAsClient = await req('POST', '/auth/login', { phone: gphone, password: '1234', role: 'client' });
+  check('Un compte gérant ne peut PAS se connecter en client (403)', gerantAsClient.status === 403);
+  const clientOk = await req('POST', '/auth/login', { phone: '07' + uniq, password: '1234', role: 'client' });
+  check('Le client se connecte bien en client (200)', clientOk.status === 200 && clientOk.json.user?.role === 'client');
+  const gerantOk = await req('POST', '/auth/login', { phone: gphone, password: '1234', role: 'gerant' });
+  check('Le gérant se connecte bien en gérant (200)', gerantOk.status === 200 && gerantOk.json.user?.role === 'gerant');
+
   // Aucune notion de solde : le champ solde ne doit pas exister
   check("Pas de solde dans la réponse d'auth", !('balance' in (greg.json.user || {})));
 

@@ -162,18 +162,17 @@ export function StoreProvider({ children }) {
       return { source: 'mock' };
     }
     try {
-      const { token, user, subscription } = await api.login({ phone, password: password || '' });
+      // On envoie le rôle pour que le serveur verrouille l'accès à la bonne
+      // espace : un compte client ne peut pas se connecter en gérant, etc.
+      const { token, user, subscription } = await api.login({ phone, password: password || '', role });
       setToken(token);
       dispatch({ type: 'LOGIN', payload: { user, subscription } });
       persistSession({ user, subscription });
       return { source: 'api' };
     } catch (e) {
-      if (e && e.status === 401) throw e;
-      const user = { id: 'u_client', role, name: 'Jean Dupont', phone, waveNumber: phone };
-      const subscription = { status: 'trial', daysLeft: 30, price: 100 };
-      dispatch({ type: 'LOGIN', payload: { user, subscription } });
-      persistSession({ user, subscription });
-      return { source: 'mock' };
+      // 403 = mauvais rôle ; 401 = identifiants faux. On fait remonter l'erreur
+      // pour l'afficher, quel que soit le cas (pas de bascule silencieuse en démo).
+      throw e;
     }
   }, [online]);
 

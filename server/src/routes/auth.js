@@ -30,11 +30,18 @@ router.post('/register', async (req, res, next) => {
 // POST /api/auth/login  (identifiant = numéro de téléphone)
 router.post('/login', async (req, res, next) => {
   try {
-    const { phone, password } = req.body || {};
+    const { phone, password, role } = req.body || {};
     const user = findOne('users', (u) => u.phone === String(phone || '').trim());
     if (!user) return res.status(401).json({ error: 'Numéro ou mot de passe incorrect' });
     const ok = await verifyPassword(password || '', user.passwordHash);
     if (!ok) return res.status(401).json({ error: 'Numéro ou mot de passe incorrect' });
+
+    // Séparation stricte des rôles : un client ne peut pas se connecter en
+    // gérant et inversement. On compare le rôle demandé au rôle du compte.
+    if (role && user.role !== role) {
+      return res.status(403).json({ error: user.role === 'gerant' ? 'Ce compte est un compte GÉRANT. Connectez-vous dans l\'espace Gérant.' : 'Ce compte est un compte CLIENT. Connectez-vous dans l\'espace Client.' });
+    }
+
     const token = signToken(user);
     res.json({ token, user: publicUser(user), subscription: subscriptionFor(user) });
   } catch (e) { next(e); }
