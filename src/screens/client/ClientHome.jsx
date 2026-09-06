@@ -66,8 +66,8 @@ export default function ClientHome() {
 
   const submit = async () => {
     if (amountNum <= 0) return;
-    if (!gerantId) { setShowGerants(true); return; }
-    const created = await createDemande({
+    if (!gerant || !gerantId) { setShowGerants(true); return; }
+    const payload = {
       gerantId,
       gerantName: gerant.name,
       gerantWave: gerant.waveNumber,
@@ -76,10 +76,15 @@ export default function ClientHome() {
       amount: amountNum,
       benefName: who === 'autre' ? benefName : (state.user?.name || 'Moi'),
       benefPhone: who === 'autre' ? benefPhone : (state.user?.phone || ''),
-    });
-    setAmount(''); setWho('moi'); setBenefName(''); setBenefPhone('');
-    setLastDemande(created);
+    };
+    // Affiche la confirmation immédiatement (pas de blocage sur le réseau),
+    // puis remplace par la vraie demande dès qu'elle est créée.
     setSent(true);
+    setAmount(''); setWho('moi'); setBenefName(''); setBenefPhone('');
+    try {
+      const created = await createDemande(payload);
+      if (created && created.id) setLastDemande(created);
+    } catch { /* garde la confirmation affichée même si l'envoi échoue */ }
   };
 
   return (

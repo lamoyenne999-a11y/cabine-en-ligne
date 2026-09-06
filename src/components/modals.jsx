@@ -46,7 +46,7 @@ export function BottomSheet({ visible, onClose, children }) {
 // ============================================================
 export function Dialog({ visible, onClose, children }) {
   return (
-    <Modal visible={visible} transparent animationType="fade" statusBarTranslucent>
+    <Modal visible={visible} transparent animationType="none" statusBarTranslucent>
       <View style={overlay.centerOverlay}>
         <View style={overlay.dialog}>
           {children}
