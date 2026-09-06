@@ -80,7 +80,7 @@ function cleanupFakeGerants(dbData) {
 // mémorisée en base : les déploiements suivants ne re-purgent PAS, donc les
 // gérants réellement inscrits via l'app sont conservés. Résultat : seuls les
 // gérants authentiques (enregistrés avec un mot de passe) apparaissent.
-const GERANT_RESET_VERSION = 'v2-clean';
+const GERANT_RESET_VERSION = 'v2-clean-2';
 function resetStaleGerants(dbData) {
   if (dbData.__gerantResetDone === GERANT_RESET_VERSION) return dbData;
   const gids = new Set((dbData.users || []).filter((u) => u.role === 'gerant').map((u) => u.id));
