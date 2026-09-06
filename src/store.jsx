@@ -47,6 +47,9 @@ const seed = () => {
 
   // Gérant : demandes reçues
   gerantDemandes: [],
+  // Gérant : notifications
+  notifications: [],
+  unread: 0,
   };
 };
 
@@ -89,6 +92,17 @@ function reducer(state, action) {
       return { ...state, gerantDemandes: action.payload };
     case 'GERANT_UPDATE_DEMANDE':
       return { ...state, gerantDemandes: state.gerantDemandes.map((d) => (d.id === action.payload.id ? { ...d, ...action.payload } : d)) };
+
+    case 'SET_NOTIFICATIONS':
+      return { ...state, notifications: action.payload.notifications || [], unread: action.payload.unread ?? (action.payload.notifications || []).filter((n) => !n.read).length };
+    case 'MARK_NOTIFICATION_READ':
+      return {
+        ...state,
+        notifications: state.notifications.map((n) => (n.id === action.payload ? { ...n, read: true } : n)),
+        unread: Math.max(0, state.unread - 1),
+      };
+    case 'MARK_ALL_NOTIFICATIONS_READ':
+      return { ...state, notifications: state.notifications.map((n) => ({ ...n, read: true })), unread: 0 };
 
     case 'SET_SUBSCRIPTION':
       return { ...state, subscription: action.payload };
@@ -198,13 +212,25 @@ export function StoreProvider({ children }) {
         ]);
         dispatch({ type: 'HYDRATE', payload: { gerants: g?.gerants, demandes: d?.demandes } });
       } else if (state.role === 'gerant') {
-        const d = await api.gerant.demandes().catch(() => null);
+        const [d, n] = await Promise.all([
+          api.gerant.demandes().catch(() => null),
+          api.gerant.notifications().catch(() => null),
+        ]);
         if (d) dispatch({ type: 'SET_GERANT_DEMANDES', payload: d.demandes });
+        if (n) dispatch({ type: 'SET_NOTIFICATIONS', payload: n });
       }
     } catch { /* silencieux */ }
-  }, [online, state.role]);
+  }, [online, state.role, state.loggedIn]);
 
   useEffect(() => { if (online && state.loggedIn) refresh(); }, [online, state.loggedIn]); // eslint-disable-line
+
+  // Rafraîchit périodiquement les demandes + notifications du gérant
+  // (permet de voir en direct une demande, une annulation ou un paiement).
+  useEffect(() => {
+    if (!online || !state.loggedIn || state.role !== 'gerant') return;
+    const t = setInterval(() => refresh(), 10000);
+    return () => clearInterval(t);
+  }, [online, state.loggedIn, state.role, refresh]);
 
   // ---- Actions ----
   const addGerant = useCallback(async (payload) => {
@@ -264,6 +290,24 @@ export function StoreProvider({ children }) {
   }, [online]);
 
   // Mise à jour du profil gérant (numéro + lien Wave marchand)
+  const loadNotifications = useCallback(async () => {
+    if (!online) return;
+    try {
+      const n = await api.gerant.notifications();
+      dispatch({ type: 'SET_NOTIFICATIONS', payload: n });
+    } catch { /* silencieux */ }
+  }, [online]);
+
+  const markNotificationRead = useCallback(async (id) => {
+    dispatch({ type: 'MARK_NOTIFICATION_READ', payload: id });
+    if (online) { try { await api.gerant.markNotificationRead(id); } catch {} }
+  }, [online]);
+
+  const markAllNotificationsRead = useCallback(async () => {
+    dispatch({ type: 'MARK_ALL_NOTIFICATIONS_READ' });
+    if (online) { try { await api.gerant.markAllNotificationsRead(); } catch {} }
+  }, [online]);
+
   const updateGerantProfile = useCallback(async (patch) => {
     let updated = null;
     if (online) {
@@ -289,8 +333,8 @@ export function StoreProvider({ children }) {
   }, [online, state.role]);
 
   const value = useMemo(
-    () => ({ state, dispatch, online, checking, login, register, logout, refresh, addGerant, removeGerant, createDemande, markPaid, cancelDemande, acceptDemande, declineDemande, completeDemande, subscribe, updateGerantProfile }),
-    [state, online, checking, login, register, logout, refresh, addGerant, removeGerant, createDemande, markPaid, cancelDemande, acceptDemande, declineDemande, completeDemande, subscribe, updateGerantProfile],
+    () => ({ state, dispatch, online, checking, login, register, logout, refresh, addGerant, removeGerant, createDemande, markPaid, cancelDemande, acceptDemande, declineDemande, completeDemande, subscribe, updateGerantProfile, loadNotifications, markNotificationRead, markAllNotificationsRead }),
+    [state, online, checking, login, register, logout, refresh, addGerant, removeGerant, createDemande, markPaid, cancelDemande, acceptDemande, declineDemande, completeDemande, subscribe, updateGerantProfile, loadNotifications, markNotificationRead, markAllNotificationsRead],
   );
   return <Ctx.Provider value={value}>{children}</Ctx.Provider>;
 }

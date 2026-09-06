@@ -1,6 +1,6 @@
 import { Router } from 'express';
 import { requireAuth, requireRole } from '../middleware/auth.js';
-import { demandesForGerant, gerantHistory, demandeSummary, decideDemande, markCompleted, subscriptionFor, activateSubscription, publicProfile, gerantProfile, updateGerantProfile } from '../services/flowService.js';
+import { demandesForGerant, gerantHistory, demandeSummary, decideDemande, markCompleted, subscriptionFor, activateSubscription, publicProfile, gerantProfile, updateGerantProfile, notificationsFor, unreadCount, markNotificationRead, markAllNotificationsRead } from '../services/flowService.js';
 
 const router = Router();
 router.use(requireAuth, requireRole('gerant'));
@@ -38,6 +38,14 @@ router.post('/profile', (req, res) => {
     res.json({ user });
   } catch (e) { res.status(400).json({ error: e.message }); }
 });
+
+// ---- Notifications reçues ----
+router.get('/notifications', (req, res) => res.json({ notifications: notificationsFor(req.user.id), unread: unreadCount(req.user.id) }));
+router.post('/notifications/:id/read', (req, res) => {
+  try { res.json({ notification: markNotificationRead({ id: req.params.id, userId: req.user.id }) }); }
+  catch (e) { res.status(e.status || 400).json({ error: e.message }); }
+});
+router.post('/notifications/read-all', (req, res) => res.json(markAllNotificationsRead(req.user.id)));
 
 // ---- Abonnement ----
 router.get('/subscription', (req, res) => res.json({ subscription: subscriptionFor(req.user) }));

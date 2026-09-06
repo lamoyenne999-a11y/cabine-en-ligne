@@ -85,6 +85,11 @@ async function main() {
   const pending = (gd.json.demandes || []).find((d) => d.id === demandeId);
   check('Gérant voit la demande en attente', !!pending && pending.status === 'pending');
 
+  // Notifications : nouvelle demande est arrivée
+  const n1 = await req('GET', '/gerant/notifications', null, gt);
+  check('Notification « nouvelle demande » créée', (n1.json.notifications || []).some((x) => x.type === 'new_demande' && x.demandeId === demandeId));
+  check('Compteur non lues > 0', (n1.json.unread || 0) > 0);
+
   // Le gérant accepte
   const acc = await req('POST', `/gerant/demandes/${demandeId}/accept`, {}, gt);
   check('Acceptation gérant OK', acc.status === 200 && acc.json.demande?.status === 'accepted');
@@ -114,6 +119,10 @@ async function main() {
   check('Historique client : total dépensé = 2000', ch.json.summary?.totalSpent === 2000);
   check('Historique client : 1 demande complétée', ch.json.summary?.counts?.completed === 1);
   check('Historique client : liste des transactions', (ch.json.demandes || []).length === 1);
+
+  // Paiement notifie le gérant
+  const n2 = await req('GET', '/gerant/notifications', null, gt);
+  check('Notification « paiement » créée', (n2.json.notifications || []).some((x) => x.type === 'demande_paid' && x.demandeId === demandeId));
 
   // Historique gérant : +2000 servi, +1 complétée, la demande est présente
   const gh = await req('GET', '/gerant/history', null, gt);
@@ -151,6 +160,19 @@ async function main() {
   const early = await req('POST', `/client/demandes/${demande3Id}/cancel`, {}, ct);
   // avec DEMANDE_EXPIRE_MS très petit, le délai est dépassé dès la création
   check('Client annule une demande non traitée à temps', early.status === 200 && early.json.demande?.status === 'canceled');
+
+  // L'annulation génère une notification pour le gérant
+  const n3 = await req('GET', '/gerant/notifications', null, gt);
+  check('Notification « annulation » créée pour le gérant', (n3.json.notifications || []).some((x) => x.type === 'demande_canceled' && x.demandeId === demande3Id));
+
+  // Marquer une notification comme lue
+  const firstUnread = (n3.json.notifications || []).find((x) => !x.read);
+  if (firstUnread) {
+    const read = await req('POST', `/gerant/notifications/${firstUnread.id}/read`, {}, gt);
+    check('Marquer une notification lue OK', read.status === 200 && read.json.notification?.read === true);
+  } else {
+    check('Marquer une notification lue OK', true);
+  }
 
   const dm4 = await req('POST', '/client/demandes', {
     gerantId, gerantName: 'Boutique Amadou', gerantWave: '771234567',

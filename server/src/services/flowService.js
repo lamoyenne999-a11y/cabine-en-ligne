@@ -39,6 +39,34 @@ export function activateSubscription(user) {
 
 export const SUB_PRICE_FCFA = SUB_PRICE;
 
+// ---- Notifications (reçues par les gérants) ----
+export function notificationsFor(userId) {
+  return find('notifications', (n) => n.userId === userId).sort((a, b) => b.createdAt - a.createdAt);
+}
+export function unreadCount(userId) {
+  return notificationsFor(userId).filter((n) => !n.read).length;
+}
+export function createNotification({ userId, type, text, demandeId }) {
+  return insert('notifications', {
+    userId,
+    type,             // 'new_demande' | 'demande_canceled' | 'demande_paid' | 'demande_completed'
+    text,
+    demandeId: demandeId || '',
+    read: false,
+    createdAt: Date.now(),
+  });
+}
+export function markNotificationRead({ id, userId }) {
+  const n = findOne('notifications', (x) => x.id === id && x.userId === userId);
+  if (!n) throw Object.assign(new Error('Notification introuvable'), { status: 404 });
+  update('notifications', (x) => x.id === id, { read: true });
+  return findOne('notifications', (x) => x.id === id);
+}
+export function markAllNotificationsRead(userId) {
+  notificationsFor(userId).forEach((n) => update('notifications', (x) => x.id === n.id, { read: true }));
+  return { ok: true };
+}
+
 // ---- Public profile (lien de partage) ----
 export function publicProfile(id) {
   const u = findOne('users', (x) => x.id === id);
@@ -150,6 +178,8 @@ export function createDemande({ client, gerantId, type, amount, benefName, benef
     paidAt: 0,
     canceledAt: 0,
   });
+  // Notifie le gérant qu'une nouvelle demande est arrivée
+  if (g.userId) createNotification({ userId: g.userId, type: 'new_demande', text: `Nouvelle demande de ${client.name} — ${TYPE_LABEL[type] || type}  ${d.amount} F`, demandeId: d.id });
   return d;
 }
 
@@ -194,7 +224,17 @@ export function cancelDemande({ id, clientId }) {
   if (!d) throw Object.assign(new Error('Demande introuvable'), { status: 404 });
   if (d.status !== 'pending') throw Object.assign(new Error('Cette demande ne peut plus être annulée'), { status: 400 });
   update('demandes', (x) => x.id === id, { status: 'canceled', canceledAt: Date.now() });
-  return findOne('demandes', (x) => x.id === id);
+  const updated = findOne('demandes', (x) => x.id === id);
+  // Notifie le gérant que le client a annulé
+  if (updated && updated.gerantUserId) {
+    createNotification({
+      userId: updated.gerantUserId,
+      type: 'demande_canceled',
+      text: `${updated.clientName} a annulé sa demande — ${TYPE_LABEL[updated.type] || updated.type}  ${updated.amount} F (non traitée à temps)`,
+      demandeId: updated.id,
+    });
+  }
+  return updated;
 }
 
 export function decideDemande({ id, gerantUserId, decision }) {
@@ -217,7 +257,17 @@ export function markPaid({ id, clientId }) {
   // Le client peut payer AVANT que le gérant accepte (pending) ou APRÈS (accepted)
   if (!['pending', 'accepted'].includes(d.status)) throw Object.assign(new Error('Cette demande ne peut plus être payée'), { status: 400 });
   update('demandes', (x) => x.id === id, { status: 'paid', paidAt: Date.now() });
-  return findOne('demandes', (x) => x.id === id);
+  const updated = findOne('demandes', (x) => x.id === id);
+  // Notifie le gérant que le client a payé
+  if (updated && updated.gerantUserId) {
+    createNotification({
+      userId: updated.gerantUserId,
+      type: 'demande_paid',
+      text: `${updated.clientName} a payé ${updated.amount} F pour sa demande ${TYPE_LABEL[updated.type] || updated.type}`,
+      demandeId: updated.id,
+    });
+  }
+  return updated;
 }
 
 export function markCompleted({ id, gerantUserId }) {

@@ -22,7 +22,7 @@ const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
 const DATA_FILE = process.env.DB_FILE || path.join(__dirname, '..', 'data', 'db.json');
 const DATABASE_URL = process.env.DATABASE_URL || '';
-const COLLECTIONS = ['users', 'gerants', 'demandes'];
+const COLLECTIONS = ['users', 'gerants', 'demandes', 'notifications'];
 
 const now = Date.now();
 const in30 = () => now + 30 * 24 * 3600 * 1000;
@@ -76,7 +76,19 @@ const seed = () => ({
       status: 'pending', createdAt: now - 3 * 3600 * 1000, expiresAt: now + 30 * 3600 * 1000, acceptedAt: 0, paidAt: 0,
     },
   ],
+
+  // Notifications reçues par les gérants (nouvelle demande, annulation, paiement…)
+  notifications: [],
 });
+
+// S'assure que toutes les collections existent (utile pour une base Postgres
+// déjà initialisée avant l'ajout d'une nouvelle collection).
+function normalize(dbData) {
+  for (const c of COLLECTIONS) {
+    if (!Array.isArray(dbData[c])) dbData[c] = [];
+  }
+  return dbData;
+}
 
 // ------------------------- JSON (dev) -------------------------
 function loadFile() {
@@ -114,7 +126,7 @@ export async function initDb() {
       pool = new Pool({ connectionString: DATABASE_URL, ssl: DATABASE_URL.includes('render') ? { rejectUnauthorized: false } : undefined });
       await ensureSchema(pool);
       const loaded = await loadFromPg(pool);
-      db = loaded && loaded.users ? loaded : seed();
+      db = loaded && loaded.users ? normalize(loaded) : seed();
       usingPg = true;
       if (!loaded) await persistToPg(pool);
       console.log(`[db] PostgreSQL connecté`);
@@ -124,7 +136,7 @@ export async function initDb() {
       pool = null;
     }
   }
-  db = loadFile();
+  db = normalize(loadFile());
   writeFile();
   return db;
 }
