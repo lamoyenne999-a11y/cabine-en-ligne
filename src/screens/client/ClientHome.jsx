@@ -35,6 +35,7 @@ export default function ClientHome() {
   const [sent, setSent] = useState(false);
   const [lastDemande, setLastDemande] = useState(null);
   const [paying, setPaying] = useState(null);
+  const [errors, setErrors] = useState({});
 
   const gerant = sel;
   const amountNum = parseInt(amount, 10) || 0;
@@ -42,9 +43,25 @@ export default function ClientHome() {
   const addedIds = new Set((state.gerants || []).map((g) => g.userId));
   const suggested = (state.availableGerants || []).filter((g) => !g.alreadyAdded && !addedIds.has(g.userId));
 
+  // Validation : on n'envoie jamais la demande tant qu'il manque une info.
+  const validate = () => {
+    const e = {};
+    if (amountNum <= 0) e.amount = 'Indiquez le montant à recharger.';
+    if (!sel) e.gerant = 'Sélectionnez un gérant.';
+    if (who === 'autre') {
+      if (!benefName.trim()) e.benefName = 'Indiquez le nom de la personne à créditer.';
+      if (!benefPhone.trim()) e.benefPhone = 'Indiquez le numéro de la personne à créditer.';
+    }
+    return e;
+  };
+
+  // Efface l'erreur d'un champ dès que le client le corrige.
+  const clearErr = (key) => setErrors((prev) => { if (!prev[key]) return prev; const n = { ...prev }; delete n[key]; return n; });
+
   const submit = async () => {
-    if (amountNum <= 0) return;
-    if (!sel) { setShowGerants(true); return; }
+    const e = validate();
+    setErrors(e);
+    if (Object.keys(e).length > 0) return;
     const payload = {
       gerantId: sel.id || undefined,
       gerantUserId: sel.userId || undefined,
@@ -95,25 +112,28 @@ export default function ClientHome() {
 
         {/* Form */}
         <Card style={{ marginTop: space.lg }}>
-          <T size={font.sm} weight="700" color={colors.textSoft} style={{ marginBottom: 7 }}>Montant (XOF)</T>
-          <View style={s.input}>
-            <TextInput value={amount} onChangeText={(t) => setAmount(t.replace(/[^0-9]/g, ''))} placeholder="Ex : 2000" placeholderTextColor={colors.muted2} keyboardType="number-pad" style={s.inputText} />
+          <T size={font.sm} weight="700" color={colors.textSoft} style={{ marginBottom: 7 }}>Montant (XOF) <T color={colors.danger}>*</T></T>
+          <View style={[s.input, errors.amount && s.err]}>
+            <TextInput value={amount} onChangeText={(t) => { setAmount(t.replace(/[^0-9]/g, '')); clearErr('amount'); }} placeholder="Ex : 2000" placeholderTextColor={colors.muted2} keyboardType="number-pad" style={s.inputText} />
           </View>
+          {errors.amount && <T size={font.sm} weight="600" color={colors.danger} style={s.errText}>{errors.amount}</T>}
 
           <T size={font.sm} weight="700" color={colors.textSoft} style={{ marginTop: space.lg, marginBottom: 10 }}>Bénéficiaire</T>
-          <Segmented value={who} onChange={setWho} options={[{ value: 'moi', label: 'Pour moi' }, { value: 'autre', label: 'Pour quelqu\'un' }]} />
+          <Segmented value={who} onChange={(v) => { setWho(v); setErrors((prev) => ({ ...prev, benefName: undefined, benefPhone: undefined })); }} options={[{ value: 'moi', label: 'Pour moi' }, { value: 'autre', label: 'Pour quelqu\'un' }]} />
 
           {who === 'autre' && (
             <>
-              <T size={font.sm} weight="700" color={colors.textSoft} style={{ marginTop: space.lg, marginBottom: 7 }}>Nom du bénéficiaire</T>
-              <View style={s.input}><Ionicons name="person-outline" size={18} color={colors.primary} style={{ marginRight: 10 }} /><TextInput value={benefName} onChangeText={setBenefName} placeholder="Ex : Moussa" placeholderTextColor={colors.muted2} style={s.inputText} /></View>
-              <T size={font.sm} weight="700" color={colors.textSoft} style={{ marginTop: space.lg, marginBottom: 7 }}>Numéro du bénéficiaire</T>
-              <View style={s.input}><Ionicons name="call-outline" size={18} color={colors.primary} style={{ marginRight: 10 }} /><TextInput value={benefPhone} onChangeText={(t) => setBenefPhone(t.replace(/[^0-9]/g, ''))} placeholder="Ex : 07 07 07 07 07" placeholderTextColor={colors.muted2} keyboardType="phone-pad" style={s.inputText} /></View>
+              <T size={font.sm} weight="700" color={colors.textSoft} style={{ marginTop: space.lg, marginBottom: 7 }}>Nom du bénéficiaire <T color={colors.danger}>*</T></T>
+              <View style={[s.input, errors.benefName && s.err]}><Ionicons name="person-outline" size={18} color={errors.benefName ? colors.danger : colors.primary} style={{ marginRight: 10 }} /><TextInput value={benefName} onChangeText={(t) => { setBenefName(t); clearErr('benefName'); }} placeholder="Ex : Moussa" placeholderTextColor={colors.muted2} style={s.inputText} /></View>
+              {errors.benefName && <T size={font.sm} weight="600" color={colors.danger} style={s.errText}>{errors.benefName}</T>}
+              <T size={font.sm} weight="700" color={colors.textSoft} style={{ marginTop: space.lg, marginBottom: 7 }}>Numéro du bénéficiaire <T color={colors.danger}>*</T></T>
+              <View style={[s.input, errors.benefPhone && s.err]}><Ionicons name="call-outline" size={18} color={errors.benefPhone ? colors.danger : colors.primary} style={{ marginRight: 10 }} /><TextInput value={benefPhone} onChangeText={(t) => { setBenefPhone(t.replace(/[^0-9]/g, '')); clearErr('benefPhone'); }} placeholder="Ex : 07 07 07 07 07" placeholderTextColor={colors.muted2} keyboardType="phone-pad" style={s.inputText} /></View>
+              {errors.benefPhone && <T size={font.sm} weight="600" color={colors.danger} style={s.errText}>{errors.benefPhone}</T>}
             </>
           )}
 
           <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginTop: space.lg }}>
-            <T size={font.sm} weight="700" color={colors.textSoft}>Gérant</T>
+            <T size={font.sm} weight="700" color={colors.textSoft}>Gérant <T color={colors.danger}>*</T></T>
             {gerant && (
               <View style={s.onlineChip}>
                 <View style={{ width: 8, height: 8, borderRadius: 4, backgroundColor: gerant.online === false ? colors.muted2 : colors.success, marginRight: 5 }} />
@@ -121,13 +141,14 @@ export default function ClientHome() {
               </View>
             )}
           </View>
-          <Pressable onPress={() => setShowGerants(true)} style={[s.input, { marginTop: 8 }]}>
+          <Pressable onPress={() => setShowGerants(true)} style={[s.input, { marginTop: 8 }, errors.gerant && s.err]}>
             <View style={s.gerantPick}>
-              <Ionicons name="storefront-outline" size={20} color={colors.primary} style={{ marginRight: 10 }} />
+              <Ionicons name="storefront-outline" size={20} color={errors.gerant ? colors.danger : colors.primary} style={{ marginRight: 10 }} />
               <Text style={[s.inputText, gerant ? { color: colors.text, fontWeight: '700' } : null]} numberOfLines={1}>{gerant ? gerant.name : 'Sélectionner un gérant'}</Text>
-              <Ionicons name="chevron-down" size={18} color={colors.muted2} />
+              <Ionicons name="chevron-down" size={18} color={errors.gerant ? colors.danger : colors.muted2} />
             </View>
           </Pressable>
+          {errors.gerant && <T size={font.sm} weight="600" color={colors.danger} style={s.errText}>{errors.gerant}</T>}
 
           {/* Lien Wave marchand du gérant, visible dès sa sélection */}
           {gerant && (
@@ -146,6 +167,15 @@ export default function ClientHome() {
                 {gerant.payLink
                   ? <>Cliquez sur « Payer avec Wave en ligne » pour payer avant d'envoyer la demande, ou envoyez-la d'abord et payez après que {gerant.name} accepte.</>
                   : <>Appuyez sur le numéro pour le copier et payez dans votre app Wave. Une fois que {gerant.name} aura ajouté son lien marchand, le paiement se fera en un clic.</>}
+              </T>
+            </View>
+          )}
+
+          {Object.keys(errors).length > 0 && (
+            <View style={s.errBox}>
+              <Ionicons name="alert-circle" size={18} color={colors.danger} style={{ marginRight: 8 }} />
+              <T size={font.sm} weight="700" color={colors.danger} style={{ flex: 1 }}>
+                Il manque des informations pour envoyer la demande. Remplissez les champs signalés en rouge ci-dessus.
               </T>
             </View>
           )}
@@ -171,7 +201,7 @@ export default function ClientHome() {
             <T size={font.sm} weight="800" color={colors.primary} style={{ marginBottom: 4 }}>Gérants disponibles (déjà inscrits)</T>
             <T size={font.xs} weight="600" color={colors.muted2} style={{ marginBottom: 8 }}>Vous pouvez leur envoyer une demande directement, sans les ajouter.</T>
             {suggested.map((g) => (
-              <Pressable key={g.userId} onPress={() => { setSel({ userId: g.userId, name: g.name, phone: g.phone, waveNumber: g.waveNumber, payLink: g.payLink || '', online: true }); setShowGerants(false); }} style={s.gerantRow}>
+              <Pressable key={g.userId} onPress={() => { setSel({ userId: g.userId, name: g.name, phone: g.phone, waveNumber: g.waveNumber, payLink: g.payLink || '', online: true }); clearErr('gerant'); setShowGerants(false); }} style={s.gerantRow}>
                 <View style={s.availIcon}><Ionicons name="storefront-outline" size={18} color={colors.primary} /></View>
                 <View style={{ flex: 1, marginLeft: 10 }}>
                   <T size={font.body} weight="800" color={colors.text}>{g.name}</T>
@@ -190,7 +220,7 @@ export default function ClientHome() {
             {state.gerants.map((g) => {
               const on = sel?.id === g.id;
               return (
-                <Pressable key={g.id} onPress={() => { setSel({ id: g.id, userId: g.userId, name: g.name, phone: g.phone, waveNumber: g.waveNumber, payLink: g.payLink || '', online: g.online }); setShowGerants(false); }} style={[s.gerantRow, on && { opacity: 0.7 }]}>
+                <Pressable key={g.id} onPress={() => { setSel({ id: g.id, userId: g.userId, name: g.name, phone: g.phone, waveNumber: g.waveNumber, payLink: g.payLink || '', online: g.online }); clearErr('gerant'); setShowGerants(false); }} style={[s.gerantRow, on && { opacity: 0.7 }]}>
                   <View style={{ flex: 1 }}>
                     <T size={font.body} weight="800" color={colors.text}>{g.name}</T>
                     <T size={font.sm} weight="600" color={colors.muted} style={{ marginTop: 2 }}>{g.phone}</T>
@@ -278,6 +308,9 @@ const s = StyleSheet.create({
   typeIcon: { marginBottom: 8 },
   input: { flexDirection: 'row', alignItems: 'center', backgroundColor: colors.bg, borderRadius: radius.md, paddingHorizontal: 14, height: 52 },
   inputText: { flex: 1, fontSize: font.body, color: colors.text, paddingVertical: 0, outlineStyle: 'none' },
+  err: { borderWidth: 1.5, borderColor: colors.danger, backgroundColor: colors.dangerBg },
+  errText: { marginTop: 6 },
+  errBox: { flexDirection: 'row', alignItems: 'flex-start', backgroundColor: colors.dangerBg, borderRadius: radius.md, padding: 12, marginTop: space.lg },
   sheetHandle: { width: 44, height: 5, borderRadius: 3, backgroundColor: colors.muted2, alignSelf: 'center', marginBottom: 16 },
   gerantRow: { flexDirection: 'row', alignItems: 'center', paddingVertical: 14, borderBottomWidth: 1, borderBottomColor: colors.border },
   gerantPick: { flexDirection: 'row', alignItems: 'center', flex: 1 },
