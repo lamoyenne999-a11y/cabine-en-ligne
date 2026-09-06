@@ -214,23 +214,24 @@ export function gerantHistory(userId) {
   return { demandes, summary: demandeSummary(demandes) };
 }
 
-// Le client peut annuler sa demande tant que le gérant ne l'a pas encore
-// traitée (statut 'pending'). Côté interface, le bouton n'apparaît qu'après
-// le délai d'attente (expiresAt) — voir ClientHistory.jsx — pour honorer le
-// principe « annuler si non traitée à temps », mais on laisse la couche
-// métier permissive afin que l'annulation soit toujours possible hors traitement.
+// Le client peut annuler sa demande tant qu'il n'a PAS ENCORE PAYÉ
+// (statut 'pending' ou 'accepted'). Dès qu'il a payé ('paid') ou que la
+// demande est déjà traitée ('completed') / refusée ('declined') / annulée,
+// elle ne peut plus être annulée. Le gérant est notifié.
 export function cancelDemande({ id, clientId }) {
   const d = findOne('demandes', (x) => x.id === id && x.clientId === clientId);
   if (!d) throw Object.assign(new Error('Demande introuvable'), { status: 404 });
-  if (d.status !== 'pending') throw Object.assign(new Error('Cette demande ne peut plus être annulée'), { status: 400 });
+  if (!['pending', 'accepted'].includes(d.status)) {
+    throw Object.assign(new Error('Cette demande ne peut plus être annulée (déjà payée ou traitée)'), { status: 400 });
+  }
   update('demandes', (x) => x.id === id, { status: 'canceled', canceledAt: Date.now() });
   const updated = findOne('demandes', (x) => x.id === id);
-  // Notifie le gérant que le client a annulé
+  // Notifie le gérant que le client a annulé (avant paiement)
   if (updated && updated.gerantUserId) {
     createNotification({
       userId: updated.gerantUserId,
       type: 'demande_canceled',
-      text: `${updated.clientName} a annulé sa demande — ${TYPE_LABEL[updated.type] || updated.type}  ${updated.amount} F (non traitée à temps)`,
+      text: `${updated.clientName} a annulé sa demande — ${TYPE_LABEL[updated.type] || updated.type}  ${updated.amount} F (avant paiement)`,
       demandeId: updated.id,
     });
   }

@@ -182,6 +182,27 @@ async function main() {
   const gd_cancel = await req('GET', '/gerant/demandes', null, gt);
   check('La demande avant annulation était pending', (gd_cancel.json.demandes || []).some((d) => d.id === demande4Id && d.status === 'pending'));
 
+  // ===== Annulation d'une demande ACCEPTÉE mais PAS ENCORE PAYÉE =====
+  const dm5 = await req('POST', '/client/demandes', {
+    gerantId, gerantName: 'Boutique Amadou', gerantWave: '771234567',
+    type: 'internet', amount: 1500, benefName: 'Awa', benefPhone: '07' + uniq,
+  }, ct);
+  const demande5Id = dm5.json.demande?.id;
+  const acc5 = await req('POST', `/gerant/demandes/${demande5Id}/accept`, {}, gt);
+  check('Demande acceptée avant annulation', acc5.status === 200 && acc5.json.demande?.status === 'accepted');
+  const cancel5 = await req('POST', `/client/demandes/${demande5Id}/cancel`, {}, ct);
+  check('Client annule une demande acceptée mais non payée', cancel5.status === 200 && cancel5.json.demande?.status === 'canceled');
+
+  // ===== Une demande PAYÉE ne peut plus être annulée =====
+  const dm6 = await req('POST', '/client/demandes', {
+    gerantId, gerantName: 'Boutique Amadou', gerantWave: '771234567',
+    type: 'unites', amount: 900, benefName: 'Awa', benefPhone: '07' + uniq,
+  }, ct);
+  const demande6Id = dm6.json.demande?.id;
+  await req('POST', `/client/demandes/${demande6Id}/paid`, {}, ct);
+  const cancel6 = await req('POST', `/client/demandes/${demande6Id}/cancel`, {}, ct);
+  check('Une demande payée ne peut plus être annulée (400)', cancel6.status === 400);
+
   // Abonnement client : essai puis activation à 100 FCFA/mois
   const s0 = await req('GET', '/client/subscription', null, ct);
   check('Abonnement client en essai', s0.json.subscription?.status === 'trial');

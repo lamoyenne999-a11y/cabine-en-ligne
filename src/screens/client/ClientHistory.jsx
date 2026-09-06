@@ -138,8 +138,19 @@ export default function ClientHistory() {
                 </View>
                 <Btn title="Annuler la demande" icon="close-circle" outline color={colors.danger} onPress={() => setCanceling(d)} style={{ marginTop: space.md }} />
                 <T size={font.xs} weight="600" color={colors.muted2} style={{ marginTop: 8 }}>
-                  Vous pouvez annuler si le gérant met trop de temps ou si vous avez déjà réglé avec quelqu'un d'autre.
+                  Vous pouvez annuler tant que vous n'avez pas payé — si le gérant met trop de temps ou si vous avez déjà réglé avec quelqu'un d'autre.
                 </T>
+              </>
+            )}
+            {d.status === 'accepted' && (
+              <>
+                <View style={s.timerBox}>
+                  <Ionicons name="checkmark-circle" size={16} color={colors.success} />
+                  <T size={font.sm} weight="600" color={colors.muted} style={{ marginLeft: 8, flex: 1 }}>
+                    {d.gerantName} a accepté votre demande. Payez via Wave, ou annulez si vous changez d'avis.
+                  </T>
+                </View>
+                <Btn title="Annuler la demande" icon="close-circle" outline color={colors.danger} onPress={() => setCanceling(d)} style={{ marginTop: space.md }} />
               </>
             )}
             {d.status === 'declined' && (
@@ -176,7 +187,7 @@ export default function ClientHistory() {
       <Dialog visible={!!canceling}>
         <T size={font.h3} weight="800" color={colors.text} style={{ textAlign: 'center' }}>Annuler la demande ?</T>
         <T size={font.sm} weight="600" color={colors.muted} style={{ textAlign: 'center', marginTop: 6, marginBottom: 6 }}>
-          Vous pouvez annuler cette demande de {money(canceling?.amount)} si {canceling?.gerantName || 'le gérant'} n'a pas encore traité. Le gérant en sera informé.
+          Vous pouvez annuler cette demande de {money(canceling?.amount)} tant que vous n'avez pas encore payé. Le gérant en sera informé.
         </T>
         <DialogButtons cancel="Retour" confirm="Annuler" onCancel={() => setCanceling(null)} onConfirm={() => { if (canceling) cancelDemande(canceling.id); setCanceling(null); }} />
       </Dialog>

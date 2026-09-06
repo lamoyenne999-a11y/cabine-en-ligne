@@ -138,6 +138,25 @@ export default function ClientHome() {
             </View>
           </Pressable>
 
+          {/* Lien Wave marchand du gérant, visible dès sa sélection */}
+          {gerant && (
+            <View style={s.waveInfo}>
+              <View style={s.waveTitle}>
+                <Ionicons name="water" size={16} color={colors.wave} />
+                <T size={font.sm} weight="800" color={colors.wave} style={{ marginLeft: 6 }}>PAIEMENT WAVE DIRECT</T>
+              </View>
+              <WavePayBox
+                amount={amountNum || undefined}
+                merchant={gerant.waveNumber}
+                merchantName={gerant.name}
+                payLink={gerant.payLink || ''}
+              />
+              <T size={font.xs} weight="600" color={colors.muted2} style={{ marginTop: 10 }}>
+                Cliquez sur « Payer avec Wave en ligne » pour payer avant d'envoyer, ou envoyez d'abord la demande et payez après que {gerant.name} accepte.
+              </T>
+            </View>
+          )}
+
           <Btn title="Envoyer la demande" icon="paper-plane" onPress={submit} style={{ marginTop: space.lg }} />
           <T size={font.xs} weight="600" color={colors.muted2} style={{ textAlign: 'center', marginTop: 10 }}>
             Le gérant vous créditera après votre paiement Wave direct. Aucun argent n'est stocké sur l'app.
@@ -223,4 +242,6 @@ const s = StyleSheet.create({
   sheetHandle: { width: 44, height: 5, borderRadius: 3, backgroundColor: colors.muted2, alignSelf: 'center', marginBottom: 16 },
   gerantRow: { flexDirection: 'row', alignItems: 'center', paddingVertical: 14, borderBottomWidth: 1, borderBottomColor: colors.border },
   gerantPick: { flexDirection: 'row', alignItems: 'center', flex: 1 },
+  waveInfo: { backgroundColor: '#E7F0FE', borderRadius: radius.md, padding: 14, marginTop: space.lg },
+  waveTitle: { flexDirection: 'row', alignItems: 'center', marginBottom: 12 },
 });
