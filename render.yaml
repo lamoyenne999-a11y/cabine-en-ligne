@@ -1,0 +1,31 @@
+# ============================================================
+#  Render — déploiement "tout-en-un"
+#  Une seule Web Service : sert le front PWA + l'API.
+#  Tableau de bord Render -> New -> Blueprint -> ce fichier.
+# ============================================================
+services:
+  - type: web
+    name: cabine-en-ligne
+    runtime: node
+    plan: free
+    buildCommand: |
+      npm install &&
+      cd server && npm install && cd .. &&
+      npm run build:web
+    startCommand: node server/src/combined.js
+    healthCheckPath: /health
+    envVars:
+      - key: NODE_ENV
+        value: production
+      - key: WAVE_MODE
+        value: mock        # passez à "live" + clés API pour le vrai paiement
+      - key: WAVE_API_KEY
+        sync: false        # à renseigner dans le dashboard Render
+      - key: WAVE_WEBHOOK_SECRET
+        sync: false
+      - key: JWT_SECRET
+        generateValue: true
+      - key: PHONE_PREFIX
+        value: "+225"
+      - key: EXPO_PUBLIC_API_URL
+        value: ""          # même origine : le serveur proxyfie /api

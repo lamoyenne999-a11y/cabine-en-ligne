@@ -1,0 +1,31 @@
+# ============================================================
+#  Netlify — déploiement du FRONT seul (PWA)
+#  L'app fonctionne en "mode démo" (données locales) si aucune
+#  API n'est fournie. Pour brancher une API hébergée, définissez
+#  la variable d'environnement EXPO_PUBLIC_API_URL.
+# ============================================================
+[build]
+  command = "npm run build:web"
+  publish = "dist"
+
+[build.environment]
+  # À renseigner si vous hébergez aussi l'API (ex: Render).
+  # Sinon, laissez vide : l'app tombe en mode démo local.
+  EXPO_PUBLIC_API_URL = ""
+
+# Les routes SPA renvoient index.html (le service worker gère le cache).
+[[redirects]]
+  from = "/*"
+  to = "/index.html"
+  status = 200
+
+# Cache long pour les assets du bundle (nommés par hash).
+[[headers]]
+  for = "/_expo/static/js/web/*"
+  [headers.values]
+    Cache-Control = "public, max-age=31536000, immutable"
+
+[[headers]]
+  for = "/assets/*"
+  [headers.values]
+    Cache-Control = "public, max-age=31536000, immutable"

@@ -1,0 +1,30 @@
+{
+  "expo": {
+    "name": "Cabine En Ligne",
+    "slug": "cabine-en-ligne",
+    "version": "1.0.0",
+    "orientation": "portrait",
+    "icon": "./assets/icon.png",
+    "userInterfaceStyle": "light",
+    "splash": {
+      "backgroundColor": "#7B1FA2",
+      "image": "./assets/cabine-logo.png"
+    },
+    "ios": {
+      "supportsTablet": true,
+      "bundleIdentifier": "com.cabineenligne.app"
+    },
+    "android": {
+      "adaptiveIcon": {
+        "backgroundColor": "#7B1FA2",
+        "foregroundImage": "./assets/cabine-logo.png"
+      },
+      "package": "com.cabineenligne.app"
+    },
+    "web": {
+      "favicon": "./public/icons/favicon-32.png",
+      "output": "single",
+      "bundler": "metro"
+    }
+  }
+}
