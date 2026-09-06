@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import { View, Text, TextInput, Pressable, StyleSheet, ScrollView } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { colors, radius, space, font } from '../../theme';
@@ -45,7 +45,10 @@ function SubBanner({ sub, onSubscribe }) {
 }
 
 export default function ClientHome() {
-  const { state, createDemande, subscribe, markPaid, cancelDemande } = useStore();
+  const { state, createDemande, subscribe, markPaid, cancelDemande, refresh } = useStore();
+  // Recharge les gérants dès l'ouverture de l'écran pour afficher le lien
+  // Wave marchand ajouté par un gérant (même s'il l'a ajouté après connexion).
+  useEffect(() => { refresh(); }, []); // eslint-disable-line
   const [type, setType] = useState('unites');
   const [amount, setAmount] = useState('');
   const [who, setWho] = useState('moi');

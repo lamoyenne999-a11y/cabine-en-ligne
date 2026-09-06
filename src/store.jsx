@@ -224,10 +224,12 @@ export function StoreProvider({ children }) {
 
   useEffect(() => { if (online && state.loggedIn) refresh(); }, [online, state.loggedIn]); // eslint-disable-line
 
-  // Rafraîchit périodiquement les demandes + notifications du gérant
-  // (permet de voir en direct une demande, une annulation ou un paiement).
+  // Rafraîchit périodiquement les données du rôle connecté :
+  // pour le gérant -> demandes + notifications en direct ;
+  // pour le client -> gérants + demandes, afin que le lien Wave
+  // marchand ajouté par un gérant apparaisse sans devoir se reconnecter.
   useEffect(() => {
-    if (!online || !state.loggedIn || state.role !== 'gerant') return;
+    if (!online || !state.loggedIn) return;
     const t = setInterval(() => refresh(), 10000);
     return () => clearInterval(t);
   }, [online, state.loggedIn, state.role, refresh]);
