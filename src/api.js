@@ -52,7 +52,10 @@ export const api = {
     markPaid: (id) => request('POST', `/api/client/demandes/${id}/paid`),
     cancelDemande: (id) => request('POST', `/api/client/demandes/${id}/cancel`),
     subscription: () => request('GET', '/api/client/subscription'),
-    subscribe: () => request('POST', '/api/client/subscribe'),
+    subscribe: (plan) => request('POST', '/api/client/subscribe', { plan }),
+    notifications: () => request('GET', '/api/client/notifications'),
+    markNotificationRead: (id) => request('POST', `/api/client/notifications/${id}/read`),
+    markAllNotificationsRead: () => request('POST', '/api/client/notifications/read-all'),
   },
 
   // ---- gérant ----
@@ -68,6 +71,6 @@ export const api = {
     markNotificationRead: (id) => request('POST', `/api/gerant/notifications/${id}/read`),
     markAllNotificationsRead: () => request('POST', '/api/gerant/notifications/read-all'),
     subscription: () => request('GET', '/api/gerant/subscription'),
-    subscribe: () => request('POST', '/api/gerant/subscribe'),
+    subscribe: (plan) => request('POST', '/api/gerant/subscribe', { plan }),
   },
 };

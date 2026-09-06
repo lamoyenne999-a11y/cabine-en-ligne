@@ -17,7 +17,7 @@ const TABS = [
 export default function GerantApp({ onLogout }) {
   const [tab, setTab] = useState('demandes');
   const [showNotif, setShowNotif] = useState(false);
-  const { loadNotifications, markNotificationRead } = useStore();
+  const { state, loadNotifications, markNotificationRead, markAllNotificationsRead } = useStore();
 
   // Charge les notifications à l'ouverture
   useEffect(() => { loadNotifications(); }, []); // eslint-disable-line
@@ -32,7 +32,15 @@ export default function GerantApp({ onLogout }) {
 
       {/* Cloche de notifications (en haut à droite) */}
       <View style={{ position: 'absolute', top: 22, right: 16, zIndex: 30 }}>
-        <NotificationCenter visible={showNotif} onOpen={() => setShowNotif(true)} onClose={() => setShowNotif(false)} />
+        <NotificationCenter
+          visible={showNotif}
+          onOpen={() => setShowNotif(true)}
+          onClose={() => setShowNotif(false)}
+          list={state.notifications}
+          unread={state.unread}
+          onMarkRead={markNotificationRead}
+          onMarkAllRead={markAllNotificationsRead}
+        />
       </View>
 
       <TabBar tabs={TABS} active={tab} onChange={setTab} />

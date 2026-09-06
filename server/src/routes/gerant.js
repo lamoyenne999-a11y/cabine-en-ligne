@@ -49,7 +49,7 @@ router.post('/notifications/read-all', (req, res) => res.json(markAllNotificatio
 
 // ---- Abonnement ----
 router.get('/subscription', (req, res) => res.json({ subscription: subscriptionFor(req.user) }));
-router.post('/subscribe', (req, res) => res.json({ subscription: activateSubscription(req.user) }));
+router.post('/subscribe', (req, res) => res.json({ subscription: activateSubscription(req.user, req.body?.plan) }));
 
 // ---- Profil public ----
 router.get('/public/:id', (req, res) => {

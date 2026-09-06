@@ -10,31 +10,43 @@ import { config } from '../config.js';
 // ==================================================================
 
 const MONTH_MS = 30 * 24 * 3600 * 1000;
-const SUB_PRICE = 100; // FCFA / mois
+const YEAR_MS = 365 * 24 * 3600 * 1000;
+// Plans d'abonnement : mensuel 100 FCFA / annuel 1000 FCFA
+export const SUB_PLANS = {
+  monthly: { price: 100, ms: MONTH_MS, label: 'mensuel', priceLabel: '100 FCFA / mois' },
+  annual: { price: 1000, ms: YEAR_MS, label: 'annuel', priceLabel: '1000 FCFA / an' },
+};
+const SUB_DEFAULT_PLAN = 'monthly';
+const SUB_PRICE = SUB_PLANS[SUB_DEFAULT_PLAN].price; // 100 FCFA (compat)
 
 // Libellé des types de service
 export const TYPE_LABEL = { unites: 'Unités', minutes: 'Minutes', internet: 'Internet' };
 
-// ---- Abonnement ----
+// ---- Abonnement (mensuel 100 FCFA / annuel 1000 FCFA) ----
 export function subscriptionFor(user) {
   const s = user.subscription || { status: 'trial', trialEndsAt: 0, subscribedUntil: 0 };
+  const plan = SUB_PLANS[s.plan] ? s.plan : SUB_DEFAULT_PLAN;
+  const price = s.price || SUB_PLANS[plan].price;
+  const periodLabel = SUB_PLANS[plan].label;
   const now = Date.now();
   if (s.status === 'active' && s.subscribedUntil > now) {
-    return { status: 'active', price: SUB_PRICE, trialEndsAt: s.trialEndsAt, subscribedUntil: s.subscribedUntil, daysLeft: Math.ceil((s.subscribedUntil - now) / 86400000) };
+    return { status: 'active', plan, price, periodLabel, priceLabel: SUB_PLANS[plan].priceLabel, trialEndsAt: s.trialEndsAt, subscribedUntil: s.subscribedUntil, daysLeft: Math.ceil((s.subscribedUntil - now) / 86400000) };
   }
   if (s.status === 'trial' && s.trialEndsAt > now) {
-    return { status: 'trial', price: SUB_PRICE, trialEndsAt: s.trialEndsAt, subscribedUntil: 0, daysLeft: Math.ceil((s.trialEndsAt - now) / 86400000) };
+    return { status: 'trial', plan, price, periodLabel, priceLabel: SUB_PLANS[plan].priceLabel, trialEndsAt: s.trialEndsAt, subscribedUntil: 0, daysLeft: Math.ceil((s.trialEndsAt - now) / 86400000) };
   }
-  return { status: 'expired', price: SUB_PRICE, trialEndsAt: s.trialEndsAt, subscribedUntil: s.subscribedUntil, daysLeft: 0 };
+  return { status: 'expired', plan, price, periodLabel, priceLabel: SUB_PLANS[plan].priceLabel, trialEndsAt: s.trialEndsAt, subscribedUntil: s.subscribedUntil, daysLeft: 0 };
 }
 
-export function activateSubscription(user) {
+export function activateSubscription(user, plan = SUB_DEFAULT_PLAN) {
   const now = Date.now();
+  const conf = SUB_PLANS[plan] || SUB_PLANS[SUB_DEFAULT_PLAN];
   const s = user.subscription || {};
   const prev = s.subscribedUntil > now ? s.subscribedUntil : now;
-  const subscribedUntil = prev + MONTH_MS;
-  update('users', (u) => u.id === user.id, { subscription: { status: 'active', trialEndsAt: s.trialEndsAt || now + MONTH_MS, subscribedUntil } });
-  return subscriptionFor({ ...user, subscription: { status: 'active', trialEndsAt: s.trialEndsAt || now + MONTH_MS, subscribedUntil } });
+  const subscribedUntil = prev + conf.ms;
+  const fresh = { status: 'active', plan: Object.keys(SUB_PLANS).includes(plan) ? plan : SUB_DEFAULT_PLAN, price: conf.price, trialEndsAt: s.trialEndsAt || now + MONTH_MS, subscribedUntil };
+  update('users', (u) => u.id === user.id, { subscription: fresh });
+  return { ...subscriptionFor({ ...user, subscription: fresh }), justActivated: true };
 }
 
 export const SUB_PRICE_FCFA = SUB_PRICE;
@@ -49,7 +61,7 @@ export function unreadCount(userId) {
 export function createNotification({ userId, type, text, demandeId }) {
   return insert('notifications', {
     userId,
-    type,             // 'new_demande' | 'demande_canceled' | 'demande_paid' | 'demande_completed'
+    type,             // 'new_demande' | 'demande_accepted' | 'demande_declined' | 'demande_canceled' | 'demande_paid' | 'demande_completed'
     text,
     demandeId: demandeId || '',
     read: false,
@@ -244,12 +256,18 @@ export function decideDemande({ id, gerantUserId, decision }) {
   if (decision === 'decline') {
     if (d.status !== 'pending') throw Object.assign(new Error('Impossible de refuser une demande déjà payée ou traitée'), { status: 400 });
     update('demandes', (x) => x.id === id, { status: 'declined', acceptedAt: Date.now() });
+    const upd = findOne('demandes', (x) => x.id === id);
+    if (upd && upd.clientId) createNotification({ userId: upd.clientId, type: 'demande_declined', text: `${upd.gerantName} a refusé votre demande — ${TYPE_LABEL[upd.type] || upd.type}  ${upd.amount} F`, demandeId: upd.id });
+    return upd;
   } else {
     // Acceptation possible en attente OU après paiement anticipé du client
     if (!['pending', 'paid'].includes(d.status)) throw Object.assign(new Error('Demande déjà traitée'), { status: 400 });
     update('demandes', (x) => x.id === id, { status: 'accepted', acceptedAt: Date.now() });
+    const upd = findOne('demandes', (x) => x.id === id);
+    // Notifie le client que sa demande a été acceptée
+    if (upd && upd.clientId) createNotification({ userId: upd.clientId, type: 'demande_accepted', text: `${upd.gerantName} a accepté votre demande — ${TYPE_LABEL[upd.type] || upd.type}  ${upd.amount} F`, demandeId: upd.id });
+    return upd;
   }
-  return findOne('demandes', (x) => x.id === id);
 }
 
 export function markPaid({ id, clientId }) {

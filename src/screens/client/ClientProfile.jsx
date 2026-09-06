@@ -4,7 +4,7 @@ import { Ionicons } from '@expo/vector-icons';
 import { colors, radius, space, font } from '../../theme';
 import { T, Card, ListRow, Pill } from '../../components/ui';
 import { Page } from '../../components/Shell';
-import { WavePaySheet, PLATFORM_WAVE, PLATFORM_NAME, PLATFORM_PAY_LINK } from '../../components/WavePay';
+import SubscribeSheet from '../../components/Subscribe';
 import { useStore } from '../../store';
 import { buildShareUrl } from '../../config';
 import Help from '../Help';
@@ -25,7 +25,8 @@ export default function ClientProfile({ onLogout }) {
   };
 
   const subStatus = sub?.status || 'trial';
-  const subPill = subStatus === 'active' ? { label: 'Abonnement actif', color: colors.success, bg: colors.successBg, icon: 'checkmark-circle' } : subStatus === 'expired' ? { label: 'Expiré — 100 FCFA/mois', color: colors.danger, bg: colors.dangerBg, icon: 'alert-circle' } : { label: `Essai gratuit — ${sub?.daysLeft || 30} j`, color: colors.primary, bg: colors.primarySoft, icon: 'sparkles' };
+  const subLabel = subStatus === 'active' ? `Abonnement ${sub?.periodLabel || 'mensuel'} actif — ${sub?.price || 100} FCFA` : subStatus === 'expired' ? `Expiré — ${sub?.priceLabel || '100 FCFA / mois'}` : `Essai gratuit — ${sub?.daysLeft || 30} j`;
+  const subPill = subStatus === 'active' ? { label: subLabel, color: colors.success, bg: colors.successBg, icon: 'checkmark-circle' } : subStatus === 'expired' ? { label: subLabel, color: colors.danger, bg: colors.dangerBg, icon: 'alert-circle' } : { label: subLabel, color: colors.primary, bg: colors.primarySoft, icon: 'sparkles' };
 
   return (
     <Page title="Profil">
@@ -36,7 +37,7 @@ export default function ClientProfile({ onLogout }) {
         <Pill icon={subPill.icon} color={subPill.color} bg={subPill.bg} style={{ marginTop: 12 }}>{subPill.label}</Pill>
         {subStatus !== 'active' && (
           <Pressable onPress={() => setShowSub(true)} style={s.subBtn}>
-            <T size={font.sm} weight="800" color="#fff">S'abonner — 100 FCFA/mois</T>
+            <T size={font.sm} weight="800" color="#fff">S'abonner — 100 FCFA/mois ou 1000 FCFA/an</T>
           </Pressable>
         )}
       </Card>
@@ -66,7 +67,7 @@ export default function ClientProfile({ onLogout }) {
         </View>
       </Card>
 
-      <WavePaySheet visible={showSub} onClose={() => setShowSub(false)} onConfirm={() => { subscribe(); setShowSub(false); }} title="Abonnement mensuel" amount={100} merchant={PLATFORM_WAVE} merchantName={PLATFORM_NAME} payLink={PLATFORM_PAY_LINK} subtitle="100 FCFA / mois" />
+      <SubscribeSheet visible={showSub} onClose={() => setShowSub(false)} onSubscribe={(plan) => subscribe(plan)} subtitle="Paiement direct via Wave. Renouvelable à tout moment." />
     </Page>
   );
 }

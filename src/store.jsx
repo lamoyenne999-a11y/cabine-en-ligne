@@ -50,6 +50,9 @@ const seed = () => {
   // Gérant : notifications
   notifications: [],
   unread: 0,
+  // Client : notifications (demande acceptée / refusée…)
+  clientNotifications: [],
+  clientUnread: 0,
   };
 };
 
@@ -95,6 +98,16 @@ function reducer(state, action) {
 
     case 'SET_NOTIFICATIONS':
       return { ...state, notifications: action.payload.notifications || [], unread: action.payload.unread ?? (action.payload.notifications || []).filter((n) => !n.read).length };
+    case 'SET_CLIENT_NOTIFICATIONS':
+      return { ...state, clientNotifications: action.payload.notifications || [], clientUnread: action.payload.unread ?? (action.payload.notifications || []).filter((n) => !n.read).length };
+    case 'MARK_CLIENT_NOTIFICATION_READ':
+      return {
+        ...state,
+        clientNotifications: state.clientNotifications.map((n) => (n.id === action.payload ? { ...n, read: true } : n)),
+        clientUnread: Math.max(0, (state.clientUnread || 0) - 1),
+      };
+    case 'MARK_ALL_CLIENT_NOTIFICATIONS_READ':
+      return { ...state, clientNotifications: state.clientNotifications.map((n) => ({ ...n, read: true })), clientUnread: 0 };
     case 'MARK_NOTIFICATION_READ':
       return {
         ...state,
@@ -206,11 +219,13 @@ export function StoreProvider({ children }) {
       if (sub) dispatch({ type: 'SET_SUBSCRIPTION', payload: sub.subscription });
 
       if (state.role === 'client') {
-        const [g, d] = await Promise.all([
+        const [g, d, n] = await Promise.all([
           api.client.gerants().catch(() => null),
           api.client.myDemandes().catch(() => null),
+          api.client.notifications().catch(() => null),
         ]);
         dispatch({ type: 'HYDRATE', payload: { gerants: g?.gerants, demandes: d?.demandes } });
+        if (n) dispatch({ type: 'SET_CLIENT_NOTIFICATIONS', payload: n });
       } else if (state.role === 'gerant') {
         const [d, n] = await Promise.all([
           api.gerant.demandes().catch(() => null),
@@ -310,6 +325,25 @@ export function StoreProvider({ children }) {
     if (online) { try { await api.gerant.markAllNotificationsRead(); } catch {} }
   }, [online]);
 
+  // ---- Notifications côté CLIENT ----
+  const loadClientNotifications = useCallback(async () => {
+    if (!online) return;
+    try {
+      const n = await api.client.notifications();
+      dispatch({ type: 'SET_CLIENT_NOTIFICATIONS', payload: n });
+    } catch { /* silencieux */ }
+  }, [online]);
+
+  const markClientNotificationRead = useCallback(async (id) => {
+    dispatch({ type: 'MARK_CLIENT_NOTIFICATION_READ', payload: id });
+    if (online) { try { await api.client.markNotificationRead(id); } catch {} }
+  }, [online]);
+
+  const markAllClientNotificationsRead = useCallback(async () => {
+    dispatch({ type: 'MARK_ALL_CLIENT_NOTIFICATIONS_READ' });
+    if (online) { try { await api.client.markAllNotificationsRead(); } catch {} }
+  }, [online]);
+
   const updateGerantProfile = useCallback(async (patch) => {
     let updated = null;
     if (online) {
@@ -327,16 +361,18 @@ export function StoreProvider({ children }) {
     return updated;
   }, [online]);
 
-  const subscribe = useCallback(async () => {
-    const sub = { status: 'active', daysLeft: 30, price: 100 };
+  const subscribe = useCallback(async (plan = 'monthly') => {
+    const price = plan === 'annual' ? 1000 : 100;
+    const periodLabel = plan === 'annual' ? 'annuel' : 'mensuel';
+    const sub = { status: 'active', plan, price, periodLabel, priceLabel: plan === 'annual' ? '1000 FCFA / an' : '100 FCFA / mois', daysLeft: plan === 'annual' ? 365 : 30 };
     dispatch({ type: 'SET_SUBSCRIPTION', payload: sub });
-    if (online) { try { const r = await (state.role === 'gerant' ? api.gerant.subscribe() : api.client.subscribe()); if (r?.subscription) dispatch({ type: 'SET_SUBSCRIPTION', payload: r.subscription }); } catch {} }
+    if (online) { try { const r = await (state.role === 'gerant' ? api.gerant.subscribe(plan) : api.client.subscribe(plan)); if (r?.subscription) dispatch({ type: 'SET_SUBSCRIPTION', payload: r.subscription }); } catch {} }
     return sub;
   }, [online, state.role]);
 
   const value = useMemo(
-    () => ({ state, dispatch, online, checking, login, register, logout, refresh, addGerant, removeGerant, createDemande, markPaid, cancelDemande, acceptDemande, declineDemande, completeDemande, subscribe, updateGerantProfile, loadNotifications, markNotificationRead, markAllNotificationsRead }),
-    [state, online, checking, login, register, logout, refresh, addGerant, removeGerant, createDemande, markPaid, cancelDemande, acceptDemande, declineDemande, completeDemande, subscribe, updateGerantProfile, loadNotifications, markNotificationRead, markAllNotificationsRead],
+    () => ({ state, dispatch, online, checking, login, register, logout, refresh, addGerant, removeGerant, createDemande, markPaid, cancelDemande, acceptDemande, declineDemande, completeDemande, subscribe, updateGerantProfile, loadNotifications, markNotificationRead, markAllNotificationsRead, loadClientNotifications, markClientNotificationRead, markAllClientNotificationsRead }),
+    [state, online, checking, login, register, logout, refresh, addGerant, removeGerant, createDemande, markPaid, cancelDemande, acceptDemande, declineDemande, completeDemande, subscribe, updateGerantProfile, loadNotifications, markNotificationRead, markAllNotificationsRead, loadClientNotifications, markClientNotificationRead, markAllClientNotificationsRead],
   );
   return <Ctx.Provider value={value}>{children}</Ctx.Provider>;
 }

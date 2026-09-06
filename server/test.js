@@ -94,6 +94,10 @@ async function main() {
   const acc = await req('POST', `/gerant/demandes/${demandeId}/accept`, {}, gt);
   check('Acceptation gérant OK', acc.status === 200 && acc.json.demande?.status === 'accepted');
 
+  // Le client est notifié de l'acceptation
+  const cn = await req('GET', '/client/notifications', null, ct);
+  check('Client notifié que sa demande est acceptée', (cn.json.notifications || []).some((x) => x.type === 'demande_accepted' && x.demandeId === demandeId));
+
   // Le client la voit « à payer »
   const cd = await req('GET', '/client/demandes', null, ct);
   const seen = (cd.json.demandes || []).find((d) => d.id === demandeId);
@@ -206,8 +210,13 @@ async function main() {
   // Abonnement client : essai puis activation à 100 FCFA/mois
   const s0 = await req('GET', '/client/subscription', null, ct);
   check('Abonnement client en essai', s0.json.subscription?.status === 'trial');
-  const s1 = await req('POST', '/client/subscribe', {}, ct);
-  check('Activation abonnement 100 FCFA', s1.json.subscription?.status === 'active' && s1.json.subscription?.price === 100);
+  const s1 = await req('POST', '/client/subscribe', { plan: 'monthly' }, ct);
+  check('Activation abonnement mensuel 100 FCFA', s1.json.subscription?.status === 'active' && s1.json.subscription?.price === 100 && s1.json.subscription?.periodLabel === 'mensuel');
+
+  // Abonnement annuel 1000 FCFA (un autre utilisateur)
+  const reg2 = await req('POST', '/auth/register', { role: 'client', name: 'Binta', phone: '09' + uniq, password: '1234' });
+  const sA = await req('POST', '/client/subscribe', { plan: 'annual' }, reg2.json.token);
+  check('Abonnement annuel 1000 FCFA', sA.json.subscription?.status === 'active' && sA.json.subscription?.price === 1000 && sA.json.subscription?.periodLabel === 'annuel');
 
   // Retrait du gérant (ajout/retrait libres)
   const rm = await req('DELETE', `/client/gerants/${gerantId}`, null, ct);

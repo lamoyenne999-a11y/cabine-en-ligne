@@ -5,7 +5,8 @@ import { colors, radius, space, font } from '../../theme';
 import { T, Btn, Card, SectionTitle, Segmented } from '../../components/ui';
 import { Header } from '../../components/Shell';
 import { BottomSheet, Dialog, DialogButtons } from '../../components/modals';
-import { WavePaySheet, WavePayBox, PLATFORM_WAVE, PLATFORM_NAME, PLATFORM_PAY_LINK } from '../../components/WavePay';
+import { WavePaySheet, WavePayBox } from '../../components/WavePay';
+import SubscribeSheet from '../../components/Subscribe';
 import { useStore } from '../../store';
 
 const money = (n) => `${(n || 0).toLocaleString('fr-FR').replace(/\u202f/g, ' ')} F`;
@@ -82,10 +83,13 @@ export default function ClientHome() {
     // Affiche la confirmation immédiatement (pas de blocage sur le réseau),
     // puis remplace par la vraie demande dès qu'elle est créée.
     setSent(true);
-    setAmount(''); setWho('moi'); setBenefName(''); setBenefPhone('');
+    // Réinitialise tout le formulaire pour qu'une nouvelle demande soit facile.
+    setAmount(''); setWho('moi'); setBenefName(''); setBenefPhone(''); setType('unites'); setGerantId(null);
     try {
       const created = await createDemande(payload);
       if (created && created.id) setLastDemande(created);
+      // Rafraîchit le client (demandes + gérants) pour voir la demande créée.
+      refresh();
     } catch { /* garde la confirmation affichée même si l'envoi échoue */ }
   };
 
@@ -251,7 +255,7 @@ export default function ClientHome() {
       />
 
       {/* Abonnement */}
-      <WavePaySheet visible={showSub} onClose={() => setShowSub(false)} onConfirm={() => { subscribe(); setShowSub(false); }} title="Abonnement mensuel" amount={100} merchant={PLATFORM_WAVE} merchantName={PLATFORM_NAME} payLink={PLATFORM_PAY_LINK} subtitle="100 FCFA / mois après votre mois d'essai gratuit" />
+      <SubscribeSheet visible={showSub} onClose={() => setShowSub(false)} onSubscribe={(plan) => subscribe(plan)} subtitle="100 FCFA / mois ou 1000 FCFA / an après votre mois d'essai gratuit." />
     </View>
   );
 }

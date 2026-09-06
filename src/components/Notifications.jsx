@@ -2,25 +2,28 @@ import React from 'react';
 import { View, Pressable, StyleSheet } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { colors, radius, space, font } from '../theme';
-import { T, Btn } from './ui';
+import { T } from './ui';
 import { BottomSheet } from './modals';
-import { useStore } from '../store';
 
 // ============================================================
-//  Centre de notifications du gérant.
+//  Centre de notifications (générique : client et gérant).
 //  - Cloche flottante avec badge « non lues ».
-//  - Ouvre un panneau listant les événements (nouvelle demande,
-//    annulation par le client, paiement, service complété…).
+//  - Ouvre un panneau listant les événements selon le type.
+//  Les données et callbacks sont fournis par l'appelant.
 // ============================================================
 
 const ICONS = {
   new_demande: 'notifications-outline',
+  demande_accepted: 'checkmark-circle-outline',
+  demande_declined: 'close-circle-outline',
   demande_canceled: 'close-circle-outline',
   demande_paid: 'wallet-outline',
   demande_completed: 'checkmark-done-outline',
 };
 const COLORS = {
   new_demande: colors.primary,
+  demande_accepted: colors.success,
+  demande_declined: colors.danger,
   demande_canceled: colors.danger,
   demande_paid: '#2E7BF6',
   demande_completed: colors.success,
@@ -28,18 +31,17 @@ const COLORS = {
 
 const when = (t) => (t ? new Date(t).toLocaleString('fr-FR', { day: '2-digit', month: 'short', hour: '2-digit', minute: '2-digit' }) : '');
 
-export default function NotificationCenter({ visible, onOpen, onClose }) {
-  const { state, markNotificationRead, markAllNotificationsRead } = useStore();
-  const list = state.notifications || [];
-  const unread = state.unread || 0;
+export default function NotificationCenter({ visible, onOpen, onClose, list, unread, onMarkRead, onMarkAllRead }) {
+  const items = list || [];
+  const count = unread || 0;
 
   return (
     <>
       {/* Cloche + badge */}
       <Pressable onPress={onOpen} style={s.bell}>
         <Ionicons name="notifications" size={24} color="#fff" />
-        {unread > 0 ? (
-          <View style={s.badge}><T size={9} weight="800" color="#fff">{unread > 99 ? '99+' : unread}</T></View>
+        {count > 0 ? (
+          <View style={s.badge}><T size={9} weight="800" color="#fff">{count > 99 ? '99+' : count}</T></View>
         ) : null}
       </Pressable>
 
@@ -47,22 +49,22 @@ export default function NotificationCenter({ visible, onOpen, onClose }) {
         <View style={s.handle} />
         <View style={s.header}>
           <T size={font.h3} weight="800" color={colors.text}>Notifications</T>
-          {unread > 0 ? (
-            <Pressable onPress={markAllNotificationsRead}><T size={font.sm} weight="700" color={colors.primary}>Tout marquer lu</T></Pressable>
+          {count > 0 ? (
+            <Pressable onPress={onMarkAllRead}><T size={font.sm} weight="700" color={colors.primary}>Tout marquer lu</T></Pressable>
           ) : null}
         </View>
 
-        {list.length === 0 ? (
+        {items.length === 0 ? (
           <View style={s.empty}>
             <Ionicons name="notifications-off-outline" size={40} color={colors.muted2} />
             <T size={font.body} weight="700" color={colors.muted} style={{ marginTop: 10 }}>Aucune notification</T>
             <T size={font.sm} weight="600" color={colors.muted2} style={{ marginTop: 4, textAlign: 'center' }}>
-              Vous serez prévenu des nouvelles demandes et des annulations.
+              Vous serez prévenu des nouvelles demandes, acceptations et paiements.
             </T>
           </View>
         ) : (
-          list.map((n) => (
-            <Pressable key={n.id} onPress={() => markNotificationRead(n.id)} style={s.row}>
+          items.map((n) => (
+            <Pressable key={n.id} onPress={() => onMarkRead(n.id)} style={s.row}>
               <View style={[s.rowIcon, { backgroundColor: (COLORS[n.type] || colors.primary) + '18' }]}>
                 <Ionicons name={ICONS[n.type] || 'notifications-outline'} size={20} color={COLORS[n.type] || colors.primary} />
               </View>

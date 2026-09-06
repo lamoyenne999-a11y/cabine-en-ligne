@@ -1,6 +1,6 @@
 import { Router } from 'express';
 import { requireAuth, requireRole } from '../middleware/auth.js';
-import { gerantsFor, addGerant, removeGerant, createDemande, demandesForClient, clientHistory, demandeSummary, subscriptionFor, activateSubscription, publicProfile, markPaid, cancelDemande } from '../services/flowService.js';
+import { gerantsFor, addGerant, removeGerant, createDemande, demandesForClient, clientHistory, demandeSummary, subscriptionFor, activateSubscription, publicProfile, markPaid, cancelDemande, notificationsFor, unreadCount, markNotificationRead, markAllNotificationsRead } from '../services/flowService.js';
 
 const router = Router();
 router.use(requireAuth, requireRole('client'));
@@ -52,9 +52,20 @@ router.post('/demandes/:id/cancel', (req, res) => {
   } catch (e) { res.status(e.status || 400).json({ error: e.message }); }
 });
 
-// ---- Abonnement 100 FCFA/mois ----
+// ---- Abonnement (mensuel 100 FCFA / annuel 1000 FCFA) ----
 router.get('/subscription', (req, res) => res.json({ subscription: subscriptionFor(req.user) }));
-router.post('/subscribe', (req, res) => res.json({ subscription: activateSubscription(req.user) }));
+router.post('/subscribe', (req, res) => res.json({ subscription: activateSubscription(req.user, req.body?.plan) }));
+
+// ---- Notifications reçues par le client ----
+router.get('/notifications', (req, res) => {
+  const notifications = notificationsFor(req.user.id);
+  res.json({ notifications, unread: unreadCount(req.user.id) });
+});
+router.post('/notifications/:id/read', (req, res) => {
+  try { res.json({ notification: markNotificationRead({ id: req.params.id, userId: req.user.id }) }); }
+  catch (e) { res.status(e.status || 400).json({ error: e.message }); }
+});
+router.post('/notifications/read-all', (req, res) => res.json(markAllNotificationsRead(req.user.id)));
 
 // ---- Profil public (lien de partage) ----
 router.get('/public/:id', (req, res) => {
