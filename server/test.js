@@ -121,6 +121,27 @@ async function main() {
   check('Historique gérant : +1 demande complétée', gh.json.summary?.counts?.completed === (base.counts?.completed || 0) + 1);
   check('Historique gérant : la demande apparaît', (gh.json.demandes || []).some((d) => d.id === demandeId && d.status === 'completed'));
 
+  // ===== Paiement AVANT acceptation (le client paie directement, gérant n'a pas encore répondu) =====
+  const dm2 = await req('POST', '/client/demandes', {
+    gerantId, gerantName: 'Boutique Amadou', gerantWave: '771234567',
+    type: 'internet', amount: 1200, benefName: 'Awa', benefPhone: '07' + uniq,
+  }, ct);
+  const demande2Id = dm2.json.demande?.id;
+  check('2e demande créée (pending)', dm2.status === 201 && dm2.json.demande?.status === 'pending');
+
+  const payEarly = await req('POST', `/client/demandes/${demande2Id}/paid`, {}, ct);
+  check('Client peut payer avant acceptation (paid)', payEarly.status === 200 && payEarly.json.demande?.status === 'paid');
+
+  const gd2 = await req('GET', '/gerant/demandes', null, gt);
+  const seesPaid = (gd2.json.demandes || []).find((d) => d.id === demande2Id);
+  check('Gérant voit la demande déjà payée', seesPaid?.status === 'paid');
+
+  const acc2 = await req('POST', `/gerant/demandes/${demande2Id}/accept`, {}, gt);
+  check('Gérant accepte même après paiement anticipé', acc2.status === 200 && acc2.json.demande?.status === 'accepted');
+
+  const comp2 = await req('POST', `/gerant/demandes/${demande2Id}/complete`, {}, gt);
+  check('Gérant complète une demande payée puis acceptée', comp2.status === 200 && comp2.json.demande?.status === 'completed');
+
   // Abonnement client : essai puis activation à 100 FCFA/mois
   const s0 = await req('GET', '/client/subscription', null, ct);
   check('Abonnement client en essai', s0.json.subscription?.status === 'trial');

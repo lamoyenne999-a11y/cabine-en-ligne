@@ -184,16 +184,22 @@ export function gerantHistory(userId) {
 export function decideDemande({ id, gerantUserId, decision }) {
   const d = findOne('demandes', (x) => x.id === id && x.gerantUserId === gerantUserId);
   if (!d) throw Object.assign(new Error('Demande introuvable'), { status: 404 });
-  if (d.status !== 'pending') throw Object.assign(new Error('Demande déjà traitée'), { status: 400 });
-  const status = decision === 'accept' ? 'accepted' : 'declined';
-  update('demandes', (x) => x.id === id, { status, acceptedAt: Date.now() });
+  if (decision === 'decline') {
+    if (d.status !== 'pending') throw Object.assign(new Error('Impossible de refuser une demande déjà payée ou traitée'), { status: 400 });
+    update('demandes', (x) => x.id === id, { status: 'declined', acceptedAt: Date.now() });
+  } else {
+    // Acceptation possible en attente OU après paiement anticipé du client
+    if (!['pending', 'paid'].includes(d.status)) throw Object.assign(new Error('Demande déjà traitée'), { status: 400 });
+    update('demandes', (x) => x.id === id, { status: 'accepted', acceptedAt: Date.now() });
+  }
   return findOne('demandes', (x) => x.id === id);
 }
 
 export function markPaid({ id, clientId }) {
   const d = findOne('demandes', (x) => x.id === id && x.clientId === clientId);
   if (!d) throw Object.assign(new Error('Demande introuvable'), { status: 404 });
-  if (d.status !== 'accepted') throw Object.assign(new Error('Demande non acceptée'), { status: 400 });
+  // Le client peut payer AVANT que le gérant accepte (pending) ou APRÈS (accepted)
+  if (!['pending', 'accepted'].includes(d.status)) throw Object.assign(new Error('Cette demande ne peut plus être payée'), { status: 400 });
   update('demandes', (x) => x.id === id, { status: 'paid', paidAt: Date.now() });
   return findOne('demandes', (x) => x.id === id);
 }
@@ -201,7 +207,7 @@ export function markPaid({ id, clientId }) {
 export function markCompleted({ id, gerantUserId }) {
   const d = findOne('demandes', (x) => x.id === id && x.gerantUserId === gerantUserId);
   if (!d) throw Object.assign(new Error('Demande introuvable'), { status: 404 });
-  if (d.status !== 'paid') throw Object.assign(new Error('Demande non payée'), { status: 400 });
+  if (!['paid', 'accepted'].includes(d.status)) throw Object.assign(new Error('Demande non payée'), { status: 400 });
   update('demandes', (x) => x.id === id, { status: 'completed' });
   return findOne('demandes', (x) => x.id === id);
 }

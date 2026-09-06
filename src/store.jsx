@@ -1,20 +1,41 @@
 import React, { createContext, useContext, useMemo, useReducer, useState, useEffect, useCallback } from 'react';
-import { api, setToken, clearToken } from './api';
+import { api, setToken, clearToken, getToken } from './api';
 import { DATA_MODE } from './config';
+import { storage } from './storage';
 
 // ============================================================
 //  Cabine En Ligne — store global (v2 simplifiée)
 //  ZÉRO argent stocké sur l'app. L'app ne fait que connecter
 //  clients <-> gérants. Paiement direct via Wave hors app.
+//  La session est persistée (localStorage) pour rester connecté
+//  jusqu'à déconnexion volontaire.
 // ============================================================
 
 const now = () => Date.now();
+const SESSION_KEY = 'cel_session';
 
-const seed = () => ({
-  loggedIn: false,
-  role: null,
-  user: null,          // { id, role, name, phone, waveNumber, email }
-  subscription: null,  // { status: trial|active|expired, daysLeft, price }
+function loadSession() {
+  try {
+    const raw = storage.get(SESSION_KEY);
+    if (!raw) return null;
+    const s = JSON.parse(raw);
+    if (!s || !s.user) return null;
+    return s; // { user, subscription }
+  } catch { return null; }
+}
+function persistSession(payload) {
+  if (!payload || !payload.user) return;
+  storage.set(SESSION_KEY, JSON.stringify({ user: payload.user, subscription: payload.subscription || null }));
+}
+function clearSession() { storage.remove(SESSION_KEY); }
+
+const seed = () => {
+  const s = loadSession();
+  return {
+    loggedIn: !!s,
+    role: s ? s.user.role : null,
+    user: s ? s.user : null,          // { id, role, name, phone, waveNumber, email }
+    subscription: s ? s.subscription : null,  // { status: trial|active|expired, daysLeft, price }
 
   // Client : ses gérants (contacts) + ses demandes
   gerants: [
@@ -26,7 +47,8 @@ const seed = () => ({
 
   // Gérant : demandes reçues
   gerantDemandes: [],
-});
+  };
+};
 
 function reducer(state, action) {
   switch (action.type) {
@@ -104,39 +126,61 @@ export function StoreProvider({ children }) {
     if (!online) {
       const name = role === 'gerant' ? 'Cabine Marie' : 'Jean Dupont';
       const user = { id: role === 'gerant' ? 'u_marie' : 'u_client', role, name, phone, waveNumber: phone };
-      dispatch({ type: 'LOGIN', payload: { user, subscription: { status: 'trial', daysLeft: 30, price: 100 } } });
+      const subscription = { status: 'trial', daysLeft: 30, price: 100 };
+      dispatch({ type: 'LOGIN', payload: { user, subscription } });
+      persistSession({ user, subscription });
       return { source: 'mock' };
     }
     try {
       const { token, user, subscription } = await api.login({ phone, password: password || '' });
       setToken(token);
       dispatch({ type: 'LOGIN', payload: { user, subscription } });
+      persistSession({ user, subscription });
       return { source: 'api' };
     } catch (e) {
       if (e && e.status === 401) throw e;
-      dispatch({ type: 'LOGIN', payload: { user: { id: 'u_client', role, name: 'Jean Dupont', phone, waveNumber: phone }, subscription: { status: 'trial', daysLeft: 30, price: 100 } } });
+      const user = { id: 'u_client', role, name: 'Jean Dupont', phone, waveNumber: phone };
+      const subscription = { status: 'trial', daysLeft: 30, price: 100 };
+      dispatch({ type: 'LOGIN', payload: { user, subscription } });
+      persistSession({ user, subscription });
       return { source: 'mock' };
     }
   }, [online]);
 
   const register = useCallback(async (payload) => {
     if (!online) {
-      dispatch({ type: 'SIGNUP', payload: { user: { ...payload }, subscription: { status: 'trial', daysLeft: 30, price: 100 } } });
+      const subscription = { status: 'trial', daysLeft: 30, price: 100 };
+      dispatch({ type: 'SIGNUP', payload: { user: { ...payload }, subscription } });
+      persistSession({ user: { ...payload }, subscription });
       return { source: 'mock' };
     }
     try {
       const { token, user, subscription } = await api.register(payload);
       setToken(token);
       dispatch({ type: 'SIGNUP', payload: { user, subscription } });
+      persistSession({ user, subscription });
       return { source: 'api' };
     } catch (e) {
       if (e && (e.status === 401 || e.status === 409)) throw e;
-      dispatch({ type: 'SIGNUP', payload: { user: { ...payload }, subscription: { status: 'trial', daysLeft: 30, price: 100 } } });
+      const subscription = { status: 'trial', daysLeft: 30, price: 100 };
+      dispatch({ type: 'SIGNUP', payload: { user: { ...payload }, subscription } });
+      persistSession({ user: { ...payload }, subscription });
       return { source: 'mock' };
     }
   }, [online]);
 
-  const logout = useCallback(() => { clearToken(); dispatch({ type: 'LOGOUT' }); }, []);
+  const logout = useCallback(() => { clearToken(); clearSession(); dispatch({ type: 'LOGOUT' }); }, []);
+
+  // ---- Restauration de session au démarrage (rester connecté) ----
+  const restore = useCallback(async () => {
+    if (!online) return;             // hors ligne : on garde la session locale
+    try {
+      const { user, subscription } = await api.me();
+      dispatch({ type: 'LOGIN', payload: { user, subscription } });
+      persistSession({ user, subscription });
+    } catch { /* jeton invalide/expiré → on laisse la session locale (démo) */ }
+  }, [online]);
+  useEffect(() => { if (online && state.loggedIn && getToken()) restore(); }, [online]); // eslint-disable-line
 
   // ---- Rafraîchit depuis le serveur ----
   const refresh = useCallback(async () => {

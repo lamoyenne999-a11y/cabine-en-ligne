@@ -70,7 +70,18 @@ export default function GerantDemandes() {
               </View>
             )}
             {isPaid && (
-              <Btn title="J'ai servi le client" icon="checkmark-done" onPress={() => setConfirm({ id: d.id, action: 'complete' })} style={{ marginTop: space.md }} />
+              <>
+                <View style={s.paidBox}>
+                  <Ionicons name="water" size={16} color={colors.wave} />
+                  <T size={font.sm} weight="700" color={colors.wave} style={{ marginLeft: 8, flex: 1 }}>
+                    Le client a déjà payé {d.amount.toLocaleString('fr-FR').replace(/\u202f/g, ' ')} XOF via Wave.
+                  </T>
+                </View>
+                <View style={s.actions}>
+                  <Btn title="Accepter" icon="checkmark" outline onPress={() => setConfirm({ id: d.id, action: 'accept' })} style={{ flex: 1, marginRight: 6 }} />
+                  <Btn title="J'ai servi" icon="checkmark-done" onPress={() => setConfirm({ id: d.id, action: 'complete' })} style={{ flex: 1 }} />
+                </View>
+              </>
             )}
             {d.status === 'accepted' && (
               <T size={font.sm} weight="600" color={colors.muted} style={{ marginTop: 12, textAlign: 'center' }}>
@@ -98,4 +109,5 @@ const s = StyleSheet.create({
   icon: { width: 46, height: 46, borderRadius: 23, alignItems: 'center', justifyContent: 'center' },
   infoRow: { flexDirection: 'row', justifyContent: 'space-between', paddingVertical: 12, marginTop: 4, borderTopWidth: 1, borderTopColor: colors.border },
   actions: { flexDirection: 'row', marginTop: space.md },
+  paidBox: { flexDirection: 'row', alignItems: 'center', backgroundColor: '#E7F0FE', borderRadius: radius.md, padding: 12, marginTop: 12 },
 });

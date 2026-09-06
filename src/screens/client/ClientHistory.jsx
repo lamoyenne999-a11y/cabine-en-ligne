@@ -90,15 +90,20 @@ export default function ClientHistory() {
               </View>
             </View>
 
-            {d.status === 'accepted' && (
+            {(d.status === 'pending' || d.status === 'accepted') && (
               <>
                 <View style={s.payBox}>
                   <Ionicons name="water" size={18} color={colors.wave} />
                   <T size={font.sm} weight="700" color={colors.wave} style={{ marginLeft: 8, flex: 1 }}>
-                    Payez {money(d.amount)} via Wave au marchand {d.gerantWave}
+                    {d.status === 'pending' ? `Payez dès maintenant ${money(d.amount)} via Wave à ${d.gerantName}` : `Payez ${money(d.amount)} via Wave au marchand ${d.gerantWave}`}
                   </T>
                 </View>
-                <Btn title="J'ai payé" icon="checkmark" onPress={() => setPaying(d)} style={{ marginTop: space.md }} />
+                <Btn title="J'ai payé (Wave)" icon="checkmark" onPress={() => setPaying(d)} style={{ marginTop: space.md }} />
+                {d.status === 'pending' && (
+                  <T size={font.xs} weight="600" color={colors.muted} style={{ marginTop: 8, textAlign: 'center' }}>
+                    Vous pouvez payer avant ou après que le gérant accepte.
+                  </T>
+                )}
               </>
             )}
             {d.status === 'declined' && (

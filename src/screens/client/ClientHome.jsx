@@ -43,7 +43,7 @@ function SubBanner({ sub, onSubscribe }) {
 }
 
 export default function ClientHome() {
-  const { state, createDemande, subscribe } = useStore();
+  const { state, createDemande, subscribe, markPaid } = useStore();
   const [type, setType] = useState('unites');
   const [amount, setAmount] = useState('');
   const [who, setWho] = useState('moi');
@@ -53,14 +53,16 @@ export default function ClientHome() {
   const [showGerants, setShowGerants] = useState(false);
   const [showSub, setShowSub] = useState(false);
   const [sent, setSent] = useState(false);
+  const [lastDemande, setLastDemande] = useState(null);
+  const [paying, setPaying] = useState(null);
 
   const gerant = state.gerants.find((g) => g.id === gerantId);
   const amountNum = parseInt(amount, 10) || 0;
 
-  const submit = () => {
+  const submit = async () => {
     if (amountNum <= 0) return;
     if (!gerantId) { setShowGerants(true); return; }
-    createDemande({
+    const created = await createDemande({
       gerantId,
       gerantName: gerant.name,
       gerantWave: gerant.waveNumber,
@@ -71,6 +73,7 @@ export default function ClientHome() {
       benefPhone: who === 'autre' ? benefPhone : (state.user?.phone || ''),
     });
     setAmount(''); setWho('moi'); setBenefName(''); setBenefPhone('');
+    setLastDemande(created);
     setSent(true);
   };
 
@@ -168,11 +171,26 @@ export default function ClientHome() {
           <Ionicons name="checkmark-circle" size={72} color={colors.success} />
           <T size={font.h3} weight="800" color={colors.text} style={{ marginTop: 14 }}>Demande envoyée !</T>
           <T size={font.sm} weight="600" color={colors.muted} style={{ marginTop: 6, textAlign: 'center' }}>
-            {gerant?.name} va l'accepter ou la refuser. Suivez-la dans votre Historique.
+            {gerant?.name} va l'accepter ou la refuser. Vous pouvez payer tout de suite, ou attendre qu'il accepte.
           </T>
         </View>
-        <DialogButtons confirm="OK" onConfirm={() => setSent(false)} />
+        <View style={{ flexDirection: 'row', marginTop: 6 }}>
+          <Btn title="Plus tard" outline onPress={() => setSent(false)} style={{ flex: 1, marginRight: 6 }} />
+          <Btn title="Payer maintenant" icon="water" onPress={() => { setSent(false); setPaying(lastDemande); }} style={{ flex: 1 }} />
+        </View>
       </Dialog>
+
+      {/* Paiement direct de la demande créée */}
+      <WavePaySheet
+        visible={!!paying}
+        onClose={() => setPaying(null)}
+        onConfirm={() => { if (paying) markPaid(paying.id); setPaying(null); }}
+        title="Payer via Wave"
+        amount={paying?.amount}
+        merchant={paying?.gerantWave}
+        merchantName={paying?.gerantName}
+        payLink={paying?.gerantPayLink || ''}
+      />
 
       {/* Abonnement */}
       <WavePaySheet visible={showSub} onClose={() => setShowSub(false)} onConfirm={() => { subscribe(); setShowSub(false); }} title="Abonnement mensuel" amount={100} merchant={PLATFORM_WAVE} merchantName={PLATFORM_NAME} payLink={PLATFORM_PAY_LINK} subtitle="100 FCFA / mois après votre mois d'essai gratuit" />

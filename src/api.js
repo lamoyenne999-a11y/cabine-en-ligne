@@ -1,13 +1,15 @@
 import { API_URL } from './config';
+import { storage } from './storage';
 
 // ============================================================
 //  Client API — appelle le backend Node/Express (server/).
 //  API_URL est '' en web (même origine, proxy) ou l'URL du backend.
+//  Le jeton est persisté (localStorage) pour rester connecté.
 // ============================================================
 
-let authToken = null;
-export function setToken(t) { authToken = t; }
-export function clearToken() { authToken = null; }
+let authToken = storage.get('cel_token') || null;
+export function setToken(t) { authToken = t; storage.set('cel_token', t); }
+export function clearToken() { authToken = null; storage.remove('cel_token'); }
 export function getToken() { return authToken; }
 
 async function request(method, path, body) {
