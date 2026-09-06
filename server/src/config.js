@@ -18,6 +18,9 @@ export const config = {
   // Délai de simulation d'un paiement (ms) avant déclenchement du webhook
   waveMockDelayMs: Number(process.env.WAVE_MOCK_DELAY_MS || 1800),
 
+  // Délai de traitement d'une demande avant que le client puisse l'annuler (ms)
+  demandeExpireMs: Number(process.env.DEMANDE_EXPIRE_MS || 30 * 60 * 1000),
+
   // Pays (pour formater les numéros de téléphone en +225, +221, …)
   phonePrefix: process.env.PHONE_PREFIX || '+225',
 };

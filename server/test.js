@@ -142,6 +142,24 @@ async function main() {
   const comp2 = await req('POST', `/gerant/demandes/${demande2Id}/complete`, {}, gt);
   check('Gérant complète une demande payée puis acceptée', comp2.status === 200 && comp2.json.demande?.status === 'completed');
 
+  // ===== Annulation d'une demande NON traitée à temps (délai dépassé) =====
+  const dm3 = await req('POST', '/client/demandes', {
+    gerantId, gerantName: 'Boutique Amadou', gerantWave: '771234567',
+    type: 'unites', amount: 700, benefName: 'Awa', benefPhone: '07' + uniq,
+  }, ct);
+  const demande3Id = dm3.json.demande?.id;
+  const early = await req('POST', `/client/demandes/${demande3Id}/cancel`, {}, ct);
+  // avec DEMANDE_EXPIRE_MS très petit, le délai est dépassé dès la création
+  check('Client annule une demande non traitée à temps', early.status === 200 && early.json.demande?.status === 'canceled');
+
+  const dm4 = await req('POST', '/client/demandes', {
+    gerantId, gerantName: 'Boutique Amadou', gerantWave: '771234567',
+    type: 'minutes', amount: 800, benefName: 'Awa', benefPhone: '07' + uniq,
+  }, ct);
+  const demande4Id = dm4.json.demande?.id;
+  const gd_cancel = await req('GET', '/gerant/demandes', null, gt);
+  check('La demande avant annulation était pending', (gd_cancel.json.demandes || []).some((d) => d.id === demande4Id && d.status === 'pending'));
+
   // Abonnement client : essai puis activation à 100 FCFA/mois
   const s0 = await req('GET', '/client/subscription', null, ct);
   check('Abonnement client en essai', s0.json.subscription?.status === 'trial');

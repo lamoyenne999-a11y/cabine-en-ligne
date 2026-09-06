@@ -1,4 +1,5 @@
 import { getDb, save, insert, findOne, find, update, remove } from '../db.js';
+import { config } from '../config.js';
 
 // ==================================================================
 //  Logique métier (v2 — zéro argent stocké sur l'app)
@@ -142,10 +143,12 @@ export function createDemande({ client, gerantId, type, amount, benefName, benef
     amount: parseInt(amount, 10),
     benefName: benefName || client.name,
     benefPhone: benefPhone || client.phone,
-    status: 'pending',           // pending | accepted | declined | paid | completed
+    status: 'pending',           // pending | accepted | declined | paid | completed | canceled
     createdAt: Date.now(),
+    expiresAt: Date.now() + config.demandeExpireMs,
     acceptedAt: 0,
     paidAt: 0,
+    canceledAt: 0,
   });
   return d;
 }
@@ -160,7 +163,7 @@ export function demandesForGerant(userId) {
 
 // ---- Résumé / historique (v2 : on suit les demandes, pas d'argent stocké) ----
 export function demandeSummary(demandes) {
-  const counts = { pending: 0, accepted: 0, declined: 0, paid: 0, completed: 0 };
+  const counts = { pending: 0, accepted: 0, declined: 0, paid: 0, completed: 0, canceled: 0 };
   let totalSpent = 0; // somme payée par le client (paid + completed)
   let totalServed = 0; // somme servie par le gérant (completed)
   for (const d of demandes || []) {
@@ -179,6 +182,19 @@ export function clientHistory(clientId) {
 export function gerantHistory(userId) {
   const demandes = demandesForGerant(userId);
   return { demandes, summary: demandeSummary(demandes) };
+}
+
+// Le client peut annuler sa demande tant que le gérant ne l'a pas encore
+// traitée (statut 'pending'). Côté interface, le bouton n'apparaît qu'après
+// le délai d'attente (expiresAt) — voir ClientHistory.jsx — pour honorer le
+// principe « annuler si non traitée à temps », mais on laisse la couche
+// métier permissive afin que l'annulation soit toujours possible hors traitement.
+export function cancelDemande({ id, clientId }) {
+  const d = findOne('demandes', (x) => x.id === id && x.clientId === clientId);
+  if (!d) throw Object.assign(new Error('Demande introuvable'), { status: 404 });
+  if (d.status !== 'pending') throw Object.assign(new Error('Cette demande ne peut plus être annulée'), { status: 400 });
+  update('demandes', (x) => x.id === id, { status: 'canceled', canceledAt: Date.now() });
+  return findOne('demandes', (x) => x.id === id);
 }
 
 export function decideDemande({ id, gerantUserId, decision }) {

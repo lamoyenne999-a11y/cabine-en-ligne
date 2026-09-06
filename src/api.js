@@ -50,6 +50,7 @@ export const api = {
     myDemandes: () => request('GET', '/api/client/demandes'),
     history: () => request('GET', '/api/client/history'),
     markPaid: (id) => request('POST', `/api/client/demandes/${id}/paid`),
+    cancelDemande: (id) => request('POST', `/api/client/demandes/${id}/cancel`),
     subscription: () => request('GET', '/api/client/subscription'),
     subscribe: () => request('POST', '/api/client/subscribe'),
   },

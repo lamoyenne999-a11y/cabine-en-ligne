@@ -13,6 +13,7 @@ const STATUS = {
   declined: { label: 'Refusée', color: colors.danger, bg: colors.dangerBg, icon: 'close-circle' },
   paid: { label: 'Payée', color: '#2E7BF6', bg: '#E7F0FE', icon: 'wallet' },
   completed: { label: 'Complétée', color: colors.success, bg: colors.successBg, icon: 'checkmark-done' },
+  canceled: { label: 'Annulée', color: colors.muted, bg: colors.gray, icon: 'close-circle-outline' },
 };
 
 export default function GerantDemandes() {
@@ -86,6 +87,11 @@ export default function GerantDemandes() {
             {d.status === 'accepted' && (
               <T size={font.sm} weight="600" color={colors.muted} style={{ marginTop: 12, textAlign: 'center' }}>
                 En attente du paiement Wave du client ({d.gerantWave ? 'marchand ' + d.gerantWave : ''}).
+              </T>
+            )}
+            {d.status === 'canceled' && (
+              <T size={font.sm} weight="600" color={colors.muted} style={{ marginTop: 12, textAlign: 'center' }}>
+                Le client a annulé cette demande (non traitée à temps).
               </T>
             )}
           </Card>

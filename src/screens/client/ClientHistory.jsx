@@ -1,11 +1,32 @@
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import { View, Text, StyleSheet } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { colors, radius, space, font } from '../../theme';
 import { T, Card, Pill, Btn } from '../../components/ui';
 import { Page } from '../../components/Shell';
 import { WavePaySheet } from '../../components/WavePay';
+import { Dialog, DialogButtons } from '../../components/modals';
 import { useStore } from '../../store';
+
+// Pour mettre à jour le compte à rebours d'un délai toutes les secondes
+function useNow(interval = 1000) {
+  const [now, setNow] = useState(Date.now());
+  useEffect(() => {
+    const t = setInterval(() => setNow(Date.now()), interval);
+    return () => clearInterval(t);
+  }, [interval]);
+  return now;
+}
+
+// Texte du temps restant pour une demande en attente
+function remainingLabel(d, now) {
+  const left = (d.expiresAt || 0) - now;
+  if (left <= 0) return 'Délai dépassé';
+  const mins = Math.floor(left / 60000);
+  const secs = Math.floor((left % 60000) / 1000);
+  if (mins >= 1) return `il reste ${mins} min ${secs} s`;
+  return `il reste ${secs} s`;
+}
 
 const STATUS = {
   pending: { label: 'En attente', color: colors.warn, bg: colors.warnBg, icon: 'time' },
@@ -13,13 +34,14 @@ const STATUS = {
   declined: { label: 'Refusée', color: colors.danger, bg: colors.dangerBg, icon: 'close-circle' },
   paid: { label: 'Payée', color: '#2E7BF6', bg: '#E7F0FE', icon: 'wallet' },
   completed: { label: 'Complétée', color: colors.success, bg: colors.successBg, icon: 'checkmark-circle' },
+  canceled: { label: 'Annulée', color: colors.muted, bg: colors.gray, icon: 'close-circle-outline' },
 };
 
 const TYPE_ICON = { unites: 'phone-portrait-outline', minutes: 'call-outline', internet: 'wifi-outline' };
 const TYPE_LABEL = { unites: 'Unités', minutes: 'Minutes', internet: 'Internet' };
 
 function summarize(demandes) {
-  const counts = { pending: 0, accepted: 0, declined: 0, paid: 0, completed: 0 };
+  const counts = { pending: 0, accepted: 0, declined: 0, paid: 0, completed: 0, canceled: 0 };
   let totalSpent = 0, totalServed = 0;
   (demandes || []).forEach((d) => {
     if (counts[d.status] !== undefined) counts[d.status] += 1;
@@ -32,9 +54,14 @@ function summarize(demandes) {
 const money = (n) => `${(n || 0).toLocaleString('fr-FR').replace(/\u202f/g, ' ')} F`;
 const when = (t) => (t ? new Date(t).toLocaleDateString('fr-FR', { day: '2-digit', month: 'short', year: 'numeric' }) : '');
 
+// Une demande en attente est annulable une fois le délai (expiresAt) passé
+function isExpired(d, now) { return d.status === 'pending' && !!d.expiresAt && now > d.expiresAt; }
+
 export default function ClientHistory() {
-  const { state, markPaid } = useStore();
+  const { state, markPaid, cancelDemande } = useStore();
   const [paying, setPaying] = useState(null);
+  const [canceling, setCanceling] = useState(null);
+  const now = useNow();
   const demandes = state.demandes || [];
   const sum = summarize(demandes);
   const purchases = sum.counts.paid + sum.counts.completed;
@@ -54,7 +81,7 @@ export default function ClientHistory() {
         <View style={s.sumGrid}>
           <Tile icon="checkmark-done" tone="green" value={purchases} label="Achats" />
           <Tile icon="time" tone="orange" value={inProgress} label="En cours" />
-          <Tile icon="close-circle" tone="blue" value={sum.counts.declined} label="Refusées" />
+          <Tile icon="close-circle" tone="blue" value={sum.counts.declined + sum.counts.canceled} label="Non traitées" />
         </View>
       </Card>
 
@@ -99,12 +126,18 @@ export default function ClientHistory() {
                   </T>
                 </View>
                 <Btn title="J'ai payé (Wave)" icon="checkmark" onPress={() => setPaying(d)} style={{ marginTop: space.md }} />
-                {d.status === 'pending' && (
-                  <T size={font.xs} weight="600" color={colors.muted} style={{ marginTop: 8, textAlign: 'center' }}>
-                    Vous pouvez payer avant ou après que le gérant accepte.
-                  </T>
-                )}
               </>
+            )}
+            {d.status === 'pending' && (
+              <View style={s.timerBox}>
+                <Ionicons name={isExpired(d, now) ? 'alert-circle' : 'time'} size={16} color={isExpired(d, now) ? colors.danger : colors.muted} />
+                <T size={font.sm} weight="600" color={isExpired(d, now) ? colors.danger : colors.muted} style={{ marginLeft: 8, flex: 1 }}>
+                  {isExpired(d, now) ? `Le gérant n'a pas répondu à temps (${remainingLabel(d, now)}).` : `En attente de réponse du gérant — ${remainingLabel(d, now)}.`}
+                </T>
+              </View>
+            )}
+            {isExpired(d, now) && d.status === 'pending' && (
+              <Btn title="Annuler la demande" icon="close-circle" outline color={colors.danger} onPress={() => setCanceling(d)} style={{ marginTop: space.md }} />
             )}
             {d.status === 'declined' && (
               <T size={font.sm} weight="600" color={colors.muted} style={{ marginTop: 12, textAlign: 'center' }}>
@@ -114,6 +147,11 @@ export default function ClientHistory() {
             {d.status === 'paid' && (
               <T size={font.sm} weight="600" color={colors.muted} style={{ marginTop: 12, textAlign: 'center' }}>
                 {d.gerantName} est en train de vous créditer les {TYPE_LABEL[d.type]?.toLowerCase()}.
+              </T>
+            )}
+            {d.status === 'canceled' && (
+              <T size={font.sm} weight="600" color={colors.muted} style={{ marginTop: 12, textAlign: 'center' }}>
+                Demande annulée : le gérant n'a pas traité votre demande à temps.
               </T>
             )}
           </Card>
@@ -130,6 +168,15 @@ export default function ClientHistory() {
         merchantName={paying?.gerantName}
         payLink={paying?.gerantPayLink || ''}
       />
+
+      {/* Confirmation d'annulation */}
+      <Dialog visible={!!canceling}>
+        <T size={font.h3} weight="800" color={colors.text} style={{ textAlign: 'center' }}>Annuler la demande ?</T>
+        <T size={font.sm} weight="600" color={colors.muted} style={{ textAlign: 'center', marginTop: 6, marginBottom: 6 }}>
+          Le gérant n'a pas répondu à temps. Vous pouvez annuler cette demande de {money(canceling?.amount)}.
+        </T>
+        <DialogButtons cancel="Retour" confirm="Annuler" onCancel={() => setCanceling(null)} onConfirm={() => { if (canceling) cancelDemande(canceling.id); setCanceling(null); }} />
+      </Dialog>
     </Page>
   );
 }
@@ -163,4 +210,5 @@ const s = StyleSheet.create({
   tileIcon: { width: 32, height: 32, borderRadius: 16, alignItems: 'center', justifyContent: 'center', marginRight: 8 },
   icon: { width: 46, height: 46, borderRadius: 23, alignItems: 'center', justifyContent: 'center' },
   payBox: { flexDirection: 'row', alignItems: 'center', backgroundColor: '#E7F0FE', borderRadius: radius.md, padding: 12, marginTop: 12 },
+  timerBox: { flexDirection: 'row', alignItems: 'center', backgroundColor: colors.bg, borderRadius: radius.md, padding: 12, marginTop: 12 },
 });

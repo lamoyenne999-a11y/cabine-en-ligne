@@ -82,6 +82,8 @@ function reducer(state, action) {
       return { ...state, demandes: [action.payload, ...state.demandes] };
     case 'CLIENT_UPDATE_DEMANDE':
       return { ...state, demandes: state.demandes.map((d) => (d.id === action.payload.id ? { ...d, ...action.payload } : d)) };
+    case 'CANCEL_DEMANDE':
+      return { ...state, demandes: state.demandes.map((d) => (d.id === action.payload ? { ...d, status: 'canceled', canceledAt: Date.now() } : d)) };
 
     case 'SET_GERANT_DEMANDES':
       return { ...state, gerantDemandes: action.payload };
@@ -241,6 +243,11 @@ export function StoreProvider({ children }) {
     if (online) { try { await api.client.markPaid(id); } catch {} }
   }, [online]);
 
+  const cancelDemande = useCallback(async (id) => {
+    dispatch({ type: 'CANCEL_DEMANDE', payload: id });
+    if (online) { try { await api.client.cancelDemande(id); } catch { /* silencieux */ } }
+  }, [online]);
+
   const acceptDemande = useCallback(async (id) => {
     dispatch({ type: 'GERANT_UPDATE_DEMANDE', payload: { id, status: 'accepted' } });
     if (online) { try { await api.gerant.accept(id); } catch {} }
@@ -282,8 +289,8 @@ export function StoreProvider({ children }) {
   }, [online, state.role]);
 
   const value = useMemo(
-    () => ({ state, dispatch, online, checking, login, register, logout, refresh, addGerant, removeGerant, createDemande, markPaid, acceptDemande, declineDemande, completeDemande, subscribe, updateGerantProfile }),
-    [state, online, checking, login, register, logout, refresh, addGerant, removeGerant, createDemande, markPaid, acceptDemande, declineDemande, completeDemande, subscribe, updateGerantProfile],
+    () => ({ state, dispatch, online, checking, login, register, logout, refresh, addGerant, removeGerant, createDemande, markPaid, cancelDemande, acceptDemande, declineDemande, completeDemande, subscribe, updateGerantProfile }),
+    [state, online, checking, login, register, logout, refresh, addGerant, removeGerant, createDemande, markPaid, cancelDemande, acceptDemande, declineDemande, completeDemande, subscribe, updateGerantProfile],
   );
   return <Ctx.Provider value={value}>{children}</Ctx.Provider>;
 }
