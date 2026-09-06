@@ -74,6 +74,23 @@ function cleanupFakeGerants(dbData) {
   return dbData;
 }
 
+// Purge COMPLÈTE et UNE SEULE FOIS de tous les gérants (comptes de test / démo
+// accumulés avant la mise en production réelle). Un marqueur est écrit en base
+// pour ne pas re-purger ensuite : seuls les gérants RÉELLEMENT inscrits
+// apparaîtront, et les futurs inscrits sont conservés.
+function resetStaleGerants(dbData) {
+  if (dbData.__gerantResetDone) return dbData;
+  const gids = new Set((dbData.users || []).filter((u) => u.role === 'gerant').map((u) => u.id));
+  if (gids.size) {
+    dbData.users = (dbData.users || []).filter((u) => u.role !== 'gerant');
+    dbData.gerants = (dbData.gerants || []).filter((g) => !gids.has(g.userId));
+    dbData.demandes = (dbData.demandes || []).filter((d) => !gids.has(d.gerantUserId));
+    dbData.notifications = (dbData.notifications || []).filter((n) => !gids.has(n.userId));
+  }
+  dbData.__gerantResetDone = true;
+  return dbData;
+}
+
 // ------------------------- JSON (dev) -------------------------
 function loadFile() {
   if (fs.existsSync(DATA_FILE)) {
@@ -110,7 +127,7 @@ export async function initDb() {
       pool = new Pool({ connectionString: DATABASE_URL, ssl: DATABASE_URL.includes('render') ? { rejectUnauthorized: false } : undefined });
       await ensureSchema(pool);
       const loaded = await loadFromPg(pool);
-      db = loaded && loaded.users ? cleanupFakeGerants(normalize(loaded)) : seed();
+      db = loaded && loaded.users ? resetStaleGerants(cleanupFakeGerants(normalize(loaded))) : seed();
       usingPg = true;
       await persistToPg(pool);
       console.log(`[db] PostgreSQL connecté`);
@@ -120,7 +137,7 @@ export async function initDb() {
       pool = null;
     }
   }
-  db = cleanupFakeGerants(normalize(loadFile()));
+  db = resetStaleGerants(cleanupFakeGerants(normalize(loadFile())));
   writeFile();
   return db;
 }
