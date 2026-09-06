@@ -1,12 +1,15 @@
 import { Router } from 'express';
 import { requireAuth, requireRole } from '../middleware/auth.js';
-import { gerantsFor, addGerant, removeGerant, createDemande, demandesForClient, clientHistory, demandeSummary, subscriptionFor, activateSubscription, publicProfile, markPaid, cancelDemande, notificationsFor, unreadCount, markNotificationRead, markAllNotificationsRead } from '../services/flowService.js';
+import { gerantsFor, addGerant, removeGerant, createDemande, demandesForClient, clientHistory, demandeSummary, subscriptionFor, activateSubscription, publicProfile, markPaid, cancelDemande, notificationsFor, unreadCount, markNotificationRead, markAllNotificationsRead, availableGerants } from '../services/flowService.js';
 
 const router = Router();
 router.use(requireAuth, requireRole('client'));
 
 // ---- Mes gérants ----
 router.get('/gerants', (req, res) => res.json({ gerants: gerantsFor(req.user.id) }));
+
+// Gérants déjà inscrits, proposés au client
+router.get('/gerants/available', (req, res) => res.json({ gerants: availableGerants(req.user.id) }));
 
 router.post('/gerants', (req, res) => {
   try {
@@ -24,8 +27,8 @@ router.delete('/gerants/:id', (req, res) => {
 // ---- Demandes (services) ----
 router.post('/demandes', (req, res) => {
   try {
-    const { gerantId, type, amount, benefName, benefPhone } = req.body || {};
-    const d = createDemande({ client: req.user, gerantId, type, amount, benefName, benefPhone });
+    const { gerantId, gerantUserId, type, amount, benefName, benefPhone } = req.body || {};
+    const d = createDemande({ client: req.user, gerantId, gerantUserId, type, amount, benefName, benefPhone });
     res.status(201).json({ demande: d });
   } catch (e) { res.status(e.status || 400).json({ error: e.message }); }
 });

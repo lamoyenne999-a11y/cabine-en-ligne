@@ -43,6 +43,8 @@ const seed = () => {
     { id: 'g2', userId: 'u_fatou', name: 'Kiosque Fatou', phone: '789876543', waveNumber: '789876543', payLink: '', rating: 4.6, online: false },
     { id: 'g3', userId: 'u_moussa', name: 'Cabine Moussa', phone: '765554433', waveNumber: '765554433', payLink: '', rating: 4.2, online: true },
   ],
+  // Gérants déjà inscrits, proposés au client (sans qu'il ait à les ajouter)
+  availableGerants: [],
   demandes: [],
 
   // Gérant : demandes reçues
@@ -81,6 +83,8 @@ function reducer(state, action) {
 
     case 'ADD_GERANT':
       return { ...state, gerants: [...state.gerants, action.payload] };
+    case 'SET_AVAILABLE_GERANTS':
+      return { ...state, availableGerants: action.payload || [] };
     case 'REMOVE_GERANT':
       return { ...state, gerants: state.gerants.filter((g) => g.id !== action.payload) };
 
@@ -219,12 +223,14 @@ export function StoreProvider({ children }) {
       if (sub) dispatch({ type: 'SET_SUBSCRIPTION', payload: sub.subscription });
 
       if (state.role === 'client') {
-        const [g, d, n] = await Promise.all([
+        const [g, av, d, n] = await Promise.all([
           api.client.gerants().catch(() => null),
+          api.client.availableGerants().catch(() => null),
           api.client.myDemandes().catch(() => null),
           api.client.notifications().catch(() => null),
         ]);
         dispatch({ type: 'HYDRATE', payload: { gerants: g?.gerants, demandes: d?.demandes } });
+        if (av) dispatch({ type: 'SET_AVAILABLE_GERANTS', payload: av.gerants });
         if (n) dispatch({ type: 'SET_CLIENT_NOTIFICATIONS', payload: n });
       } else if (state.role === 'gerant') {
         const [d, n] = await Promise.all([

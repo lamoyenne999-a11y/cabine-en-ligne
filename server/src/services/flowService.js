@@ -91,6 +91,15 @@ export function gerantsFor(clientId) {
   return find('gerants', (g) => g.ownerId === clientId);
 }
 
+// Gérants déjà inscrits sur la plateforme, proposés au client pour simplifier
+// sa tâche (il n'a pas besoin de les ajouter pour leur envoyer une demande).
+export function availableGerants(clientId) {
+  const added = gerantsFor(clientId).map((g) => g.userId);
+  return find('users', (u) => u.role === 'gerant')
+    .map((u) => ({ userId: u.id, name: u.name, phone: u.phone, waveNumber: u.waveNumber || u.phone, payLink: u.payLink || '', alreadyAdded: added.includes(u.id) }))
+    .sort((a, b) => (a.name || '').localeCompare(b.name || ''));
+}
+
 export function addGerant({ clientId, phone, name }) {
   const phoneTrim = String(phone || '').replace(/[^0-9]/g, '');
   if (!phoneTrim) throw Object.assign(new Error('Numéro requis'), { status: 400 });
@@ -162,8 +171,21 @@ export function removeGerant({ clientId, gerantId }) {
 }
 
 // ---- Demandes ----
-export function createDemande({ client, gerantId, type, amount, benefName, benefPhone }) {
-  const g = findOne('gerants', (g) => g.id === gerantId);
+export function createDemande({ client, gerantId, gerantUserId, type, amount, benefName, benefPhone }) {
+  // On accepte soit un contact déjà ajouté (gerantId), soit directement un
+  // gérant inscrit (gerantUserId). Si c'est un gérant inscrit non encore
+  // ajouté, on crée le contact automatiquement pour simplifier la tâche du client.
+  let g = gerantId ? findOne('gerants', (x) => x.id === gerantId && x.ownerId === client.id) : null;
+  if (!g && gerantUserId) {
+    const u = findOne('users', (x) => x.id === gerantUserId && x.role === 'gerant');
+    if (u) {
+      g = findOne('gerants', (x) => x.ownerId === client.id && x.userId === u.id);
+      if (!g) g = insert('gerants', {
+        ownerId: client.id, userId: u.id, name: u.name, phone: u.phone,
+        waveNumber: u.waveNumber || u.phone, payLink: u.payLink || '', rating: 4.0, online: true,
+      });
+    }
+  }
   if (!g) throw Object.assign(new Error('Gérant introuvable'), { status: 404 });
   if (!['unites', 'minutes', 'internet'].includes(type)) throw Object.assign(new Error('Type invalide'), { status: 400 });
   if (!(parseInt(amount, 10) > 0)) throw Object.assign(new Error('Montant invalide'), { status: 400 });

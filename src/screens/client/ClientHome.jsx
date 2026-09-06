@@ -57,24 +57,30 @@ export default function ClientHome() {
   const [who, setWho] = useState('moi');
   const [benefName, setBenefName] = useState('');
   const [benefPhone, setBenefPhone] = useState('');
-  const [gerantId, setGerantId] = useState(null);
+  // Gérant sélectionné : soit un contact déjà ajouté (id = contact), soit un
+  // gérant inscrit proposé par l'app (userId = compte gérant).
+  const [sel, setSel] = useState(null);
   const [showGerants, setShowGerants] = useState(false);
   const [showSub, setShowSub] = useState(false);
   const [sent, setSent] = useState(false);
   const [lastDemande, setLastDemande] = useState(null);
   const [paying, setPaying] = useState(null);
 
-  const gerant = state.gerants.find((g) => g.id === gerantId);
+  const gerant = sel;
   const amountNum = parseInt(amount, 10) || 0;
+  // Gérants inscrits proposés = ceux que le client n'a pas encore ajoutés.
+  const addedIds = new Set((state.gerants || []).map((g) => g.userId));
+  const suggested = (state.availableGerants || []).filter((g) => !g.alreadyAdded && !addedIds.has(g.userId));
 
   const submit = async () => {
     if (amountNum <= 0) return;
-    if (!gerant || !gerantId) { setShowGerants(true); return; }
+    if (!sel) { setShowGerants(true); return; }
     const payload = {
-      gerantId,
-      gerantName: gerant.name,
-      gerantWave: gerant.waveNumber,
-      gerantPayLink: gerant.payLink || '',
+      gerantId: sel.id || undefined,
+      gerantUserId: sel.userId || undefined,
+      gerantName: sel.name,
+      gerantWave: sel.waveNumber,
+      gerantPayLink: sel.payLink || '',
       type,
       amount: amountNum,
       benefName: who === 'autre' ? benefName : (state.user?.name || 'Moi'),
@@ -84,7 +90,7 @@ export default function ClientHome() {
     // puis remplace par la vraie demande dès qu'elle est créée.
     setSent(true);
     // Réinitialise tout le formulaire pour qu'une nouvelle demande soit facile.
-    setAmount(''); setWho('moi'); setBenefName(''); setBenefPhone(''); setType('unites'); setGerantId(null);
+    setAmount(''); setWho('moi'); setBenefName(''); setBenefPhone(''); setType('unites'); setSel(null);
     try {
       const created = await createDemande(payload);
       if (created && created.id) setLastDemande(created);
@@ -139,10 +145,12 @@ export default function ClientHome() {
 
           <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginTop: space.lg }}>
             <T size={font.sm} weight="700" color={colors.textSoft}>Gérant</T>
-            <View style={{ flexDirection: 'row', alignItems: 'center' }}>
-              <View style={{ width: 8, height: 8, borderRadius: 4, backgroundColor: gerant?.online ? colors.success : colors.muted2, marginRight: 5 }} />
-              <T size={font.xs} weight="700" color={gerant?.online ? colors.success : colors.muted}>{gerant?.online ? 'En ligne' : 'Hors ligne'}</T>
-            </View>
+            {gerant && (
+              <View style={s.onlineChip}>
+                <View style={{ width: 8, height: 8, borderRadius: 4, backgroundColor: gerant.online === false ? colors.muted2 : colors.success, marginRight: 5 }} />
+                <T size={font.xs} weight="700" color={gerant.online === false ? colors.muted : colors.success}>{gerant.online === false ? 'Hors ligne' : 'En ligne'}</T>
+              </View>
+            )}
           </View>
           <Pressable onPress={() => setShowGerants(true)} style={[s.input, { marginTop: 8 }]}>
             <View style={s.gerantPick}>
@@ -187,19 +195,54 @@ export default function ClientHome() {
           <T size={font.h3} weight="800" color={colors.text}>Choisir un gérant</T>
           <Pressable onPress={() => setShowGerants(false)}><Ionicons name="close" size={24} color={colors.muted} /></Pressable>
         </View>
-        {state.gerants.map((g) => (
-          <Pressable key={g.id} onPress={() => { setGerantId(g.id); setShowGerants(false); }} style={[s.gerantRow, gerantId === g.id && { opacity: 0.7 }]}>
-            <View style={{ flex: 1 }}>
-              <T size={font.body} weight="800" color={colors.text}>{g.name}</T>
-              <T size={font.sm} weight="600" color={colors.muted} style={{ marginTop: 2 }}>{g.phone}</T>
-            </View>
-            <View style={{ flexDirection: 'row', alignItems: 'center' }}>
-              <View style={{ width: 8, height: 8, borderRadius: 4, backgroundColor: g.online ? colors.success : colors.muted2, marginRight: 5 }} />
-              <T size={font.xs} weight="700" color={g.online ? colors.success : colors.muted}>{g.online ? 'En ligne' : 'Hors ligne'}</T>
-            </View>
-          </Pressable>
-        ))}
-        <Btn title="Valider" onPress={() => setShowGerants(false)} style={{ marginTop: space.lg }} />
+
+        {/* Gérants déjà inscrits, proposés (sans avoir à les ajouter) */}
+        {suggested.length > 0 && (
+          <>
+            <T size={font.sm} weight="800" color={colors.primary} style={{ marginBottom: 4 }}>Gérants disponibles (déjà inscrits)</T>
+            <T size={font.xs} weight="600" color={colors.muted2} style={{ marginBottom: 8 }}>Vous pouvez leur envoyer une demande directement, sans les ajouter.</T>
+            {suggested.map((g) => (
+              <Pressable key={g.userId} onPress={() => { setSel({ userId: g.userId, name: g.name, phone: g.phone, waveNumber: g.waveNumber, payLink: g.payLink || '', online: true }); setShowGerants(false); }} style={s.gerantRow}>
+                <View style={s.availIcon}><Ionicons name="storefront-outline" size={18} color={colors.primary} /></View>
+                <View style={{ flex: 1, marginLeft: 10 }}>
+                  <T size={font.body} weight="800" color={colors.text}>{g.name}</T>
+                  <T size={font.sm} weight="600" color={colors.muted} style={{ marginTop: 2 }}>{g.phone}</T>
+                </View>
+                <T size={font.xs} weight="700" color={colors.success}>Disponible</T>
+              </Pressable>
+            ))}
+          </>
+        )}
+
+        {/* Gérants déjà ajoutés par le client */}
+        {state.gerants.length > 0 && (
+          <>
+            <T size={font.sm} weight="800" color={colors.text} style={{ marginBottom: 4, marginTop: space.md }}>Mes gérants ajoutés</T>
+            {state.gerants.map((g) => {
+              const on = sel?.id === g.id;
+              return (
+                <Pressable key={g.id} onPress={() => { setSel({ id: g.id, userId: g.userId, name: g.name, phone: g.phone, waveNumber: g.waveNumber, payLink: g.payLink || '', online: g.online }); setShowGerants(false); }} style={[s.gerantRow, on && { opacity: 0.7 }]}>
+                  <View style={{ flex: 1 }}>
+                    <T size={font.body} weight="800" color={colors.text}>{g.name}</T>
+                    <T size={font.sm} weight="600" color={colors.muted} style={{ marginTop: 2 }}>{g.phone}</T>
+                  </View>
+                  <View style={{ flexDirection: 'row', alignItems: 'center' }}>
+                    <View style={{ width: 8, height: 8, borderRadius: 4, backgroundColor: g.online ? colors.success : colors.muted2, marginRight: 5 }} />
+                    <T size={font.xs} weight="700" color={g.online ? colors.success : colors.muted}>{g.online ? 'En ligne' : 'Hors ligne'}</T>
+                  </View>
+                </Pressable>
+              );
+            })}
+          </>
+        )}
+
+        {suggested.length === 0 && state.gerants.length === 0 && (
+          <View style={{ alignItems: 'center', paddingVertical: 24 }}>
+            <Ionicons name="storefront-outline" size={36} color={colors.muted2} />
+            <T size={font.sm} weight="600" color={colors.muted} style={{ marginTop: 8, textAlign: 'center' }}>Aucun gérant disponible pour le moment.</T>
+          </View>
+        )}
+        <Btn title="Fermer" outline onPress={() => setShowGerants(false)} style={{ marginTop: space.lg }} />
       </BottomSheet>
 
       {/* Demande lancée / envoyée */}
@@ -274,6 +317,8 @@ const s = StyleSheet.create({
   sheetHandle: { width: 44, height: 5, borderRadius: 3, backgroundColor: colors.muted2, alignSelf: 'center', marginBottom: 16 },
   gerantRow: { flexDirection: 'row', alignItems: 'center', paddingVertical: 14, borderBottomWidth: 1, borderBottomColor: colors.border },
   gerantPick: { flexDirection: 'row', alignItems: 'center', flex: 1 },
+  onlineChip: { flexDirection: 'row', alignItems: 'center', backgroundColor: colors.bg, borderRadius: radius.pill, paddingHorizontal: 10, paddingVertical: 5 },
+  availIcon: { width: 34, height: 34, borderRadius: 17, backgroundColor: colors.primarySoft, alignItems: 'center', justifyContent: 'center' },
   waveInfo: { backgroundColor: '#E7F0FE', borderRadius: radius.md, padding: 14, marginTop: space.lg },
   waveTitle: { flexDirection: 'row', alignItems: 'center', marginBottom: 12 },
   summary: { backgroundColor: colors.bg, borderRadius: radius.md, padding: 14, marginTop: space.md },

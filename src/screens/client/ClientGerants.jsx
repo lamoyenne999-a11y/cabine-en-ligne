@@ -20,6 +20,9 @@ export default function ClientGerants() {
   const [copied, setCopied] = useState(false);
 
   const gerants = state.gerants.filter((g) => g.name.toLowerCase().includes(q.toLowerCase()) || g.phone.includes(q));
+  // Gérants inscrits proposés = ceux que le client n'a pas encore ajoutés.
+  const addedIds = new Set((state.gerants || []).map((g) => g.userId));
+  const suggested = (state.availableGerants || []).filter((g) => !g.alreadyAdded && !addedIds.has(g.userId));
   const shareUrl = state.user ? buildShareUrl(state.user.id) : '';
 
   const add = async () => {
@@ -66,6 +69,24 @@ export default function ClientGerants() {
         <T size={font.h3} weight="800" color={colors.text}>Liste des gérants</T>
         <Btn title="Ajouter" icon="add" size="sm" onPress={() => setShow(true)} />
       </View>
+
+      {/* Gérants déjà inscrits, proposés sans avoir à les ajouter */}
+      {suggested.length > 0 && (
+        <Card style={{ marginBottom: space.lg, backgroundColor: colors.primarySoft }}>
+          <T size={font.sm} weight="800" color={colors.primary} style={{ marginBottom: 2 }}>Gérants disponibles (déjà inscrits)</T>
+          <T size={font.xs} weight="600" color={colors.muted} style={{ marginBottom: 8 }}>Ajoutez-les en un clic, ou envoyez-leur directement une demande depuis l'accueil.</T>
+          {suggested.map((g) => (
+            <View key={g.userId} style={s.suggestRow}>
+              <View style={s.suggestIcon}><Ionicons name="storefront-outline" size={18} color={colors.primary} /></View>
+              <View style={{ flex: 1, marginLeft: 10 }}>
+                <T size={font.body} weight="800" color={colors.text}>{g.name}</T>
+                <T size={font.sm} weight="600" color={colors.muted} style={{ marginTop: 1 }}>{g.phone}</T>
+              </View>
+              <Btn title="Ajouter" icon="add" size="sm" onPress={() => addGerant({ phone: g.phone, name: g.name })} />
+            </View>
+          ))}
+        </Card>
+      )}
 
       {gerants.map((g) => (
         <Card key={g.id} style={{ marginBottom: space.sm }}>
@@ -120,4 +141,6 @@ const s = StyleSheet.create({
   linkText: { flex: 1, fontSize: font.xs, color: colors.primary, marginRight: 8 },
   copyBtn: { width: 40, height: 40, borderRadius: radius.sm, backgroundColor: colors.primary, alignItems: 'center', justifyContent: 'center' },
   payBtn: { flexDirection: 'row', alignItems: 'center', backgroundColor: colors.waveAccent, borderRadius: radius.pill, paddingHorizontal: 12, paddingVertical: 7, marginTop: 6, alignSelf: 'flex-start' },
+  suggestRow: { flexDirection: 'row', alignItems: 'center', paddingVertical: 10, borderTopWidth: 1, borderTopColor: colors.border },
+  suggestIcon: { width: 34, height: 34, borderRadius: 17, backgroundColor: '#fff', alignItems: 'center', justifyContent: 'center' },
 });

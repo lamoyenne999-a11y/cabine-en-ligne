@@ -44,6 +44,7 @@ export const api = {
   // ---- client ----
   client: {
     gerants: () => request('GET', '/api/client/gerants'),
+    availableGerants: () => request('GET', '/api/client/gerants/available'),
     addGerant: (p) => request('POST', '/api/client/gerants', p),
     removeGerant: (id) => request('DELETE', `/api/client/gerants/${id}`),
     createDemande: (p) => request('POST', '/api/client/demandes', p),
