@@ -37,12 +37,9 @@ const seed = () => {
     user: s ? s.user : null,          // { id, role, name, phone, waveNumber, email }
     subscription: s ? s.subscription : null,  // { status: trial|active|expired, daysLeft, price }
 
-  // Client : ses gérants (contacts) + ses demandes
-  gerants: [
-    { id: 'g1', userId: 'u_amadou', name: 'Boutique Amadou', phone: '771234567', waveNumber: '771234567', payLink: '', rating: 4.8, online: true },
-    { id: 'g2', userId: 'u_fatou', name: 'Kiosque Fatou', phone: '789876543', waveNumber: '789876543', payLink: '', rating: 4.6, online: false },
-    { id: 'g3', userId: 'u_moussa', name: 'Cabine Moussa', phone: '765554433', waveNumber: '765554433', payLink: '', rating: 4.2, online: true },
-  ],
+  // Client : ses gérants (contacts) + ses demandes. On démarre vide :
+  // seuls les gérants réellement inscrits / ajoutés apparaîtront.
+  gerants: [],
   // Gérants déjà inscrits, proposés au client (sans qu'il ait à les ajouter)
   availableGerants: [],
   demandes: [],
@@ -258,12 +255,13 @@ export function StoreProvider({ children }) {
   // ---- Actions ----
   const addGerant = useCallback(async (payload) => {
     if (online) {
-      try {
-        const { gerant } = await api.client.addGerant(payload);
-        dispatch({ type: 'ADD_GERANT', payload: gerant });
-        return gerant;
-      } catch { /* fallback */ }
+      // On ne crée PAS de contact fantôme : si le numéro n'est pas un gérant
+      // inscrit, on remonte l'erreur pour l'afficher à l'écran.
+      const { gerant } = await api.client.addGerant(payload);
+      dispatch({ type: 'ADD_GERANT', payload: gerant });
+      return gerant;
     }
+    // Hors ligne (mode démo) : fallback minimal.
     dispatch({ type: 'ADD_GERANT', payload: { id: 'g_' + now(), name: payload.name || `Gérant ${(payload.phone || '').slice(-4)}`, phone: payload.phone, waveNumber: payload.phone, payLink: payload.payLink || '', rating: 4.0, online: true } });
     return { id: 'g_' + now() };
   }, [online]);

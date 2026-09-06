@@ -43,34 +43,46 @@ async function main() {
   check('Inscription : 30 jours d\'essai', reg.json.subscription?.daysLeft === 30 || reg.json.subscription?.daysLeft === 29);
   const ct = reg.json.token;
 
-  // Connexion gérant démo (identifiant = téléphone)
-  const lg = await req('POST', '/auth/login', { phone: '771234567', password: PWD });
-  check('Connexion gérant par téléphone 200', lg.status === 200 && lg.json.user?.role === 'gerant');
-  const gt = lg.json.token;
+  // Inscription d'un vrai gérant (les comptes de démo ont été retirés)
+  const gphone = '08' + uniq;
+  const greg = await req('POST', '/auth/register', { role: 'gerant', name: 'Gérant Test', phone: gphone, password: '1234' });
+  check('Inscription gérant 201', greg.status === 201 && greg.json.user?.role === 'gerant');
+  const gt = greg.json.token;
+  const gid = greg.json.user.id;
 
   // Aucune notion de solde : le champ solde ne doit pas exister
-  check('Pas de solde dans la réponse d\'auth', !('balance' in (lg.json.user || {})));
+  check("Pas de solde dans la réponse d'auth", !('balance' in (greg.json.user || {})));
 
   // Profil public via lien de partage (sans authentification)
-  const pp = await req('GET', `/public/u/${lg.json.user.id}`);
-  check('Profil public accessibles sans token', pp.status === 200 && pp.json.profile?.id === 'u_amadou');
+  const pp = await req('GET', `/public/u/${gid}`);
+  check('Profil public accessibles sans token', pp.status === 200 && pp.json.profile?.id === gid);
   check('Profil public expose le Wave marchand', !!pp.json.profile?.waveNumber);
 
   // Le gérant définit son lien Wave marchand (pour paiement direct)
   const PAYLINK = 'https://pay.wave.com/m/M_ci_JEUXTEST_/c/ci/';
   const upd = await req('POST', '/gerant/profile', { payLink: PAYLINK }, gt);
   check('Gérant met à jour son lien Wave marchand', upd.status === 200 && upd.json.user?.payLink === PAYLINK);
-  const pp2 = await req('GET', `/public/u/${lg.json.user.id}`);
+  const pp2 = await req('GET', `/public/u/${gid}`);
   check('Profil public expose le lien Wave marchand', pp2.json.profile?.payLink === PAYLINK);
 
-  // Ajout d'un gérant par le nouveau client (via le lien public)
-  const addg = await req('POST', '/client/gerants', { phone: '771234567', name: 'Boutique Amadou' }, ct);
-  check('Ajout de gérant 201', addg.status === 201 && !!addg.json.gerant?.id);
+  // Ajout du gérant inscrit par le client
+  const addg = await req('POST', '/client/gerants', { phone: gphone, name: 'Gérant Test' }, ct);
+  check('Ajout de gérant inscrit 201', addg.status === 201 && !!addg.json.gerant?.id);
   const gerantId = addg.json.gerant?.id;
+
+  // On ne peut PAS ajouter un numéro qui n'est pas un gérant inscrit (pas de compte fantôme)
+  const addBad = await req('POST', '/client/gerants', { phone: '999999999', name: 'Nexiste pas' }, ct);
+  check("Ajout d'un numéro non inscrit refusé (404)", addBad.status === 404);
+
+  // Les gérants « proposés » n'incluent que d'authentiques inscrits (pas les comptes de démo)
+  const avail = await req('GET', '/client/gerants/available', null, ct);
+  const availNames = (avail.json.gerants || []).map((g) => g.name);
+  check('Gérants proposés contiennent le vrai inscrit', availNames.includes('Gérant Test'));
+  check('Aucun gérant de démo dans les proposés', !availNames.includes('Boutique Amadou') && !availNames.includes('Cabine Marie') && !availNames.includes('Kiosque Fatou') && !availNames.includes('Cabine Moussa'));
 
   // Création d'une demande (unités)
   const dm = await req('POST', '/client/demandes', {
-    gerantId, gerantName: 'Boutique Amadou', gerantWave: '771234567',
+    gerantId, gerantName: 'Gérant Test', gerantWave: gphone,
     type: 'unites', amount: 2000, benefName: 'Awa', benefPhone: '07' + uniq,
   }, ct);
   check('Création demande 201', dm.status === 201 && dm.json.demande?.status === 'pending');
@@ -102,7 +114,7 @@ async function main() {
   const cd = await req('GET', '/client/demandes', null, ct);
   const seen = (cd.json.demandes || []).find((d) => d.id === demandeId);
   check('Client voit la demande acceptée', seen?.status === 'accepted');
-  check('Demande expose le Wave marchand du gérant', seen?.gerantWave === '771234567');
+  check('Demande expose le Wave marchand du gérant', seen?.gerantWave === gphone);
   check('Demande porte le lien Wave du gérant', seen?.gerantPayLink === PAYLINK);
 
   // Paiement direct Wave (hors app) : le client signale qu'il a payé
@@ -136,7 +148,7 @@ async function main() {
 
   // ===== Paiement AVANT acceptation (le client paie directement, gérant n'a pas encore répondu) =====
   const dm2 = await req('POST', '/client/demandes', {
-    gerantId, gerantName: 'Boutique Amadou', gerantWave: '771234567',
+    gerantId, gerantName: 'Gérant Test', gerantWave: gphone,
     type: 'internet', amount: 1200, benefName: 'Awa', benefPhone: '07' + uniq,
   }, ct);
   const demande2Id = dm2.json.demande?.id;
@@ -157,7 +169,7 @@ async function main() {
 
   // ===== Annulation d'une demande NON traitée à temps (délai dépassé) =====
   const dm3 = await req('POST', '/client/demandes', {
-    gerantId, gerantName: 'Boutique Amadou', gerantWave: '771234567',
+    gerantId, gerantName: 'Gérant Test', gerantWave: gphone,
     type: 'unites', amount: 700, benefName: 'Awa', benefPhone: '07' + uniq,
   }, ct);
   const demande3Id = dm3.json.demande?.id;
@@ -179,7 +191,7 @@ async function main() {
   }
 
   const dm4 = await req('POST', '/client/demandes', {
-    gerantId, gerantName: 'Boutique Amadou', gerantWave: '771234567',
+    gerantId, gerantName: 'Gérant Test', gerantWave: gphone,
     type: 'minutes', amount: 800, benefName: 'Awa', benefPhone: '07' + uniq,
   }, ct);
   const demande4Id = dm4.json.demande?.id;
@@ -188,7 +200,7 @@ async function main() {
 
   // ===== Annulation d'une demande ACCEPTÉE mais PAS ENCORE PAYÉE =====
   const dm5 = await req('POST', '/client/demandes', {
-    gerantId, gerantName: 'Boutique Amadou', gerantWave: '771234567',
+    gerantId, gerantName: 'Gérant Test', gerantWave: gphone,
     type: 'internet', amount: 1500, benefName: 'Awa', benefPhone: '07' + uniq,
   }, ct);
   const demande5Id = dm5.json.demande?.id;
@@ -199,7 +211,7 @@ async function main() {
 
   // ===== Une demande PAYÉE ne peut plus être annulée =====
   const dm6 = await req('POST', '/client/demandes', {
-    gerantId, gerantName: 'Boutique Amadou', gerantWave: '771234567',
+    gerantId, gerantName: 'Gérant Test', gerantWave: gphone,
     type: 'unites', amount: 900, benefName: 'Awa', benefPhone: '07' + uniq,
   }, ct);
   const demande6Id = dm6.json.demande?.id;

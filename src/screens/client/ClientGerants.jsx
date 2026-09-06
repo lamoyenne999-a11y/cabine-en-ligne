@@ -28,8 +28,13 @@ export default function ClientGerants() {
   const add = async () => {
     if (!phone.trim()) { setErr('Numéro requis'); return; }
     setErr('');
-    await addGerant({ phone, name: name.trim() });
-    setName(''); setPhone(''); setShow(false);
+    try {
+      const r = await addGerant({ phone, name: name.trim() });
+      if (!r || !r.id) { setErr('Ce numéro ne correspond à aucun gérant inscrit sur Cabine En Ligne.'); return; }
+      setName(''); setPhone(''); setShow(false);
+    } catch (e) {
+      setErr(e && e.message ? e.message : 'Ce numéro ne correspond à aucun gérant inscrit. Vérifiez le numéro ou invitez-le à s\'inscrire.');
+    }
   };
 
   const copy = () => {

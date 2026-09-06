@@ -29,55 +29,15 @@ const in30 = () => now + 30 * 24 * 3600 * 1000;
 
 const seed = () => ({
   users: [
-    // --- Clients de démo ---
+    // --- Client de démo (pour tester côté client ; compte réel sans gérant inscrit) ---
     { id: 'u_client', role: 'client', name: 'Jean Dupont', phone: '0101010101', email: 'jean@example.com', passwordHash: '$2b$10$V3Ed.oiA.jq72LkYfH7z2.xU8v3P1k/uXYeFKrazPJBotSmf.kbrO', waveNumber: '0101010101', subscription: { status: 'trial', trialEndsAt: in30(), subscribedUntil: 0 }, createdAt: now },
-    // --- Gérants de démo (chacun a son Wave marchand) ---
-    { id: 'u_amadou', role: 'gerant', name: 'Boutique Amadou', phone: '771234567', email: 'amadou@example.com', passwordHash: '$2b$10$V3Ed.oiA.jq72LkYfH7z2.xU8v3P1k/uXYeFKrazPJBotSmf.kbrO', waveNumber: '771234567', payLink: 'https://pay.wave.com/m/M_ci_jUXE1N_gWG8_/c/ci/', subscription: { status: 'trial', trialEndsAt: in30(), subscribedUntil: 0 }, createdAt: now },
-    { id: 'u_fatou', role: 'gerant', name: 'Kiosque Fatou', phone: '789876543', email: 'fatou@example.com', passwordHash: '$2b$10$V3Ed.oiA.jq72LkYfH7z2.xU8v3P1k/uXYeFKrazPJBotSmf.kbrO', waveNumber: '789876543', payLink: 'https://pay.wave.com/m/M_ci_jUXE1N_gWG8_/c/ci/', subscription: { status: 'trial', trialEndsAt: in30(), subscribedUntil: 0 }, createdAt: now },
-    { id: 'u_moussa', role: 'gerant', name: 'Cabine Moussa', phone: '765554433', email: 'moussa@example.com', passwordHash: '$2b$10$V3Ed.oiA.jq72LkYfH7z2.xU8v3P1k/uXYeFKrazPJBotSmf.kbrO', waveNumber: '765554433', payLink: 'https://pay.wave.com/m/M_ci_jUXE1N_gWG8_/c/ci/', subscription: { status: 'trial', trialEndsAt: in30(), subscribedUntil: 0 }, createdAt: now },
-    { id: 'u_marie', role: 'gerant', name: 'Cabine Marie', phone: '0202020202', email: 'marie@example.com', passwordHash: '$2b$10$V3Ed.oiA.jq72LkYfH7z2.xU8v3P1k/uXYeFKrazPJBotSmf.kbrO', waveNumber: '0202020202', payLink: 'https://pay.wave.com/m/M_ci_jUXE1N_gWG8_/c/ci/', subscription: { status: 'trial', trialEndsAt: in30(), subscribedUntil: 0 }, createdAt: now },
+    // --- Aucun gérant de démo : seuls les gérants RÉELLEMENT inscrits apparaissent. ---
   ],
 
-  // Gérants que le client de démo a déjà ajoutés (contacts)
-  gerants: [
-    { id: 'g1', ownerId: 'u_client', userId: 'u_amadou', name: 'Boutique Amadou', phone: '771234567', waveNumber: '771234567', payLink: 'https://pay.wave.com/m/M_ci_jUXE1N_gWG8_/c/ci/', rating: 4.8, online: true },
-    { id: 'g2', ownerId: 'u_client', userId: 'u_fatou', name: 'Kiosque Fatou', phone: '789876543', waveNumber: '789876543', payLink: 'https://pay.wave.com/m/M_ci_jUXE1N_gWG8_/c/ci/', rating: 4.6, online: false },
-    { id: 'g3', ownerId: 'u_client', userId: 'u_moussa', name: 'Cabine Moussa', phone: '765554433', waveNumber: '765554433', payLink: 'https://pay.wave.com/m/M_ci_jUXE1N_gWG8_/c/ci/', rating: 4.2, online: true },
-  ],
-
-  // Quelques demandes d'exemple pour la démo (historique + totaux)
-  demandes: [
-    {
-      id: 'd_demo_1', ref: 'demande:demo1',
-      clientId: 'u_client', clientName: 'Jean Dupont', clientPhone: '0101010101',
-      gerantId: 'g1', gerantUserId: 'u_amadou', gerantName: 'Boutique Amadou', gerantPhone: '771234567', gerantWave: '771234567',
-      type: 'internet', amount: 3000, benefName: 'Jean Dupont', benefPhone: '0101010101',
-      status: 'completed', createdAt: now - 5 * 24 * 3600 * 1000, expiresAt: now, acceptedAt: now - 5 * 24 * 3600 * 1000 + 120000, paidAt: now - 5 * 24 * 3600 * 1000 + 240000,
-    },
-    {
-      id: 'd_demo_2', ref: 'demande:demo2',
-      clientId: 'u_client', clientName: 'Jean Dupont', clientPhone: '0101010101',
-      gerantId: 'g2', gerantUserId: 'u_fatou', gerantName: 'Kiosque Fatou', gerantPhone: '789876543', gerantWave: '789876543',
-      type: 'unites', amount: 1500, benefName: 'Jean Dupont', benefPhone: '0101010101',
-      status: 'paid', createdAt: now - 2 * 24 * 3600 * 1000, expiresAt: now, acceptedAt: now - 2 * 24 * 3600 * 1000 + 60000, paidAt: now - 2 * 24 * 3600 * 1000 + 180000,
-    },
-    {
-      id: 'd_demo_3', ref: 'demande:demo3',
-      clientId: 'u_client', clientName: 'Jean Dupont', clientPhone: '0101010101',
-      gerantId: 'g3', gerantUserId: 'u_moussa', gerantName: 'Cabine Moussa', gerantPhone: '765554433', gerantWave: '765554433',
-      type: 'minutes', amount: 1000, benefName: 'Mariam', benefPhone: '0707070707',
-      status: 'declined', createdAt: now - 1 * 24 * 3600 * 1000, expiresAt: now, acceptedAt: 0, paidAt: 0,
-    },
-    {
-      id: 'd_demo_4', ref: 'demande:demo4',
-      clientId: 'u_client', clientName: 'Jean Dupont', clientPhone: '0101010101',
-      gerantId: 'g1', gerantUserId: 'u_amadou', gerantName: 'Boutique Amadou', gerantPhone: '771234567', gerantWave: '771234567',
-      type: 'minutes', amount: 2000, benefName: 'Jean Dupont', benefPhone: '0101010101',
-      status: 'pending', createdAt: now - 3 * 3600 * 1000, expiresAt: now + 30 * 3600 * 1000, acceptedAt: 0, paidAt: 0,
-    },
-  ],
-
-  // Notifications reçues par les gérants (nouvelle demande, annulation, paiement…)
+  // Aucun contact ni demande de démo : l'app démarre propre. Les gérants
+  // inscrits et les contacts ajoutés par les clients seront créés en usage réel.
+  gerants: [],
+  demandes: [],
   notifications: [],
 });
 
@@ -87,6 +47,30 @@ function normalize(dbData) {
   for (const c of COLLECTIONS) {
     if (!Array.isArray(dbData[c])) dbData[c] = [];
   }
+  return dbData;
+}
+
+// Identifiants des gérants de démo (faux comptes) à ne jamais afficher.
+const FAKE_GERANT_IDS = ['u_amadou', 'u_fatou', 'u_moussa', 'u_marie'];
+
+// Purge les profils « gérant » qui ne correspondent pas à de vrais inscrits :
+//  - les comptes de démo (FAKE_GERANT_IDS),
+//  - les comptes créés à la volée sans mot de passe (fantômes).
+// On retire aussi leurs contacts et leurs demandes associées pour éviter
+// toute incohérence. Idempotent : ne touche pas aux gérants réellement inscrits.
+function cleanupFakeGerants(dbData) {
+  if (!Array.isArray(dbData.users)) return dbData;
+  const removable = new Set(
+    dbData.users
+      .filter((u) => u.role === 'gerant' && (FAKE_GERANT_IDS.includes(u.id) || !u.passwordHash))
+      .map((u) => u.id),
+  );
+  if (removable.size === 0) return dbData;
+
+  dbData.users = dbData.users.filter((u) => !(u.role === 'gerant' && removable.has(u.id)));
+  dbData.gerants = (dbData.gerants || []).filter((g) => !removable.has(g.userId));
+  dbData.demandes = (dbData.demandes || []).filter((d) => !removable.has(d.gerantUserId));
+  dbData.notifications = (dbData.notifications || []).filter((n) => !removable.has(n.userId));
   return dbData;
 }
 
@@ -126,9 +110,9 @@ export async function initDb() {
       pool = new Pool({ connectionString: DATABASE_URL, ssl: DATABASE_URL.includes('render') ? { rejectUnauthorized: false } : undefined });
       await ensureSchema(pool);
       const loaded = await loadFromPg(pool);
-      db = loaded && loaded.users ? normalize(loaded) : seed();
+      db = loaded && loaded.users ? cleanupFakeGerants(normalize(loaded)) : seed();
       usingPg = true;
-      if (!loaded) await persistToPg(pool);
+      await persistToPg(pool);
       console.log(`[db] PostgreSQL connecté`);
       return db;
     } catch (e) {
@@ -136,7 +120,7 @@ export async function initDb() {
       pool = null;
     }
   }
-  db = normalize(loadFile());
+  db = cleanupFakeGerants(normalize(loadFile()));
   writeFile();
   return db;
 }

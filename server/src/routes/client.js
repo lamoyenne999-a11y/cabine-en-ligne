@@ -16,7 +16,7 @@ router.post('/gerants', (req, res) => {
     const { phone, name } = req.body || {};
     const { gerant } = addGerant({ clientId: req.user.id, phone, name });
     res.status(201).json({ gerant });
-  } catch (e) { res.status(400).json({ error: e.message }); }
+  } catch (e) { res.status(e.status || 400).json({ error: e.message }); }
 });
 
 router.delete('/gerants/:id', (req, res) => {

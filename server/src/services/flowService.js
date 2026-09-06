@@ -91,11 +91,12 @@ export function gerantsFor(clientId) {
   return find('gerants', (g) => g.ownerId === clientId);
 }
 
-// Gérants déjà inscrits sur la plateforme, proposés au client pour simplifier
-// sa tâche (il n'a pas besoin de les ajouter pour leur envoyer une demande).
+// Gérants réellement inscrits sur la plateforme, proposés au client pour
+// simplifier sa tâche. On exclut les comptes sans mot de passe (fantômes /
+// créés à la volée) pour n'afficher que des gérants enregistrés.
 export function availableGerants(clientId) {
   const added = gerantsFor(clientId).map((g) => g.userId);
-  return find('users', (u) => u.role === 'gerant')
+  return find('users', (u) => u.role === 'gerant' && u.passwordHash)
     .map((u) => ({ userId: u.id, name: u.name, phone: u.phone, waveNumber: u.waveNumber || u.phone, payLink: u.payLink || '', alreadyAdded: added.includes(u.id) }))
     .sort((a, b) => (a.name || '').localeCompare(b.name || ''));
 }
@@ -108,23 +109,11 @@ export function addGerant({ clientId, phone, name }) {
   const existing = findOne('gerants', (g) => g.ownerId === clientId && g.phone === phoneTrim);
   if (existing) return { gerant: existing, created: false };
 
-  // Cherche un utilisateur enregistré avec ce numéro
-  let user = findOne('users', (u) => u.phone === phoneTrim && u.role === 'gerant');
-  let newUser;
+  // On n'ajoute que les gérants réellement INSCRITS sur la plateforme.
+  // Aucun compte ne doit être créé à la volée (évite les profils fantômes).
+  const user = findOne('users', (u) => u.phone === phoneTrim && u.role === 'gerant');
   if (!user) {
-    // Crée un compte gérant (activé plus tard) pour que le lien/le traitement fonctionnent
-    newUser = insert('users', {
-      role: 'gerant',
-      name: name || `Gérant ${phoneTrim.slice(-4)}`,
-      phone: phoneTrim,
-      email: '',
-      passwordHash: '',
-      waveNumber: phoneTrim,
-      payLink: '',
-      subscription: { status: 'trial', trialEndsAt: Date.now() + MONTH_MS, subscribedUntil: 0 },
-      createdAt: Date.now(),
-    });
-    user = newUser;
+    throw Object.assign(new Error("Ce numéro ne correspond à aucun gérant inscrit sur Cabine En Ligne. Invitez-le à s'inscrire, ou tapez le numéro exact."), { status: 404 });
   }
 
   const gerant = insert('gerants', {
@@ -132,7 +121,7 @@ export function addGerant({ clientId, phone, name }) {
     userId: user.id,
     name: user.name,
     phone: user.phone,
-    waveNumber: user.waveNumber,
+    waveNumber: user.waveNumber || user.phone,
     payLink: user.payLink || '',
     rating: 4.0,
     online: true,
