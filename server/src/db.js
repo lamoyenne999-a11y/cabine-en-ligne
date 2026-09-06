@@ -74,12 +74,15 @@ function cleanupFakeGerants(dbData) {
   return dbData;
 }
 
-// Purge COMPLÈTE et UNE SEULE FOIS de tous les gérants (comptes de test / démo
-// accumulés avant la mise en production réelle). Un marqueur est écrit en base
-// pour ne pas re-purger ensuite : seuls les gérants RÉELLEMENT inscrits
-// apparaîtront, et les futurs inscrits sont conservés.
+// Purge COMPLÈTE, pilotée par une VERSION. Au déploiement où l'on relève cette
+// version, tous les gérants existants (comptes de test/démo accumulés avant la
+// vraie mise en production) sont supprimés une fois. La version est ensuite
+// mémorisée en base : les déploiements suivants ne re-purgent PAS, donc les
+// gérants réellement inscrits via l'app sont conservés. Résultat : seuls les
+// gérants authentiques (enregistrés avec un mot de passe) apparaissent.
+const GERANT_RESET_VERSION = 'v2-clean';
 function resetStaleGerants(dbData) {
-  if (dbData.__gerantResetDone) return dbData;
+  if (dbData.__gerantResetDone === GERANT_RESET_VERSION) return dbData;
   const gids = new Set((dbData.users || []).filter((u) => u.role === 'gerant').map((u) => u.id));
   if (gids.size) {
     dbData.users = (dbData.users || []).filter((u) => u.role !== 'gerant');
@@ -87,7 +90,7 @@ function resetStaleGerants(dbData) {
     dbData.demandes = (dbData.demandes || []).filter((d) => !gids.has(d.gerantUserId));
     dbData.notifications = (dbData.notifications || []).filter((n) => !gids.has(n.userId));
   }
-  dbData.__gerantResetDone = true;
+  dbData.__gerantResetDone = GERANT_RESET_VERSION;
   return dbData;
 }
 
