@@ -5,6 +5,8 @@ import { colors, radius, space, font } from '../../theme';
 import { T, Btn, Card, Pill } from '../../components/ui';
 import { Page } from '../../components/Shell';
 import { Dialog, DialogButtons } from '../../components/modals';
+import SubBanner from '../../components/SubBanner';
+import SubscribeSheet from '../../components/Subscribe';
 import { useStore } from '../../store';
 
 const STATUS = {
@@ -17,8 +19,9 @@ const STATUS = {
 };
 
 export default function GerantDemandes() {
-  const { state, acceptDemande, declineDemande, completeDemande } = useStore();
+  const { state, acceptDemande, declineDemande, completeDemande, subscribe } = useStore();
   const [confirm, setConfirm] = useState(null); // { id, action }
+  const [showSub, setShowSub] = useState(false);
   const demandes = state.gerantDemandes || [];
 
   const doAction = () => {
@@ -31,6 +34,7 @@ export default function GerantDemandes() {
 
   return (
     <Page title="Demandes reçues">
+      <SubBanner sub={state.subscription} onSubscribe={() => setShowSub(true)} />
       {demandes.length === 0 ? (
         <Card style={{ alignItems: 'center', paddingVertical: 32 }}>
           <Ionicons name="notifications-off-outline" size={40} color={colors.muted2} />
@@ -107,6 +111,8 @@ export default function GerantDemandes() {
         </T>
         <DialogButtons cancel="Annuler" confirm="Confirmer" onCancel={() => setConfirm(null)} onConfirm={doAction} />
       </Dialog>
+
+      <SubscribeSheet visible={showSub} onClose={() => setShowSub(false)} onSubscribe={(plan) => subscribe(plan)} subtitle="Paiement direct via Wave. Renouvelable à tout moment." />
     </Page>
   );
 }

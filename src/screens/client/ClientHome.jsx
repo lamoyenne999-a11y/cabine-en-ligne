@@ -7,6 +7,7 @@ import { Header } from '../../components/Shell';
 import { BottomSheet, Dialog, DialogButtons } from '../../components/modals';
 import { WavePaySheet, WavePayBox } from '../../components/WavePay';
 import SubscribeSheet from '../../components/Subscribe';
+import SubBanner from '../../components/SubBanner';
 import { useStore } from '../../store';
 
 const money = (n) => `${(n || 0).toLocaleString('fr-FR').replace(/\u202f/g, ' ')} F`;
@@ -19,33 +20,7 @@ const TYPES = [
 
 const TYPE_LABEL = { unites: 'Unités', minutes: 'Minutes', internet: 'Internet' };
 
-function SubBanner({ sub, onSubscribe }) {
-  const status = sub?.status || 'trial';
-  const daysLeft = sub?.daysLeft ?? 30;
-  const isExpired = status === 'expired';
-  const showSubButton = isExpired || daysLeft <= 5;
-  return (
-    <Card style={s.subBanner}>
-      <View style={s.subIcon}>
-        <Ionicons name={status === 'active' ? 'checkmark-done' : 'sparkles'} size={22} color={colors.primary} />
-      </View>
-      <View style={{ flex: 1, marginLeft: 12 }}>
-        <T size={font.xs} weight="700" color={colors.primary}>
-          {status === 'active' ? 'ABONNEMENT ACTIF' : status === 'expired' ? 'ABONNEMENT EXPIRÉ' : 'ESSAI GRATUIT'}
-        </T>
-        <T size={font.body} weight="800" color={colors.text}>
-          {status === 'active' ? `Actif — ${daysLeft} j restants` : status === 'expired' ? 'Réabonnez-vous pour continuer' : `${daysLeft} jours d'essai restants`}
-        </T>
-        <T size={font.xs} weight="600" color={colors.muted} style={{ marginTop: 2 }}>100 FCFA / mois après l'essai</T>
-      </View>
-      {showSubButton && (
-        <Pressable onPress={onSubscribe} style={s.payBtn}>
-          <T size={font.xs} weight="800" color="#fff">S'abonner</T>
-        </Pressable>
-      )}
-    </Card>
-  );
-}
+/* Bannière d'abonnement déplacée dans src/components/SubBanner.jsx (partagée client/gérant) */
 
 export default function ClientHome() {
   const { state, createDemande, subscribe, markPaid, cancelDemande, refresh } = useStore();
@@ -305,8 +280,6 @@ export default function ClientHome() {
 
 const s = StyleSheet.create({
   content: { paddingHorizontal: space.lg, paddingBottom: 120, paddingTop: space.md },
-  subBanner: { flexDirection: 'row', alignItems: 'center', marginBottom: space.lg, padding: space.md },
-  subIcon: { width: 44, height: 44, borderRadius: 22, backgroundColor: colors.primarySoft, alignItems: 'center', justifyContent: 'center' },
   payBtn: { backgroundColor: colors.primary, paddingHorizontal: 16, paddingVertical: 9, borderRadius: radius.pill, marginLeft: 8 },
   typeRow: { flexDirection: 'row', justifyContent: 'space-between' },
   typeCard: { flex: 1, alignItems: 'center', backgroundColor: '#fff', borderRadius: radius.md, paddingVertical: 18, marginHorizontal: 4, borderWidth: 1.6, borderColor: colors.border },
