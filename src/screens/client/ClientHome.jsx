@@ -16,6 +16,8 @@ const TYPES = [
   { key: 'internet', label: 'Internet', icon: 'wifi-outline' },
 ];
 
+const TYPE_LABEL = { unites: 'Unités', minutes: 'Minutes', internet: 'Internet' };
+
 function SubBanner({ sub, onSubscribe }) {
   const status = sub?.status || 'trial';
   const daysLeft = sub?.daysLeft ?? 30;
@@ -196,28 +198,44 @@ export default function ClientHome() {
         <Btn title="Valider" onPress={() => setShowGerants(false)} style={{ marginTop: space.lg }} />
       </BottomSheet>
 
-      {/* Demande envoyée */}
+      {/* Demande lancée / envoyée */}
       <Dialog visible={sent}>
-        <View style={{ alignItems: 'center', paddingVertical: 10 }}>
+        <View style={{ alignItems: 'center', paddingVertical: 6 }}>
           <Ionicons name="checkmark-circle" size={72} color={colors.success} />
-          <T size={font.h3} weight="800" color={colors.text} style={{ marginTop: 14 }}>Demande envoyée !</T>
-          <T size={font.sm} weight="600" color={colors.muted} style={{ marginTop: 6, textAlign: 'center' }}>
-            {gerant?.name} va l'accepter ou la refuser. Vous pouvez payer dès maintenant via le lien Wave ci-dessous, ou attendre qu'il accepte.
+          <T size={font.h3} weight="900" color={colors.text} style={{ marginTop: 12 }}>Demande lancée !</T>
+          <T size={font.sm} weight="600" color={colors.muted} style={{ marginTop: 4, textAlign: 'center' }}>
+            Votre demande a bien été envoyée à {lastDemande?.gerantName || gerant?.name}.
           </T>
         </View>
 
+        {/* Récapitulatif de la demande */}
+        <View style={s.summary}>
+          <View style={s.summaryRow}><T size={font.sm} weight="600" color={colors.muted}>Service</T><T size={font.sm} weight="800" color={colors.text}>{TYPE_LABEL[lastDemande?.type] || TYPES.find((t) => t.key === type)?.label || 'Demande'}</T></View>
+          <View style={s.summaryRow}><T size={font.sm} weight="600" color={colors.muted}>Montant</T><T size={font.sm} weight="800" color={colors.text}>{money(lastDemande?.amount || amountNum)}</T></View>
+          <View style={s.summaryRow}><T size={font.sm} weight="600" color={colors.muted}>Gérant</T><T size={font.sm} weight="800" color={colors.text}>{lastDemande?.gerantName || gerant?.name}</T></View>
+        </View>
+
+        {/* Proposition de paiement immédiat via lien Wave */}
+        <T size={font.sm} weight="700" color={colors.wave} style={{ marginTop: space.md, marginBottom: 8 }}>
+          PAYEZ MAINTENANT EN CLAIR VIA WAVE
+        </T>
         <WavePayBox
-          amount={lastDemande?.amount}
-          merchant={lastDemande?.gerantWave}
-          merchantName={lastDemande?.gerantName}
-          payLink={lastDemande?.gerantPayLink || ''}
+          amount={lastDemande?.amount || amountNum}
+          merchant={lastDemande?.gerantWave || gerant?.waveNumber}
+          merchantName={lastDemande?.gerantName || gerant?.name}
+          payLink={lastDemande?.gerantPayLink || gerant?.payLink || ''}
         />
 
         <View style={{ flexDirection: 'row', marginTop: 16 }}>
           <Btn title="Plus tard" outline onPress={() => setSent(false)} style={{ flex: 1 }} />
+          <Btn title="J'ai payé" icon="checkmark" onPress={() => { if (lastDemande) markPaid(lastDemande.id); setSent(false); }} style={{ flex: 1 }} />
         </View>
-        <Btn title="Payer maintenant" icon="water" onPress={() => { setSent(false); setPaying(lastDemande); }} style={{ marginTop: 10 }} />
-        <Btn title="Annuler ma demande" icon="close-circle" outline color={colors.danger} onPress={() => { if (lastDemande) cancelDemande(lastDemande.id); setSent(false); }} style={{ marginTop: 10 }} />
+        <Pressable onPress={() => { if (lastDemande) cancelDemande(lastDemande.id); setSent(false); }} style={{ alignItems: 'center', marginTop: 14 }}>
+          <T size={font.sm} weight="700" color={colors.danger}>Annuler ma demande</T>
+        </Pressable>
+        <T size={font.xs} weight="600" color={colors.muted2} style={{ textAlign: 'center', marginTop: 12 }}>
+          Vous pouvez aussi payer après que le gérant ait accepté votre demande (dans l'historique).
+        </T>
       </Dialog>
 
       {/* Paiement direct de la demande créée */}
@@ -254,4 +272,6 @@ const s = StyleSheet.create({
   gerantPick: { flexDirection: 'row', alignItems: 'center', flex: 1 },
   waveInfo: { backgroundColor: '#E7F0FE', borderRadius: radius.md, padding: 14, marginTop: space.lg },
   waveTitle: { flexDirection: 'row', alignItems: 'center', marginBottom: 12 },
+  summary: { backgroundColor: colors.bg, borderRadius: radius.md, padding: 14, marginTop: space.md },
+  summaryRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingVertical: 6 },
 });
