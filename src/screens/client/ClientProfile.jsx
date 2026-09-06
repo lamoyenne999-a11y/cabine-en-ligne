@@ -25,7 +25,17 @@ export default function ClientProfile({ onLogout }) {
   };
 
   const subStatus = sub?.status || 'trial';
-  const subLabel = subStatus === 'active' ? `Abonnement ${sub?.periodLabel || 'mensuel'} actif — ${sub?.price || 100} FCFA` : subStatus === 'expired' ? `Expiré — ${sub?.priceLabel || '100 FCFA / mois'}` : `Essai gratuit — ${sub?.daysLeft || 30} j`;
+  const subPlanLabel = sub?.periodLabel ? (sub.periodLabel === 'annuel' ? 'annuel' : 'mensuel') : 'mensuel';
+  const subPriceLabel = sub?.priceLabel || (sub?.price === 1000 ? '1000 FCFA / an' : '100 FCFA / mois');
+  // Formate la date de fin d'abonnement ("12 oct. 2026")
+  const fmtDate = (t) => (t ? new Date(t).toLocaleDateString('fr-FR', { day: '2-digit', month: 'short', year: 'numeric' }) : '');
+  const subUntilLabel = fmtDate(sub?.subscribedUntil || 0);
+
+  const subLabel = subStatus === 'active'
+    ? `Abonnement ${subPlanLabel} payé ✓ — valable jusqu'au ${subUntilLabel || '—'}`
+    : subStatus === 'expired'
+      ? `Expiré — ${subPriceLabel}`
+      : `Essai gratuit — ${sub?.daysLeft || 30} j`;
   const subPill = subStatus === 'active' ? { label: subLabel, color: colors.success, bg: colors.successBg, icon: 'checkmark-circle' } : subStatus === 'expired' ? { label: subLabel, color: colors.danger, bg: colors.dangerBg, icon: 'alert-circle' } : { label: subLabel, color: colors.primary, bg: colors.primarySoft, icon: 'sparkles' };
 
   return (
@@ -41,6 +51,27 @@ export default function ClientProfile({ onLogout }) {
           </Pressable>
         )}
       </Card>
+
+      {/* Confirmation de paiement de l'abonnement + période de validité */}
+      {subStatus === 'active' && (
+        <Card style={{ marginTop: space.lg, backgroundColor: colors.successBg }}>
+          <View style={{ flexDirection: 'row', alignItems: 'flex-start' }}>
+            <View style={s.paidIcon}><Ionicons name="checkmark-done" size={24} color={colors.success} /></View>
+            <View style={{ flex: 1, marginLeft: 12 }}>
+              <T size={font.h3} weight="900" color={colors.success}>Abonnement payé ✓</T>
+              <T size={font.sm} weight="700" color={colors.text} style={{ marginTop: 6 }}>
+                {subPlanLabel === 'annuel' ? 'Abonnement annuel' : 'Abonnement mensuel'} — {sub?.price || 100} FCFA
+              </T>
+              <T size={font.sm} weight="600" color={colors.muted} style={{ marginTop: 4 }}>
+                Valable jusqu'au <T size={font.sm} weight="800" color={colors.text}>{subUntilLabel || '—'}</T>
+              </T>
+              <T size={font.xs} weight="600" color={colors.success} style={{ marginTop: 6 }}>
+                {sub?.daysLeft ? `${sub.daysLeft} jour${sub.daysLeft > 1 ? 's' : ''} restant${sub.daysLeft > 1 ? 's' : ''}` : ''}
+              </T>
+            </View>
+          </View>
+        </Card>
+      )}
 
       <Card style={{ marginTop: space.lg }}>
         <ListRow icon="call-outline" label="Téléphone" value={u?.phone} />
@@ -75,6 +106,7 @@ export default function ClientProfile({ onLogout }) {
 const s = StyleSheet.create({
   avatar: { width: 84, height: 84, borderRadius: 42, backgroundColor: colors.primary, alignItems: 'center', justifyContent: 'center' },
   subBtn: { backgroundColor: colors.primary, paddingHorizontal: 20, paddingVertical: 10, borderRadius: radius.pill, marginTop: 14 },
+  paidIcon: { width: 48, height: 48, borderRadius: 24, backgroundColor: '#fff', alignItems: 'center', justifyContent: 'center' },
   linkRow: { flexDirection: 'row', alignItems: 'center', backgroundColor: colors.bg, borderRadius: radius.md, padding: 8 },
   linkText: { flex: 1, fontSize: font.xs, color: colors.primary, marginRight: 8 },
   copyBtn: { width: 40, height: 40, borderRadius: radius.sm, backgroundColor: colors.primary, alignItems: 'center', justifyContent: 'center' },
