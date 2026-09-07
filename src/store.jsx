@@ -349,13 +349,18 @@ export function StoreProvider({ children }) {
   }, [online]);
 
   const subscribe = useCallback(async (plan = 'monthly') => {
-    const price = plan === 'annual' ? 1000 : 100;
-    const periodLabel = plan === 'annual' ? 'annuel' : 'mensuel';
-    const sub = { status: 'active', plan, price, periodLabel, priceLabel: plan === 'annual' ? '1000 FCFA / an' : '100 FCFA / mois', daysLeft: plan === 'annual' ? 365 : 30 };
-    dispatch({ type: 'SET_SUBSCRIPTION', payload: sub });
-    if (online) { try { const r = await (state.role === 'gerant' ? api.gerant.subscribe(plan) : api.client.subscribe(plan)); if (r?.subscription) dispatch({ type: 'SET_SUBSCRIPTION', payload: r.subscription }); } catch {} }
-    return sub;
-  }, [online, state.role]);
+    // Pas de bascule optimiste : on enregistre le paiement côté serveur et on
+    // ne considère l'abonnement comme payé QUE si le backend confirme.
+    // En cas d'échec, on remonte l'erreur (pas de fausse confirmation).
+    try {
+      const r = await (state.role === 'gerant' ? api.gerant.subscribe(plan) : api.client.subscribe(plan));
+      if (r?.subscription) dispatch({ type: 'SET_SUBSCRIPTION', payload: r.subscription });
+      return { ...(r?.subscription || {}), payment: r?.payment || null };
+    } catch (e) {
+      if (e && e.status) throw e;
+      throw Object.assign(new Error('Impossible de valider le paiement. Vérifiez votre connexion internet ou réessayez.'), { status: 0 });
+    }
+  }, [state.role]);
 
   const value = useMemo(
     () => ({ state, dispatch, online, checking, recheck: probe, login, register, logout, refresh, addGerant, removeGerant, createDemande, markPaid, cancelDemande, acceptDemande, declineDemande, completeDemande, subscribe, updateGerantProfile, loadNotifications, markNotificationRead, markAllNotificationsRead, loadClientNotifications, markClientNotificationRead, markAllClientNotificationsRead }),

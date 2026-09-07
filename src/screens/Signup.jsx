@@ -40,7 +40,7 @@ export default function Signup({ role, onBack, onRegister, connecting }) {
       </View>
 
       <View style={s.card}>
-        <Field icon={isGerant ? 'storefront-outline' : 'person-outline'} label={isGerant ? 'Nom de la cabine' : 'Votre nom'} placeholder={isGerant ? 'Ex : Cabine Marie' : 'Ex : Jean Dupont'} value={name} onChangeText={setName} />
+        <Field icon={isGerant ? 'storefront-outline' : 'person-outline'} label={isGerant ? 'Nom de la cabine' : 'Votre nom'} placeholder={isGerant ? 'Ex : Nom Cabine' : 'Ex : Nom Client'} value={name} onChangeText={setName} />
         <Field icon="call-outline" label="Numéro de téléphone" placeholder="Ex : 07 07 07 07 07" value={phone} onChangeText={(t) => setPhone(t.replace(/[^0-9]/g, ''))} keyboardType="phone-pad" />
         <Field icon="lock-closed-outline" label="Mot de passe" placeholder="Au moins 4 caractères" value={pwd} onChangeText={setPwd} secure />
         <Field icon="lock-closed-outline" label="Confirmer le mot de passe" placeholder="Reprenez le mot de passe" value={confirmPwd} onChangeText={setConfirmPwd} secure />

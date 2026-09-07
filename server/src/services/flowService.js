@@ -29,13 +29,20 @@ export function subscriptionFor(user) {
   const price = s.price || SUB_PLANS[plan].price;
   const periodLabel = SUB_PLANS[plan].label;
   const now = Date.now();
+  // Dernier paiement d'abonnement enregistré (reçu affiché à l'utilisateur).
+  const lastPayment = find('subscriptions', (p) => p.userId === user.id).sort((a, b) => b.paidAt - a.paidAt)[0] || null;
+  const base = {
+    plan, price, periodLabel, priceLabel: SUB_PLANS[plan].priceLabel,
+    trialEndsAt: s.trialEndsAt, subscribedUntil: s.subscribedUntil,
+    lastPayment: lastPayment ? { reference: lastPayment.reference, amount: lastPayment.amount, priceLabel: lastPayment.priceLabel, paidAt: lastPayment.paidAt, validUntil: lastPayment.validUntil, plan: lastPayment.plan } : null,
+  };
   if (s.status === 'active' && s.subscribedUntil > now) {
-    return { status: 'active', plan, price, periodLabel, priceLabel: SUB_PLANS[plan].priceLabel, trialEndsAt: s.trialEndsAt, subscribedUntil: s.subscribedUntil, daysLeft: Math.ceil((s.subscribedUntil - now) / 86400000) };
+    return { ...base, status: 'active', daysLeft: Math.ceil((s.subscribedUntil - now) / 86400000) };
   }
   if (s.status === 'trial' && s.trialEndsAt > now) {
-    return { status: 'trial', plan, price, periodLabel, priceLabel: SUB_PLANS[plan].priceLabel, trialEndsAt: s.trialEndsAt, subscribedUntil: 0, daysLeft: Math.ceil((s.trialEndsAt - now) / 86400000) };
+    return { ...base, status: 'trial', subscribedUntil: 0, daysLeft: Math.ceil((s.trialEndsAt - now) / 86400000) };
   }
-  return { status: 'expired', plan, price, periodLabel, priceLabel: SUB_PLANS[plan].priceLabel, trialEndsAt: s.trialEndsAt, subscribedUntil: s.subscribedUntil, daysLeft: 0 };
+  return { ...base, status: 'expired', daysLeft: 0 };
 }
 
 export function activateSubscription(user, plan = SUB_DEFAULT_PLAN) {
@@ -47,6 +54,74 @@ export function activateSubscription(user, plan = SUB_DEFAULT_PLAN) {
   const fresh = { status: 'active', plan: Object.keys(SUB_PLANS).includes(plan) ? plan : SUB_DEFAULT_PLAN, price: conf.price, trialEndsAt: s.trialEndsAt || now + MONTH_MS, subscribedUntil };
   update('users', (u) => u.id === user.id, { subscription: fresh });
   return { ...subscriptionFor({ ...user, subscription: fresh }), justActivated: true };
+}
+
+// ------------------------------------------------------------------
+//  Registre des paiements d'abonnement.
+//  Chaque activation d'abonnement crée une ligne traçable : qui, quel
+//  plan, quel montant, quand, valable jusqu'à quelle date + une référence.
+//  C'est ce qui permet au client et au propriétaire de SAVOIR que le
+//  paiement a été déclaré, et au propriétaire de vérifier qu'il a bien
+//  reçu le montant sur son compte (Payout Wave / relevé).
+// ------------------------------------------------------------------
+function makeSubscriptionReference() {
+  return 'SUB-' + Date.now().toString(36).toUpperCase() + Math.random().toString(36).slice(2, 8).toUpperCase();
+}
+
+export function paySubscription(user, plan = SUB_DEFAULT_PLAN) {
+  const now = Date.now();
+  const conf = SUB_PLANS[plan] || SUB_PLANS[SUB_DEFAULT_PLAN];
+  // Détermine la nouvelle date de fin (cumul si déjà actif).
+  const s = user.subscription || {};
+  const prev = s.subscribedUntil > now ? s.subscribedUntil : now;
+  const validUntil = prev + conf.ms;
+
+  // 1) Active l'abonnement côté utilisateur.
+  const fresh = { status: 'active', plan: Object.keys(SUB_PLANS).includes(plan) ? plan : SUB_DEFAULT_PLAN, price: conf.price, trialEndsAt: s.trialEndsAt || now + MONTH_MS, subscribedUntil: validUntil };
+  update('users', (u) => u.id === user.id, { subscription: fresh });
+
+  // 2) Enregistre le paiement (traçabilité propriétaire).
+  const reference = makeSubscriptionReference();
+  const payment = insert('subscriptions', {
+    id: 'sub_' + Date.now().toString(36) + Math.random().toString(36).slice(2, 6),
+    reference,
+    userId: user.id,
+    role: user.role,
+    name: user.name,
+    phone: user.phone,
+    plan: Object.keys(SUB_PLANS).includes(plan) ? plan : SUB_DEFAULT_PLAN,
+    amount: conf.price,
+    priceLabel: conf.priceLabel,
+    paidAt: now,
+    validUntil,
+  });
+
+  return {
+    subscription: subscriptionFor({ ...user, subscription: fresh }),
+    payment,
+  };
+}
+
+// Le service est autorisé si l'abonnement est en ESSAI (pas expiré) ou ACTIF.
+export function serviceAllowed(subscription) {
+  const st = subscription?.status;
+  return st === 'active' || st === 'trial';
+}
+
+// ---- Vue propriétaire : tous les paiements d'abonnement déclarés ----
+export function subscriptionPayments() {
+  return find('subscriptions', () => true).sort((a, b) => b.paidAt - a.paidAt);
+}
+export function subscriptionTotals() {
+  const rows = subscriptionPayments();
+  return {
+    count: rows.length,
+    totalReceived: rows.reduce((sum, r) => sum + (r.amount || 0), 0),
+    byPlan: rows.reduce((acc, r) => {
+      acc[r.plan] = (acc[r.plan] || 0) + (r.amount || 0);
+      return acc;
+    }, {}),
+  };
 }
 
 export const SUB_PRICE_FCFA = SUB_PRICE;
@@ -167,6 +242,10 @@ export function removeGerant({ clientId, gerantId }) {
 
 // ---- Demandes ----
 export function createDemande({ client, gerantId, gerantUserId, type, amount, benefName, benefPhone }) {
+  // L'abonnement doit être valide (essai non expiré ou payé) pour créer une demande.
+  if (!serviceAllowed(subscriptionFor(client))) {
+    throw Object.assign(new Error('Votre abonnement a expiré. Renouvelez-le pour continuer à envoyer des demandes.'), { status: 403 });
+  }
   // On accepte soit un contact déjà ajouté (gerantId), soit directement un
   // gérant inscrit (gerantUserId). Si c'est un gérant inscrit non encore
   // ajouté, on crée le contact automatiquement pour simplifier la tâche du client.
@@ -270,6 +349,11 @@ export function cancelDemande({ id, clientId }) {
 export function decideDemande({ id, gerantUserId, decision }) {
   const d = findOne('demandes', (x) => x.id === id && x.gerantUserId === gerantUserId);
   if (!d) throw Object.assign(new Error('Demande introuvable'), { status: 404 });
+  // Le gérant doit avoir un abonnement valide pour traiter (accepter/refuser) les demandes.
+  const g = findOne('users', (x) => x.id === gerantUserId);
+  if (g && !serviceAllowed(subscriptionFor(g))) {
+    throw Object.assign(new Error('Votre abonnement a expiré. Renouvelez-le pour continuer à traiter les demandes.'), { status: 403 });
+  }
   if (decision === 'decline') {
     if (d.status !== 'pending') throw Object.assign(new Error('Impossible de refuser une demande déjà payée ou traitée'), { status: 400 });
     update('demandes', (x) => x.id === id, { status: 'declined', acceptedAt: Date.now() });

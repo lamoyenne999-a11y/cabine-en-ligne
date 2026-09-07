@@ -1,0 +1,124 @@
+import React, { useState } from 'react';
+import { View, TextInput, ScrollView, StyleSheet } from 'react-native';
+import { Ionicons } from '@expo/vector-icons';
+import { colors, radius, space, font } from '../theme';
+import { T, Card, Btn } from '../components/ui';
+import { Page } from '../components/Shell';
+import { api } from '../api';
+
+// ============================================================
+//  Espace propriétaire — vue des paiements d'abonnement.
+//  Permet de vérifier : qui a payé, combien, quand, et valable
+//  jusqu'à quelle date. Sert à réconcilier avec ce que tu reçois
+//  sur ton compte Wave. Accès protégé par une clé admin.
+// ============================================================
+
+const money = (n) => `${(n || 0).toLocaleString('fr-FR').replace(/\u202f/g, ' ')} FCFA`;
+const fmtDate = (t) => (t ? new Date(t).toLocaleDateString('fr-FR', { day: '2-digit', month: 'short', year: 'numeric' }) : '—');
+
+export default function Admin({ onBack }) {
+  const [key, setKey] = useState('');
+  const [authed, setAuthed] = useState(false);
+  const [loading, setLoading] = useState(false);
+  const [err, setErr] = useState('');
+  const [data, setData] = useState(null);
+
+  const load = async () => {
+    if (!key.trim()) { setErr('Saisissez la clé propriétaire.'); return; }
+    setErr(''); setLoading(true);
+    try {
+      const summary = await api.admin.summary(key.trim());
+      setData(summary);
+      setAuthed(true);
+    } catch (e) {
+      setErr(e && e.status === 403 ? 'Clé incorrecte.' : (e?.message || 'Erreur de chargement.'));
+    } finally { setLoading(false); }
+  };
+
+  // Pas encore authentifié : demande de la clé.
+  if (!authed) {
+    return (
+      <Page title="Espace propriétaire" onBack={onBack}>
+        <Card>
+          <T size={font.sm} weight="600" color={colors.muted} style={{ marginBottom: space.md }}>
+            Cet espace vous permet de vérifier les paiements d'abonnement. Saisissez votre clé propriétaire (ADMIN_KEY) pour y accéder.
+          </T>
+          <View style={s.input}>
+            <Ionicons name="key-outline" size={18} color={colors.primary} style={{ marginRight: 10 }} />
+            <TextInput
+              value={key}
+              onChangeText={setKey}
+              placeholder="Clé propriétaire"
+              placeholderTextColor={colors.muted2}
+              autoCapitalize="none"
+              autoCorrect={false}
+              secureTextEntry
+              style={s.inputText}
+            />
+          </View>
+          {err ? <T size={font.sm} weight="600" color={colors.danger} style={{ marginTop: 8 }}>{err}</T> : null}
+          <Btn title="Accéder" icon="lock-open-outline" onPress={load} loading={loading} style={{ marginTop: space.md }} />
+        </Card>
+      </Page>
+    );
+  }
+
+  const payments = data?.payments || [];
+  const totals = data?.totals || {};
+
+  return (
+    <Page title="Paiements d'abonnement" onBack={onBack}>
+      {/* Résumé */}
+      <Card style={{ backgroundColor: colors.primarySoft }}>
+        <T size={font.sm} weight="700" color={colors.primary} style={{ textTransform: 'uppercase', letterSpacing: 0.5 }}>Total reçu (déclaré)</T>
+        <T size={font.h2} weight="900" color={colors.primary} style={{ marginTop: 6 }}>{money(totals.totalReceived)}</T>
+        <T size={font.sm} weight="600" color={colors.muted} style={{ marginTop: 4 }}>{totals.count || 0} paiement(s) enregistré(s)</T>
+        {totals.byPlan && (
+          <View style={{ flexDirection: 'row', marginTop: space.md }}>
+            {Object.entries(totals.byPlan).map(([k, v]) => (
+              <View key={k} style={s.planChip}>
+                <T size={font.xs} weight="800" color={colors.primary}>{(k === 'annual' ? 'Annuel' : 'Mensuel')} · {money(v)}</T>
+              </View>
+            ))}
+          </View>
+        )}
+      </Card>
+
+      {/* Liste des paiements */}
+      <T size={font.h3} weight="800" color={colors.text} style={{ marginTop: space.lg, marginBottom: space.sm }}>Historique des paiements</T>
+      {payments.length === 0 ? (
+        <Card style={{ alignItems: 'center', paddingVertical: 26 }}>
+          <Ionicons name="receipt-outline" size={36} color={colors.muted2} />
+          <T size={font.sm} weight="600" color={colors.muted} style={{ marginTop: 8 }}>Aucun paiement enregistré pour le moment.</T>
+        </Card>
+      ) : (
+        payments.map((p) => (
+          <Card key={p.reference} style={{ marginBottom: space.sm }}>
+            <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' }}>
+              <View style={{ flex: 1 }}>
+                <T size={font.body} weight="800" color={colors.text}>{p.name}</T>
+                <T size={font.xs} weight="600" color={colors.muted} style={{ marginTop: 2 }}>{p.phone} · {p.role === 'gerant' ? 'Gérant' : 'Client'}</T>
+              </View>
+              <T size={font.body} weight="900" color={colors.success}>{money(p.amount)}</T>
+            </View>
+            <View style={s.row}><T size={font.xs} weight="600" color={colors.muted}>Paié le</T><T size={font.xs} weight="700" color={colors.text}>{fmtDate(p.paidAt)}</T></View>
+            <View style={s.row}><T size={font.xs} weight="600" color={colors.muted}>Valable jusqu'au</T><T size={font.xs} weight="700" color={colors.text}>{fmtDate(p.validUntil)}</T></View>
+            <View style={s.row}><T size={font.xs} weight="600" color={colors.muted}>Plan</T><T size={font.xs} weight="700" color={colors.text}>{p.plan === 'annual' ? 'Annuel' : 'Mensuel'}</T></View>
+            <View style={s.row}><T size={font.xs} weight="600" color={colors.muted}>Référence</T><T size={font.xs} weight="700" color={colors.text}>{p.reference}</T></View>
+          </Card>
+        ))
+      )}
+
+      <T size={font.xs} weight="600" color={colors.muted2} style={{ textAlign: 'center', marginBottom: 20 }}>
+        Vérifiez ces montants sur votre compte Wave pour confirmer la réception.
+      </T>
+    </Page>
+  );
+}
+
+const s = StyleSheet.create({
+  input: { flexDirection: 'row', alignItems: 'center', backgroundColor: colors.bg, borderRadius: radius.md, paddingHorizontal: 14, height: 52 },
+  inputText: { flex: 1, fontSize: font.body, color: colors.text, paddingVertical: 0, outlineStyle: 'none' },
+  planChip: { backgroundColor: '#fff', borderRadius: radius.pill, paddingHorizontal: 12, paddingVertical: 6, marginRight: 8 },
+  row: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginTop: 8 },
+});

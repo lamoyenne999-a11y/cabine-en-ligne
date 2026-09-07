@@ -129,7 +129,7 @@ export default function ClientGerants() {
           <T size={font.h3} weight="800" color={colors.text}>Ajouter un gérant</T>
           <Pressable onPress={() => setShow(false)}><Ionicons name="close" size={24} color={colors.muted} /></Pressable>
         </View>
-        <Field label="Nom de la cabine" placeholder="Ex : Cabine Marie" value={name} onChangeText={setName} icon="storefront-outline" />
+        <Field label="Nom de la cabine" placeholder="Ex : Nom Cabine" value={name} onChangeText={setName} icon="storefront-outline" />
         <Field label="Numéro de téléphone" placeholder="Ex : 07 07 07 07 07" value={phone} onChangeText={(t) => setPhone(t.replace(/[^0-9]/g, ''))} icon="call-outline" keyboardType="phone-pad" />
         {err ? <T size={font.sm} weight="600" color={colors.danger} style={{ marginBottom: space.md }}>{err}</T> : null}
         <Btn title="Ajouter" icon="add" onPress={add} />

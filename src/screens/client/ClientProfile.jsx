@@ -66,8 +66,13 @@ export default function ClientProfile({ onLogout }) {
                 Valable jusqu'au <T size={font.sm} weight="800" color={colors.text}>{subUntilLabel || '—'}</T>
               </T>
               <T size={font.xs} weight="600" color={colors.success} style={{ marginTop: 6 }}>
-                {sub?.daysLeft ? `${sub.daysLeft} jour${sub.daysLeft > 1 ? 's' : ''} restant${sub.daysLeft > 1 ? 's' : ''}` : ''}
+                {sub?.daysLeft ? `${sub.daysLeft} jour${sub.daysLeft > 1 ? 's' : ''} restant${sub.daysLeft > 1 ? 's' : ''} · Paiement reçu ✓` : 'Paiement reçu ✓'}
               </T>
+              {sub?.lastPayment?.reference ? (
+                <T size={font.xs} weight="600" color={colors.muted} style={{ marginTop: 4 }}>
+                  Réf. {sub.lastPayment.reference}
+                </T>
+              ) : null}
             </View>
           </View>
         </Card>

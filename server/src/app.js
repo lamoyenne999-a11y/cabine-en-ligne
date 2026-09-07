@@ -11,6 +11,7 @@ import clientRoutes from './routes/client.js';
 import gerantRoutes from './routes/gerant.js';
 import publicRoutes from './routes/public.js';
 import webhookRoutes from './routes/webhooks.js';
+import adminRoutes from './routes/admin.js';
 import { notFound, errorHandler } from './middleware/error.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
@@ -39,6 +40,9 @@ export async function createApp(opts = {}) {
   app.use('/api/auth', authRoutes);
   app.use('/api/client', clientRoutes);
   app.use('/api/gerant', gerantRoutes);
+
+  // Vue propriétaire (paiements d'abonnement) — protégée par clé admin
+  app.use('/api/admin', adminRoutes);
 
   // Front statique (PWA) + fallback SPA — même origine que l'API (pas de CORS)
   if (opts.staticDir) {

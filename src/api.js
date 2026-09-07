@@ -12,12 +12,13 @@ export function setToken(t) { authToken = t; storage.set('cel_token', t); }
 export function clearToken() { authToken = null; storage.remove('cel_token'); }
 export function getToken() { return authToken; }
 
-async function request(method, path, body) {
+async function request(method, path, body, extraHeaders) {
   const res = await fetch(`${API_URL}${path}`, {
     method,
     headers: {
       'content-type': 'application/json',
       ...(authToken ? { authorization: `Bearer ${authToken}` } : {}),
+      ...(extraHeaders || {}),
     },
     body: body ? JSON.stringify(body) : undefined,
   });
@@ -73,5 +74,11 @@ export const api = {
     markAllNotificationsRead: () => request('POST', '/api/gerant/notifications/read-all'),
     subscription: () => request('GET', '/api/gerant/subscription'),
     subscribe: (plan) => request('POST', '/api/gerant/subscribe', { plan }),
+  },
+
+  // ---- Vue propriétaire (paiements d'abonnement) ----
+  admin: {
+    summary: (key) => request('GET', '/api/admin/summary', null, { 'x-admin-key': key }),
+    users: (key) => request('GET', '/api/admin/users', null, { 'x-admin-key': key }),
   },
 };

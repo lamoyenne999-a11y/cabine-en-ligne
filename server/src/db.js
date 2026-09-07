@@ -22,7 +22,7 @@ const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
 const DATA_FILE = process.env.DB_FILE || path.join(__dirname, '..', 'data', 'db.json');
 const DATABASE_URL = process.env.DATABASE_URL || '';
-const COLLECTIONS = ['users', 'gerants', 'demandes', 'notifications'];
+const COLLECTIONS = ['users', 'gerants', 'demandes', 'notifications', 'subscriptions'];
 
 const now = Date.now();
 const seed = () => ({
@@ -36,6 +36,9 @@ const seed = () => ({
   gerants: [],
   demandes: [],
   notifications: [],
+  // Registre des paiements d'abonnement (traçabilité pour le propriétaire :
+  // qui a payé, combien, quand, valable jusqu'à quelle date).
+  subscriptions: [],
 });
 
 // S'assure que toutes les collections existent (utile pour une base Postgres

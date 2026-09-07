@@ -7,7 +7,7 @@ import { colors, font, radius, space } from '../theme';
 import { T } from '../components/ui';
 import Logo from '../components/Logo';
 
-export default function Welcome({ onSelect }) {
+export default function Welcome({ onSelect, onAdmin }) {
   return (
     <ScrollView
       style={{ flex: 1, backgroundColor: colors.primary }}
@@ -66,9 +66,11 @@ export default function Welcome({ onSelect }) {
           </View>
         </Pressable>
 
-        <T size={font.xs} weight="600" color={colors.muted2} style={{ textAlign: 'center', marginTop: space.xxl }}>
-          © Cabine En Ligne
-        </T>
+        <Pressable onPress={onAdmin} style={({ pressed }) => [pressed && { opacity: 0.6 }]}>
+          <T size={font.xs} weight="600" color={colors.muted2} style={{ textAlign: 'center', marginTop: space.xxl }}>
+            © Cabine En Ligne · <T size={font.xs} weight="700" color={colors.muted}>Espace propriétaire</T>
+          </T>
+        </Pressable>
       </View>
     </ScrollView>
   );

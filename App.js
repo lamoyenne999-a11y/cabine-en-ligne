@@ -8,6 +8,7 @@ import Welcome from './src/screens/Welcome';
 import Login from './src/screens/Login';
 import Signup from './src/screens/Signup';
 import PublicProfile from './src/screens/PublicProfile';
+import Admin from './src/screens/Admin';
 import ClientApp from './src/screens/client/ClientApp';
 import GerantApp from './src/screens/gerant/GerantApp';
 
@@ -24,12 +25,17 @@ function useShareId() {
 
 function Root() {
   const { state, dispatch, login, register, logout, checking } = useStore();
-  const [screen, setScreen] = useState('welcome'); // welcome | login | signup
+  const [screen, setScreen] = useState('welcome'); // welcome | login | signup | admin
   const shareId = useShareId();
 
   // Lien de partage : un profil ciblé -> page publique (par-dessus tout)
   if (shareId) {
     return <PublicProfile userId={shareId} />;
+  }
+
+  // Espace propriétaire (vue des paiements d'abonnement)
+  if (screen === 'admin') {
+    return <Admin onBack={() => setScreen('welcome')} />;
   }
 
   if (!state.loggedIn) {
@@ -43,7 +49,7 @@ function Root() {
         <Signup role={state.role || 'client'} onBack={() => setScreen('login')} onRegister={(u) => register(u)} connecting={checking} />
       );
     }
-    return <Welcome onSelect={(role) => { dispatch({ type: 'SELECT_ROLE', role }); setScreen('login'); }} />;
+    return <Welcome onSelect={(role) => { dispatch({ type: 'SELECT_ROLE', role }); setScreen('login'); }} onAdmin={() => setScreen('admin')} />;
   }
 
   const doLogout = () => { logout(); setScreen('welcome'); };

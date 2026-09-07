@@ -23,4 +23,9 @@ export const config = {
 
   // Pays (pour formater les numéros de téléphone en +225, +221, …)
   phonePrefix: process.env.PHONE_PREFIX || '+225',
+
+  // -------- Administration (vue propriétaire des paiements d'abonnement) --------
+  // Clé secrète à renseigner dans l'environnement (dashboard Render) pour accéder
+  // à GET /api/admin/summary. Si absente, l'admin est désactivé (403).
+  adminKey: process.env.ADMIN_KEY || '',
 };

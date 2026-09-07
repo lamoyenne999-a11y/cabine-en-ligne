@@ -38,5 +38,9 @@ services:
         generateValue: true
       - key: PHONE_PREFIX
         value: "+225"      # Côte d'Ivoire
+      # Clé secrète pour ouvrir l'écran "Espace propriétaire" (paiements
+      # d'abonnement). À renseigner dans le dashboard Render.
+      - key: ADMIN_KEY
+        sync: false
       - key: EXPO_PUBLIC_API_URL
         value: ""          # même origine : le serveur proxyfie /api

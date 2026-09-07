@@ -1,6 +1,6 @@
 import { Router } from 'express';
 import { requireAuth, requireRole } from '../middleware/auth.js';
-import { gerantsFor, addGerant, removeGerant, createDemande, demandesForClient, clientHistory, demandeSummary, subscriptionFor, activateSubscription, publicProfile, markPaid, cancelDemande, notificationsFor, unreadCount, markNotificationRead, markAllNotificationsRead, availableGerants } from '../services/flowService.js';
+import { gerantsFor, addGerant, removeGerant, createDemande, demandesForClient, clientHistory, demandeSummary, subscriptionFor, paySubscription, publicProfile, markPaid, cancelDemande, notificationsFor, unreadCount, markNotificationRead, markAllNotificationsRead, availableGerants } from '../services/flowService.js';
 
 const router = Router();
 router.use(requireAuth, requireRole('client'));
@@ -57,7 +57,11 @@ router.post('/demandes/:id/cancel', (req, res) => {
 
 // ---- Abonnement (mensuel 100 FCFA / annuel 1000 FCFA) ----
 router.get('/subscription', (req, res) => res.json({ subscription: subscriptionFor(req.user) }));
-router.post('/subscribe', (req, res) => res.json({ subscription: activateSubscription(req.user, req.body?.plan) }));
+// Enregistre le paiement d'abonnement déclaré + active l'abonnement (durée).
+router.post('/subscribe', (req, res) => {
+  const out = paySubscription(req.user, req.body?.plan);
+  res.json(out); // { subscription, payment }
+});
 
 // ---- Notifications reçues par le client ----
 router.get('/notifications', (req, res) => {

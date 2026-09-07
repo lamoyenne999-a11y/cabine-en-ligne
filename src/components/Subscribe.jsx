@@ -23,15 +23,31 @@ const PLANS = [
 export default function SubscribeSheet({ visible, onClose, onSubscribe, subtitle }) {
   const [plan, setPlan] = useState('monthly');
   const [paying, setPaying] = useState(false);
-  const [paid, setPaid] = useState(null); // { plan, price, label }
+  const [paid, setPaid] = useState(null); // { plan, price, label, validUntil, reference }
+  const [payError, setPayError] = useState('');
 
   const current = PLANS.find((p) => p.key === plan);
+  const fmtDate = (t) => (t ? new Date(t).toLocaleDateString('fr-FR', { day: '2-digit', month: 'short', year: 'numeric' }) : '');
 
   const confirmPaid = async () => {
-    let res = null;
-    try { res = await onSubscribe(plan); } catch { /* silencieux */ }
-    setPaying(false);
-    setPaid({ plan, price: res?.price || current.price, label: res?.periodLabel || (plan === 'annual' ? 'annuel' : 'mensuel') });
+    setPayError('');
+    try {
+      // On ne considère l'abonnement comme payé QUE si le backend a confirmé
+      // (retourne subscription.subscribedUntil + payment.reference).
+      const res = await onSubscribe(plan) || {};
+      const sub = res.payment ? res : res.subscription || res;
+      setPaying(false);
+      setPaid({
+        plan,
+        price: res?.price || res?.payment?.amount || current.price,
+        label: res?.periodLabel || (plan === 'annual' ? 'annuel' : 'mensuel'),
+        validUntil: res?.subscribedUntil || res?.payment?.validUntil || null,
+        reference: res?.payment?.reference || null,
+      });
+    } catch (e) {
+      setPaying(false);
+      setPayError(e && e.message ? e.message : 'Le paiement n\'a pas pu être validé. Réessayez.');
+    }
   };
 
   const closeAll = () => {
@@ -67,6 +83,13 @@ export default function SubscribeSheet({ visible, onClose, onSubscribe, subtitle
           })}
         </View>
 
+        {payError ? (
+          <View style={s.errBox}>
+            <Ionicons name="alert-circle" size={16} color={colors.danger} />
+            <T size={font.sm} weight="700" color={colors.danger} style={{ marginLeft: 8, flex: 1 }}>{payError}</T>
+          </View>
+        ) : null}
+
         <Btn title={`Payer ${current.priceLabel}`} icon="water" onPress={() => setPaying(true)} style={{ marginTop: space.lg }} />
         <T size={font.xs} weight="600" color={colors.muted2} style={{ textAlign: 'center', marginTop: 8 }}>
           Aucun argent n'est stocké sur l'app. Le paiement se fait via Wave.
@@ -86,18 +109,31 @@ export default function SubscribeSheet({ visible, onClose, onSubscribe, subtitle
         subtitle={current.priceLabel}
       />
 
-      {/* Confirmation de paiement */}
+      {/* Confirmation de paiement = reçu */}
       <Dialog visible={!!paid}>
         <View style={{ alignItems: 'center', paddingVertical: 8 }}>
           <Ionicons name="checkmark-circle" size={72} color={colors.success} />
           <T size={font.h3} weight="900" color={colors.text} style={{ marginTop: 12, textAlign: 'center' }}>
             Abonnement {paid?.label} payé !
           </T>
-          <T size={font.body} weight="700" color={colors.primary} style={{ marginTop: 6, textAlign: 'center' }}>
+          <T size={font.body} weight="800" color={colors.primary} style={{ marginTop: 6, textAlign: 'center' }}>
             {paid?.price ? `${paid.price.toLocaleString('fr-FR').replace(/\u202f/g, ' ')} FCFA` : ''}
           </T>
-          <T size={font.sm} weight="600" color={colors.muted} style={{ marginTop: 6, textAlign: 'center' }}>
-            Vous avez payé votre abonnement {paid?.label === 'annuel' ? 'annuel' : 'mensuel'} via Wave. Merci !
+
+          {/* Reçu : montant + validité + référence */}
+          <View style={s.receipt}>
+            <View style={s.receiptRow}><T size={font.sm} weight="600" color={colors.muted}>Montant payé</T><T size={font.sm} weight="800" color={colors.text}>{paid?.price ? `${paid.price.toLocaleString('fr-FR').replace(/\u202f/g, ' ')} FCFA` : '—'}</T></View>
+            <View style={s.receiptRow}><T size={font.sm} weight="600" color={colors.muted}>Abonnement</T><T size={font.sm} weight="800" color={colors.text}>{paid?.label}</T></View>
+            {paid?.validUntil ? (
+              <View style={s.receiptRow}><T size={font.sm} weight="600" color={colors.muted}>Valable jusqu'au</T><T size={font.sm} weight="800" color={colors.text}>{fmtDate(paid.validUntil)}</T></View>
+            ) : null}
+            {paid?.reference ? (
+              <View style={s.receiptRow}><T size={font.sm} weight="600" color={colors.muted}>Référence</T><T size={font.sm} weight="800" color={colors.text}>{paid.reference}</T></View>
+            ) : null}
+          </View>
+
+          <T size={font.sm} weight="600" color={colors.muted} style={{ marginTop: 10, textAlign: 'center' }}>
+            Votre abonnement est maintenant actif. Merci ! 🎉
           </T>
         </View>
         <Btn title="Terminé" onPress={closeAll} style={{ marginTop: 16 }} />
@@ -113,4 +149,7 @@ const s = StyleSheet.create({
   radio: { width: 22, height: 22, borderRadius: 11, borderWidth: 2, borderColor: colors.muted2, alignItems: 'center', justifyContent: 'center' },
   radioOn: { borderColor: colors.primary },
   radioDot: { width: 10, height: 10, borderRadius: 5, backgroundColor: colors.primary },
+  errBox: { flexDirection: 'row', alignItems: 'center', backgroundColor: colors.dangerBg, borderRadius: radius.sm, padding: 10, marginTop: space.md },
+  receipt: { alignSelf: 'stretch', backgroundColor: colors.successBg, borderRadius: radius.md, padding: 12, marginTop: space.md },
+  receiptRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingVertical: 5 },
 });
