@@ -115,6 +115,7 @@ export default function SubscribeSheet({ visible, onClose, onSubscribe, subtitle
         merchant={PLATFORM_WAVE}
         merchantName={PLATFORM_NAME}
         payLink={PLATFORM_PAY_LINK}
+        mode="link"
         subtitle={current.priceLabel}
       />
 

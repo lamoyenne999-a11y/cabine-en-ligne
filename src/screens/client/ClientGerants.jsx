@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { View, Text, TextInput, Pressable, StyleSheet, Linking } from 'react-native';
+import { View, Text, TextInput, Pressable, StyleSheet } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { colors, radius, space, font } from '../../theme';
 import { T, Btn, Card, Field } from '../../components/ui';
@@ -7,8 +7,6 @@ import { Page } from '../../components/Shell';
 import { BottomSheet } from '../../components/modals';
 import { useStore } from '../../store';
 import { buildShareUrl } from '../../config';
-
-const openPay = (link) => { if (link && typeof Linking !== 'undefined') Linking.openURL(link).catch(() => {}); };
 
 export default function ClientGerants() {
   const { state, addGerant, removeGerant } = useStore();
@@ -18,6 +16,7 @@ export default function ClientGerants() {
   const [phone, setPhone] = useState('');
   const [err, setErr] = useState('');
   const [copied, setCopied] = useState(false);
+  const [copiedNum, setCopiedNum] = useState(null);
 
   const gerants = state.gerants.filter((g) => g.name.toLowerCase().includes(q.toLowerCase()) || g.phone.includes(q));
   // Gérants inscrits proposés = ceux que le client n'a pas encore ajoutés.
@@ -109,12 +108,21 @@ export default function ClientGerants() {
                 <Ionicons name="water" size={14} color={colors.wave} />
                 <T size={font.sm} weight="700" color={colors.wave} style={{ marginLeft: 6 }}>Wave marchand : {g.waveNumber}</T>
               </View>
-              {g.payLink ? (
-                <Pressable onPress={() => openPay(g.payLink)} style={s.payBtn}>
-                  <Ionicons name="open-outline" size={14} color="#fff" style={{ marginRight: 6 }} />
-                  <T size={font.xs} weight="800" color="#fff">Payer en ligne via Wave</T>
-                </Pressable>
-              ) : null}
+              <Pressable
+                onPress={() => {
+                  const n = g.waveNumber || g.phone || '';
+                  if (n && typeof navigator !== 'undefined' && navigator.clipboard) navigator.clipboard.writeText(n).catch(() => {});
+                  setCopiedNum(n);
+                  setTimeout(() => setCopiedNum(null), 1800);
+                }}
+                style={s.payBtn}
+              >
+                <Ionicons name={copiedNum === (g.waveNumber || g.phone) ? 'checkmark' : 'copy-outline'} size={14} color="#fff" style={{ marginRight: 6 }} />
+                <T size={font.xs} weight="800" color="#fff">{copiedNum === (g.waveNumber || g.phone) ? 'Numéro copié ✓' : 'Copier le numéro Wave'}</T>
+              </Pressable>
+              <T size={font.xs} weight="600" color={colors.muted} style={{ marginTop: 4 }}>
+                Transférez le montant à ce numéro — les frais Wave (1 %) sont sur votre compte, le gérant reçoit la totalité.
+              </T>
             </View>
             <Pressable onPress={() => removeGerant(g.id)} hitSlop={8} style={{ paddingLeft: 12 }}>
               <Ionicons name="trash-outline" size={20} color={colors.danger} />

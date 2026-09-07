@@ -168,9 +168,7 @@ export default function ClientHome() {
                 payLink={gerant.payLink || ''}
               />
               <T size={font.xs} weight="600" color={colors.muted2} style={{ marginTop: 10 }}>
-                {gerant.payLink
-                  ? <>Cliquez sur « Payer avec Wave en ligne » pour payer avant d'envoyer la demande, ou envoyez-la d'abord et payez après que {gerant.name} accepte.</>
-                  : <>Appuyez sur le numéro pour le copier et payez dans votre app Wave. Une fois que {gerant.name} aura ajouté son lien marchand, le paiement se fera en un clic.</>}
+                Copiez le numéro ci-dessus et transférez le montant depuis votre app Wave. Les frais Wave (1 %) sont prélevés sur votre compte — {gerant.name} reçoit la totalité. Vous pouvez aussi envoyer la demande d'abord et payer après acceptation.
               </T>
             </View>
           )}

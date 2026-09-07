@@ -1,13 +1,11 @@
 import React, { useEffect, useState } from 'react';
-import { View, Text, ScrollView, StyleSheet, ActivityIndicator, Linking } from 'react-native';
+import { View, Text, ScrollView, StyleSheet, ActivityIndicator } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { colors, radius, space, font } from '../theme';
 import { T, Btn, Card, Pill } from '../components/ui';
 import { Header } from '../components/Shell';
 import { api } from '../api';
 import { useStore } from '../store';
-
-const openPay = (link) => { if (link && typeof Linking !== 'undefined') Linking.openURL(link).catch(() => {}); };
 
 // Profil public d'un utilisateur, ouvert via son lien de partage /?u=ID.
 // Pas de données fictives : on ne dépend que du backend réel. Si le profil
@@ -18,6 +16,13 @@ export default function PublicProfile({ userId }) {
   const [loading, setLoading] = useState(true);
   const [added, setAdded] = useState(false);
   const [err, setErr] = useState('');
+  const [copied, setCopied] = useState(false);
+  const copyWave = () => {
+    const n = profile?.waveNumber || profile?.phone || '';
+    if (n && typeof navigator !== 'undefined' && navigator.clipboard) navigator.clipboard.writeText(n).catch(() => {});
+    setCopied(true);
+    setTimeout(() => setCopied(false), 2000);
+  };
 
   useEffect(() => {
     (async () => {
@@ -81,9 +86,14 @@ export default function PublicProfile({ userId }) {
                   <T size={font.sm} weight="700" color={colors.wave} style={{ marginLeft: 8 }}>Wave marchand : {profile.waveNumber}</T>
                 </View>
               )}
-              {isGerant && profile.payLink ? (
-                <Btn title="Payer via Wave en ligne" icon="open-outline" onPress={() => openPay(profile.payLink)} style={{ alignSelf: 'stretch', marginTop: space.md }} />
-              ) : null}
+              {isGerant && (
+                <>
+                  <Btn title={copied ? 'Numéro copié ✓' : 'Copier le numéro Wave'} icon={copied ? 'checkmark' : 'copy-outline'} onPress={copyWave} style={{ alignSelf: 'stretch', marginTop: space.md }} />
+                  <T size={font.xs} weight="600" color={colors.muted} style={{ marginTop: 6, textAlign: 'center' }}>
+                    Transférez le montant à ce numéro depuis votre app Wave. Les frais Wave (1 %) sont sur votre compte — le gérant reçoit la totalité.
+                  </T>
+                </>
+              )}
             </Card>
 
             {isMe ? (

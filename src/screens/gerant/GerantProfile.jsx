@@ -5,30 +5,20 @@ import { colors, radius, space, font } from '../../theme';
 import { T, Card, ListRow, Pill, Btn } from '../../components/ui';
 import { Page } from '../../components/Shell';
 import SubscribeSheet from '../../components/Subscribe';
-import { isValidPayLink } from '../../components/WavePay';
 import { useStore } from '../../store';
 import { buildShareUrl } from '../../config';
 import Help from '../Help';
 import Referral from '../Referral';
 
 export default function GerantProfile({ onLogout }) {
-  const { state, subscribe, updateGerantProfile } = useStore();
+  const { state, subscribe } = useStore();
   const u = state.user;
   const sub = state.subscription;
   const [showSub, setShowSub] = useState(false);
   const [copied, setCopied] = useState(false);
   const [showHelp, setShowHelp] = useState(false);
   const [showReferral, setShowReferral] = useState(false);
-  const [payLink, setPayLink] = useState(u?.payLink || '');
-  const [saving, setSaving] = useState(false);
-  const [saved, setSaved] = useState(false);
-  const [editing, setEditing] = useState(false);          // formulaire de saisie affiché ?
-  const [confirmDelete, setConfirmDelete] = useState(false); // double-tap pour supprimer
-  const [linkError, setLinkError] = useState('');          // message si le lien est invalide
-  const [copiedLink, setCopiedLink] = useState(false);
-  // Lien marchand réellement enregistré sur le compte (source de vérité côté serveur).
-  const savedLink = (u?.payLink || '').trim();
-  const hasLink = isValidPayLink(savedLink);
+  const [copiedNum, setCopiedNum] = useState(false);
 
   if (showReferral) return <Referral onBack={() => setShowReferral(false)} />;
   if (showHelp) return <Help onBack={() => setShowHelp(false)} />;
@@ -39,44 +29,11 @@ export default function GerantProfile({ onLogout }) {
     else { setCopied(true); setTimeout(() => setCopied(false), 2000); }
   };
 
-  const savePayLink = async () => {
-    const v = payLink.trim();
-    // Validation : le lien doit ressembler à un lien marchand Wave (https://pay.wave.com/m/…).
-    // on évite ainsi de coller le texte descriptif à la place du vrai lien.
-    if (!isValidPayLink(v)) {
-      setLinkError("Ce lien ne ressemble pas à un lien Wave. Copiez le lien complet qui commence par https://pay.wave.com/m/… (ex. https://pay.wave.com/m/M_ci_XXXXX/c/ci/).");
-      return;
-    }
-    setLinkError('');
-    setSaving(true);
-    await updateGerantProfile({ payLink: v });
-    setSaving(false);
-    setSaved(true);
-    setEditing(false);
-    setConfirmDelete(false);
-    setPayLink(v);
-    setTimeout(() => setSaved(false), 2500);
-  };
-
-  const deletePayLink = async () => {
-    if (!confirmDelete) {
-      setConfirmDelete(true);
-      setTimeout(() => setConfirmDelete(false), 3200);
-      return;
-    }
-    setConfirmDelete(false);
-    setSaving(true);
-    await updateGerantProfile({ payLink: '' });
-    setSaving(false);
-    setPayLink('');
-    setSaved(true);
-    setEditing(false);
-    setTimeout(() => setSaved(false), 2500);
-  };
-
-  const copySavedLink = () => {
-    if (typeof navigator !== 'undefined' && navigator.clipboard) navigator.clipboard.writeText(savedLink).then(() => { setCopiedLink(true); setTimeout(() => setCopiedLink(false), 1800); });
-    else { setCopiedLink(true); setTimeout(() => setCopiedLink(false), 1800); }
+  const copyWaveNum = () => {
+    const n = u?.waveNumber || u?.phone || '';
+    if (n && typeof navigator !== 'undefined' && navigator.clipboard) navigator.clipboard.writeText(n).catch(() => {});
+    setCopiedNum(true);
+    setTimeout(() => setCopiedNum(false), 2000);
   };
 
   const subStatus = sub?.status || 'trial';
@@ -135,96 +92,31 @@ export default function GerantProfile({ onLogout }) {
         <View style={s.waveBox}>
           <Ionicons name="water" size={18} color={colors.wave} style={{ marginRight: 12 }} />
           <View style={{ flex: 1 }}>
-            <T size={font.xs} weight="600" color={colors.muted}>Wave marchand (pour recevoir)</T>
+            <T size={font.xs} weight="600" color={colors.muted}>Votre numéro Wave (pour recevoir)</T>
             <T size={font.body} weight="800" color={colors.wave}>{u?.waveNumber || u?.phone}</T>
           </View>
         </View>
       </Card>
 
-      {/* Lien Wave marchand pour recevoir les paiements directs */}
+      {/* Comment vos clients vous paient — par transfert au numéro Wave (frais côté client) */}
       <Card style={{ marginTop: space.lg }}>
-        <T size={font.h3} weight="800" color={colors.text} style={{ marginBottom: 4 }}>Mon lien Wave marchand</T>
-
-        {hasLink && !editing ? (
-          <>
-            {/* === Lien déjà enregistré : le gérant n'a plus qu'un lien, on ne redemande rien === */}
-            <View style={s.linkSaved}>
-              <View style={s.linkSavedIcon}><Ionicons name="checkmark-done" size={22} color={colors.success} /></View>
-              <View style={{ flex: 1, marginLeft: 12 }}>
-                <T size={font.body} weight="900" color={colors.success}>Lien ajouté ✓</T>
-                <T size={font.xs} weight="600" color={colors.muted}>
-                  Vos clients cliqueront dessus pour vous payer en un seul clic. Badge « Certifié » actif.
-                </T>
-              </View>
-            </View>
-
-            <View style={s.savedLinkRow}>
-              <Ionicons name="link-outline" size={18} color={colors.primary} style={{ marginRight: 8 }} />
-              <Text numberOfLines={1} style={s.savedLinkText}>{savedLink}</Text>
-              <Pressable onPress={copySavedLink} style={s.copyBtn}>
-                <Ionicons name={copiedLink ? 'checkmark' : 'copy-outline'} size={16} color="#fff" />
-              </Pressable>
-            </View>
-            {copiedLink && <T size={font.xs} weight="600" color={colors.success} style={{ marginTop: 6 }}>Lien copié !</T>}
-
-            <View style={s.actionsRow}>
-              <Btn title="Modifier" icon="create-outline" color={colors.primary} textColor={colors.primary} outline onPress={() => { setEditing(true); setPayLink(savedLink); setLinkError(''); }} style={{ flex: 1 }} />
-              <Btn
-                title={confirmDelete ? 'Confirmer la suppression' : 'Supprimer'}
-                icon="trash-outline"
-                color={colors.danger}
-                textColor={confirmDelete ? '#fff' : colors.danger}
-                outline={!confirmDelete}
-                onPress={deletePayLink}
-                style={{ flex: 1, marginLeft: space.sm }}
-              />
-            </View>
-            <T size={font.xs} weight="600" color={colors.danger} style={{ textAlign: 'center', marginTop: 8 }}>
-              {confirmDelete ? 'Touchez à nouveau pour confirmer la suppression du lien.' : 'Vous ne pouvez avoir qu\'un seul lien. « Supprimer » efface le lien courant pour en mettre un autre.'}
-            </T>
-          </>
-        ) : (
-          <>
-            {/* === Saisie / modification du lien === */}
-            <T size={font.xs} weight="600" color={colors.muted} style={{ marginBottom: 10 }}>
-              Collez votre lien de paiement Wave (ex. https://pay.wave.com/m/...). Vos clients cliqueront dessus pour vous payer directement, d'un seul clic.
-            </T>
-
-            {!hasLink && (
-              <View style={s.linkCta}>
-                <Ionicons name="shield-checkmark" size={16} color={colors.primary} style={{ marginRight: 8 }} />
-                <T size={font.xs} weight="700" color={colors.primary} style={{ flex: 1 }}>
-                  Ajoutez votre lien pour obtenir le badge « Certifié » et permettre un paiement en 1 clic.
-                </T>
-              </View>
-            )}
-
-            <View style={[s.input, linkError ? { borderColor: colors.danger } : null]}>
-              <Ionicons name="link-outline" size={18} color={colors.primary} style={{ marginRight: 10 }} />
-              <TextInput
-                value={payLink}
-                onChangeText={(t) => { setPayLink(t); if (linkError) setLinkError(''); }}
-                placeholder="https://pay.wave.com/m/…"
-                placeholderTextColor={colors.muted2}
-                autoCapitalize="none"
-                autoCorrect={false}
-                style={s.inputText}
-              />
-            </View>
-            {!!linkError && <T size={font.xs} weight="700" color={colors.danger} style={{ marginTop: 6 }}>{linkError}</T>}
-
-            <Btn title={saved ? 'Enregistré ✓' : 'Enregistrer mon lien'} icon={saved ? 'checkmark' : 'save-outline'} onPress={savePayLink} loading={saving} style={{ marginTop: space.md }} />
-            {hasLink && (
-              <Btn title="Annuler" icon="close-outline" color={colors.muted} textColor={colors.muted} outline onPress={() => { setEditing(false); setPayLink(savedLink); setLinkError(''); }} style={{ marginTop: space.sm }} />
-            )}
-          </>
-        )}
-
+        <T size={font.h3} weight="800" color={colors.text} style={{ marginBottom: 4 }}>Votre numéro Wave</T>
+        <T size={font.xs} weight="600" color={colors.muted} style={{ marginBottom: 10 }}>
+          C'est le numéro sur lequel vos clients vous transfèrent le montant de leur demande. Cette fois c'est le CLIENT qui paie les frais Wave (1 %) — vous recevez la totalité, vous ne perdez rien.
+        </T>
+        <View style={s.waveRow}>
+          <View style={s.waveIcon}><Ionicons name="water" size={20} color={colors.wave} /></View>
+          <View style={{ flex: 1, marginLeft: 12 }}>
+            <T size={font.h3} weight="900" color={colors.wave}>{u?.waveNumber || u?.phone}</T>
+            <T size={font.xs} weight="600" color={colors.muted}>{u?.name || 'Gérant'}</T>
+          </View>
+          <Pressable onPress={copyWaveNum} style={s.copyBtn}><Ionicons name={copiedNum ? 'checkmark' : 'copy-outline'} size={16} color="#fff" /></Pressable>
+        </View>
+        {copiedNum && <T size={font.xs} weight="600" color={colors.success} style={{ marginTop: 6, textAlign: 'center' }}>Numéro copié ✓</T>}
         <T size={font.xs} weight="600" color={colors.muted2} style={{ textAlign: 'center', marginTop: 8 }}>
-          Ce lien n'est utilisé que pour que le client vous paie en direct. Aucun argent ne passe par l'app.
+          Le client transfère le montant dû depuis son app Wave ; les frais sont sur son compte. Aucun argent ne passe par l'app.
         </T>
       </Card>
-
       <Card style={{ marginTop: space.lg }}>
         <T size={font.h3} weight="800" color={colors.text} style={{ marginBottom: 6 }}>Mon lien de partage</T>
         <T size={font.xs} weight="600" color={colors.muted} style={{ marginBottom: 10 }}>Clients qui ouvrent ce lien peuvent vous ajouter et vous envoyer des demandes.</T>
@@ -265,15 +157,9 @@ const s = StyleSheet.create({
   subBtn: { backgroundColor: colors.primary, paddingHorizontal: 20, paddingVertical: 10, borderRadius: radius.pill, marginTop: 14 },
   paidIcon: { width: 48, height: 48, borderRadius: 24, backgroundColor: '#fff', alignItems: 'center', justifyContent: 'center' },
   waveBox: { flexDirection: 'row', alignItems: 'center', paddingVertical: 14, borderBottomWidth: 1, borderBottomColor: colors.border },
-  linkCta: { flexDirection: 'row', alignItems: 'center', backgroundColor: colors.primarySoft, borderRadius: radius.md, padding: 10, marginBottom: 10 },
-  input: { flexDirection: 'row', alignItems: 'center', backgroundColor: colors.bg, borderRadius: radius.md, paddingHorizontal: 14, height: 52, borderWidth: 1.4, borderColor: 'transparent' },
-  inputText: { flex: 1, fontSize: font.sm, color: colors.text, paddingVertical: 0, outlineStyle: 'none' },
   linkRow: { flexDirection: 'row', alignItems: 'center', backgroundColor: colors.bg, borderRadius: radius.md, padding: 8 },
   linkText: { flex: 1, fontSize: font.xs, color: colors.primary, marginRight: 8 },
   copyBtn: { width: 40, height: 40, borderRadius: radius.sm, backgroundColor: colors.primary, alignItems: 'center', justifyContent: 'center' },
-  linkSaved: { flexDirection: 'row', alignItems: 'flex-start', backgroundColor: colors.successBg, borderRadius: radius.md, padding: 12, marginBottom: 12 },
-  linkSavedIcon: { width: 44, height: 44, borderRadius: 22, backgroundColor: '#fff', alignItems: 'center', justifyContent: 'center' },
-  savedLinkRow: { flexDirection: 'row', alignItems: 'center', backgroundColor: colors.bg, borderRadius: radius.md, padding: 10 },
-  savedLinkText: { flex: 1, fontSize: font.xs, color: colors.primary, fontWeight: '700', marginRight: 8 },
-  actionsRow: { flexDirection: 'row', alignItems: 'center', marginTop: space.md },
+  waveRow: { flexDirection: 'row', alignItems: 'center', backgroundColor: colors.bg, borderRadius: radius.md, padding: 12 },
+  waveIcon: { width: 44, height: 44, borderRadius: 22, backgroundColor: '#E7F0FE', alignItems: 'center', justifyContent: 'center' },
 });
