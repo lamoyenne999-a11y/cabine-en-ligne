@@ -541,6 +541,18 @@ export function createDemande({ client, gerantId, gerantUserId, type, amount, be
   if (!['unites', 'minutes', 'internet'].includes(type)) throw Object.assign(new Error('Type invalide'), { status: 400 });
   if (!(parseInt(amount, 10) > 0)) throw Object.assign(new Error('Montant invalide'), { status: 400 });
 
+  // Récupère TOUJOURS le lien Wave marchand À JOUR du gérant (pas un instantané figé).
+  // Si le gérant a ajouté/modifié son lien après la création du contact, on le reprend.
+  let liveWave = g.waveNumber;
+  let livePayLink = g.payLink || '';
+  if (g.userId) {
+    const guser = findOne('users', (x) => x.id === g.userId);
+    if (guser) {
+      liveWave = guser.waveNumber || liveWave;
+      livePayLink = guser.payLink || '';
+    }
+  }
+
   const d = insert('demandes', {
     ref: `demande:${Date.now()}`,
     clientId: client.id,
@@ -550,8 +562,8 @@ export function createDemande({ client, gerantId, gerantUserId, type, amount, be
     gerantUserId: g.userId || '',
     gerantName: g.name,
     gerantPhone: g.phone,
-    gerantWave: g.waveNumber,
-    gerantPayLink: g.payLink || '',
+    gerantWave: liveWave,
+    gerantPayLink: livePayLink,
     type,
     amount: parseInt(amount, 10),
     benefName: benefName || client.name,
