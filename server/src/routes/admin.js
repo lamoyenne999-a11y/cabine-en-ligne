@@ -1,6 +1,6 @@
 import express from 'express';
 import { config } from '../config.js';
-import { subscriptionPayments, subscriptionTotals, subscriptionFor, referralSummary, referredUsersCount, referralRateFor } from '../services/flowService.js';
+import { subscriptionPayments, subscriptionTotals, subscriptionFor, referralSummary, referredUsersCount, referralPaymentCount, referralRateFor } from '../services/flowService.js';
 import { find } from '../db.js';
 
 const router = express.Router();
@@ -45,7 +45,8 @@ router.get('/users', requireAdmin, (req, res) => {
     referralCode: u.referralCode || '',
     referredBy: u.referredBy || '',
     referredCount: referredUsersCount(u.id),
-    rate: referralRateFor(referredUsersCount(u.id)),
+    paymentsGenerated: referralPaymentCount(u.id),
+    rate: referralRateFor(referralPaymentCount(u.id)),
     subscription: subscriptionFor(u),
   }));
   res.json({ users });

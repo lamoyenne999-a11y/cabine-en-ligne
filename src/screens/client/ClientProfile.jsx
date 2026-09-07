@@ -96,7 +96,12 @@ export default function ClientProfile({ onLogout }) {
       </Card>
 
       <Card style={{ marginTop: space.lg }}>
-        <ListRow icon="gift-outline" label="Mes parrainages" onPress={() => setShowReferral(true)} />
+        <ListRow
+          icon="gift-outline"
+          label="Mes parrainages"
+          value={state.referral ? `${state.referral.registeredCount || 0} inscrit${(state.referral.registeredCount || 0) > 1 ? 's' : ''}` : ''}
+          onPress={() => setShowReferral(true)}
+        />
       </Card>
 
       <Card style={{ marginTop: space.lg }}>

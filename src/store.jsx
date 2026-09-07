@@ -350,6 +350,17 @@ export function StoreProvider({ children }) {
     } catch { /* silencieux */ }
   }, [online]);
 
+  const updateReferralCode = useCallback(async (code) => {
+    try {
+      const { referral } = await api.referral.setCode(code);
+      dispatch({ type: 'SET_REFERRAL', payload: referral });
+      return referral;
+    } catch (e) {
+      if (e && e.status) throw e;
+      throw Object.assign(new Error('Impossible de mettre à jour le code. Vérifiez votre connexion.'), { status: 0 });
+    }
+  }, []);
+
   const updateGerantProfile = useCallback(async (patch) => {
     let updated = null;
     if (online) {
@@ -382,8 +393,8 @@ export function StoreProvider({ children }) {
   }, [state.role]);
 
   const value = useMemo(
-    () => ({ state, dispatch, online, checking, recheck: probe, login, register, logout, refresh, addGerant, removeGerant, createDemande, markPaid, cancelDemande, acceptDemande, declineDemande, completeDemande, subscribe, updateGerantProfile, loadNotifications, markNotificationRead, markAllNotificationsRead, loadClientNotifications, markClientNotificationRead, markAllClientNotificationsRead, loadReferral }),
-    [state, online, checking, probe, login, register, logout, refresh, addGerant, removeGerant, createDemande, markPaid, cancelDemande, acceptDemande, declineDemande, completeDemande, subscribe, updateGerantProfile, loadNotifications, markNotificationRead, markAllNotificationsRead, loadClientNotifications, markClientNotificationRead, markAllClientNotificationsRead, loadReferral],
+    () => ({ state, dispatch, online, checking, recheck: probe, login, register, logout, refresh, addGerant, removeGerant, createDemande, markPaid, cancelDemande, acceptDemande, declineDemande, completeDemande, subscribe, updateGerantProfile, loadNotifications, markNotificationRead, markAllNotificationsRead, loadClientNotifications, markClientNotificationRead, markAllClientNotificationsRead, loadReferral, updateReferralCode }),
+    [state, online, checking, probe, login, register, logout, refresh, addGerant, removeGerant, createDemande, markPaid, cancelDemande, acceptDemande, declineDemande, completeDemande, subscribe, updateGerantProfile, loadNotifications, markNotificationRead, markAllNotificationsRead, loadClientNotifications, markClientNotificationRead, markAllClientNotificationsRead, loadReferral, updateReferralCode],
   );
   return <Ctx.Provider value={value}>{children}</Ctx.Provider>;
 }

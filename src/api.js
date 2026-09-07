@@ -80,6 +80,7 @@ export const api = {
   referral: {
     my: () => request('GET', '/api/referral/my'),
     check: (code) => request('GET', `/api/referral/check/${encodeURIComponent(code)}`),
+    setCode: (code) => request('POST', '/api/referral/code', { code }),
   },
 
   // ---- Vue propriétaire (paiements d'abonnement) ----
