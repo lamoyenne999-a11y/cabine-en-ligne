@@ -12,13 +12,14 @@ const STATUS = {
   declined: { label: 'Refusée', color: colors.danger, bg: colors.dangerBg, icon: 'close-circle' },
   paid: { label: 'Payée', color: '#2E7BF6', bg: '#E7F0FE', icon: 'wallet' },
   completed: { label: 'Complétée', color: colors.success, bg: colors.successBg, icon: 'checkmark-done' },
+  canceled: { label: 'Annulée', color: colors.muted, bg: colors.gray, icon: 'close-circle-outline' },
 };
 
 const TYPE_ICON = { unites: 'phone-portrait-outline', minutes: 'call-outline', internet: 'wifi-outline' };
 const TYPE_LABEL = { unites: 'Unités', minutes: 'Minutes', internet: 'Internet' };
 
 function summarize(demandes) {
-  const counts = { pending: 0, accepted: 0, declined: 0, paid: 0, completed: 0 };
+  const counts = { pending: 0, accepted: 0, declined: 0, paid: 0, completed: 0, canceled: 0 };
   let totalSpent = 0, totalServed = 0;
   (demandes || []).forEach((d) => {
     if (counts[d.status] !== undefined) counts[d.status] += 1;
@@ -51,7 +52,7 @@ export default function GerantHistory() {
   const demandes = state.gerantDemandes || [];
   const sum = summarize(demandes);
   const served = sum.counts.completed;
-  const treated = sum.counts.completed + sum.counts.declined;
+  const treated = sum.counts.completed + sum.counts.paid + sum.counts.accepted;
   const visible = q ? demandes.filter((d) => matches(d, q)) : demandes;
 
   return (
@@ -138,7 +139,16 @@ export default function GerantHistory() {
               </View>
             </View>
             <T size={font.xs} weight="600" color={colors.muted} style={{ marginTop: 10, textAlign: 'center' }}>
-              {d.status === 'completed' ? 'Montant reçu sur votre Wave marchand : ' + money(d.amount) : 'Payé en direct via Wave.'}
+              {(
+                {
+                  pending: 'En attente de votre réponse — le client peut encore annuler.',
+                  accepted: 'Demande acceptée. Le client paiera via Wave.',
+                  paid: `Le client a payé ${money(d.amount)} via Wave — créditez-le.`,
+                  completed: `Montant reçu sur votre Wave marchand : ${money(d.amount)}`,
+                  declined: 'Vous avez refusé cette demande.',
+                  canceled: 'Le client a annulé cette demande.',
+                }[d.status] || 'Payé en direct via Wave.'
+              )}
             </T>
           </Card>
         );
