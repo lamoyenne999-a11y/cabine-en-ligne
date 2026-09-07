@@ -68,7 +68,7 @@ export default function GerantHistory() {
         <View style={s.sumGrid}>
           <Tile icon="checkmark-done" tone="green" value={served} label="Servies" />
           <Tile icon="checkmark-circle" tone="blue" value={treated} label="Traitées" />
-          <Tile icon="close-circle" tone="orange" value={sum.counts.declined} label="Refusées" />
+          <Tile icon="close-circle" tone="red" value={sum.counts.declined} label="Refusées" />
         </View>
       </Card>
 
@@ -162,6 +162,7 @@ function Tile({ icon, tone, value, label }) {
     green: { bg: colors.successBg, color: colors.success },
     orange: { bg: colors.warnBg, color: colors.warn },
     blue: { bg: '#E7F0FE', color: '#2E7BF6' },
+    red: { bg: colors.dangerBg, color: colors.danger },
   };
   const t = tones[tone] || tones.blue;
   return (

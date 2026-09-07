@@ -22,7 +22,11 @@ export default function GerantDemandes() {
   const { state, acceptDemande, declineDemande, completeDemande, subscribe } = useStore();
   const [confirm, setConfirm] = useState(null); // { id, action }
   const [showSub, setShowSub] = useState(false);
-  const demandes = state.gerantDemandes || [];
+  // L'inbox ne montre que les demandes À TRAITER :
+  //  - 'pending'   : le client vient d'envoyer, le gérant doit accepter ou refuser.
+  //  - 'paid'      : le client a déjà payé (avant acceptation), le gérant doit servir.
+  // Les demandes déjà closes (acceptée/refusée/annulée/complétée) vont dans l'Historique.
+  const demandes = (state.gerantDemandes || []).filter((d) => d.status === 'pending' || d.status === 'paid');
 
   const doAction = () => {
     if (!confirm) return;
