@@ -46,7 +46,7 @@ router.get('/users', requireAdmin, (req, res) => {
     referredBy: u.referredBy || '',
     referredCount: referredUsersCount(u.id),
     paymentsGenerated: referralPaymentCount(u.id),
-    rate: referralRateFor(referralPaymentCount(u.id)),
+    rate: referralRateFor(referredUsersCount(u.id)),
     subscription: subscriptionFor(u),
   }));
   res.json({ users });

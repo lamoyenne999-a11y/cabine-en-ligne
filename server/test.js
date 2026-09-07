@@ -249,36 +249,35 @@ async function main() {
   const ga = await req('POST', '/gerant/subscribe', { plan: 'annual' }, gt2);
   check('Abonnement gérant annuel 2000 FCFA', ga.json.subscription?.status === 'active' && ga.json.subscription?.price === 2000 && ga.json.subscription?.periodLabel === 'annuel');
 
-  // ===== Parrainage / commission (0 / 5 / 10 / 20 %) =====
+  // ===== Parrainage / aide mutuelle (paliers 100 / 1000 / 10000 inscrits) =====
   const refPhoneA = '05' + uniq;
   const refA = await req('POST', '/auth/register', { role: 'client', name: 'Parrain A', phone: refPhoneA, password: '1234' });
   const refCodeA = refA.json.user?.referralCode;
   check('Parrain : code de parrainage généré', !!refCodeA && refCodeA.startsWith('CEL'));
-  check('Parrain : aucun paiement au départ → taux 0 %', refA.json.referral?.count === 0 && refA.json.referral?.rate === 0);
+  check('Parrain : 0 inscrit au départ', refA.json.referral?.registeredCount === 0 && refA.json.referral?.rate === 0);
 
   const refPhoneB = '06' + uniq;
   const refB = await req('POST', '/auth/register', { role: 'client', name: 'Invitée B', phone: refPhoneB, password: '1234', referrerCode: refCodeA });
-  check('Parrainage : invité enregistré avec le code', refB.json.user?.phone === refPhoneB);
+  check('Parrainage : inscrit rattaché au parrain', refB.json.user?.phone === refPhoneB);
 
-  const refASummary = await req('GET', '/referral/my', null, refA.json.token);
-  check('Parrain : 1 inscrit, 0 paiement, taux 0 %', refASummary.json.referral?.registeredCount === 1 && refASummary.json.referral?.count === 0 && refASummary.json.referral?.rate === 0);
-
-  // 1er paiement de l'invité : en dessous de 100 -> commission 0 %.
+  // Paiement avant 100 inscrits : aucune commission (part à 0 %).
   const refBSub = await req('POST', '/client/subscribe', { plan: 'monthly' }, refB.json.token);
-  check('Invitée peut s\'abonner', refBSub.json.subscription?.status === 'active');
-  check('1er paiement : 0 % (sous 100 paiements)', refBSub.json.referralCommission?.commission === 0 && refBSub.json.referralCommission?.rate === 0);
+  check('Inscrit peut s\'abonner', refBSub.json.subscription?.status === 'active');
+  check('Paiement avant 100 inscrits : aucune commission', refBSub.json.referralCommission?.commission === 0 && refBSub.json.referralCommission?.rate === 0);
 
-  // On monte jusqu'au 100e paiement -> le taux passe à 5 % (5 FCFA sur 100).
-  let last = refBSub.json.referralCommission;
-  for (let i = 2; i <= 100; i++) {
-    const r = await req('POST', '/client/subscribe', { plan: 'monthly' }, refB.json.token);
-    last = r.json.referralCommission;
+  // On recrute jusqu'à 100 inscrits -> le taux passe à 5 %.
+  for (let i = 0; i < 99; i++) {
+    await req('POST', '/auth/register', { role: 'client', name: 'Inscrit ' + i, phone: '07' + uniq + String(i).padStart(2, '0'), password: '1234', referrerCode: refCodeA });
   }
-  check('100e paiement : taux 5 % → 5 FCFA', last?.rate === 5 && last?.commission === 5);
+  const refASummary = await req('GET', '/referral/my', null, refA.json.token);
+  check('Parrain : 100 inscrits → part de 5 %', refASummary.json.referral?.registeredCount === 100 && refASummary.json.referral?.rate === 5);
+
+  // Après 100 inscrits, un paiement annuel (1000 F) -> 5 % = 50 FCFA.
+  const refBSub2 = await req('POST', '/client/subscribe', { plan: 'annual' }, refB.json.token);
+  check('Paiement après 100 inscrits : 5 % de 1000 = 50 F', refBSub2.json.referralCommission?.rate === 5 && refBSub2.json.referralCommission?.commission === 50);
 
   const refASummary2 = await req('GET', '/referral/my', null, refA.json.token);
-  check('Parrain : 100 paiements, taux 5 %', refASummary2.json.referral?.count === 100 && refASummary2.json.referral?.rate === 5);
-  check('Parrain : total commission = 5 FCFA', refASummary2.json.referral?.totalCommission === 5);
+  check('Parrain : gains totaux = 50 FCFA', refASummary2.json.referral?.totalCommission === 50);
 
   // Code personnalisé (libre, unique) : trop court -> 400 ; OK -> accepté.
   const customCode = 'MA' + uniq; // unique par exécution (8 caractères)

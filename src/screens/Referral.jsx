@@ -9,13 +9,14 @@ import { buildReferralUrl } from '../config';
 import { api } from '../api';
 
 // ============================================================
-//  Parrainage — commission par palier (0 / 5 / 10 / 20 %).
-//  - Mon code de parrainage (CEL…), personnalisable + à partager.
-//  - Nombre d'utilisateurs INSCRITS avec mon code (liste),
-//    et de PAIEMENTS d'abonnement générés (c'est ce qui détermine le palier).
-//  - Versement : les gains sont suivis ici, puis payés manuellement
-//    par le propriétaire (Wave). Aucun argent n'est stocké.
-//  - Paliers : <100 paiements = 0 % ; >=100 = 5 % ; >=1000 = 10 % ; >=10000 = 20 %.
+//  Parrainage — aide mutuelle par paliers (5 / 10 / 20 %).
+//  Le parrain est rémunéré selon ses INSCRITS :
+//    100 inscrits   -> 5 %  (≈500 F/mois sur un abonnement à 100 F)
+//    1000 inscrits  -> 10 % (≈10 000 F/mois)
+//    10000 inscrits -> 20 % (≈200 000 F/mois)
+//  On n'affiche PAS de « 0 % » : tant qu'on n'a pas atteint 100 inscrits,
+//  on montre juste le palier à atteindre.
+//  Versement : gains suivis ici, payés manuellement par le propriétaire.
 // ============================================================
 
 const PILL = {
@@ -23,6 +24,13 @@ const PILL = {
   active: { label: 'Payé', icon: 'checkmark-circle', color: colors.success, bg: colors.successBg },
   expired: { label: 'Expiré', icon: 'alert-circle', color: colors.danger, bg: colors.dangerBg },
 };
+
+// Paliers d'aide mutuelle (affichés, sans « 0 % »).
+const TIERS = [
+  { need: 100, rate: 5, amount: '500 F', label: '5 %' },
+  { need: 1000, rate: 10, amount: '10 000 F', label: '10 %' },
+  { need: 10000, rate: 20, amount: '200 000 F', label: '20 %' },
+];
 
 function fmtDate(t) {
   return t ? new Date(t).toLocaleDateString('fr-FR', { day: '2-digit', month: 'short', year: 'numeric' }) : '—';
@@ -41,13 +49,12 @@ export default function Referral({ onBack }) {
   useEffect(() => { loadReferral(); }, []); // eslint-disable-line
   const r = state.referral;
 
-  // Vérifie la disponibilité d'un nouveau code (hors connexion : libre).
   const checkAvailability = async (code) => {
     const c = clean(code);
     if (!c) { setCodeStatus(null); return; }
     if (c === r?.code) { setCodeStatus('ok'); return; }
     if (c.length < 6) { setCodeStatus('len'); return; }
-    try { await api.referral.check(c); setCodeStatus('taken'); } // existe déjà (par quelqu'un)
+    try { await api.referral.check(c); setCodeStatus('taken'); }
     catch (e) { setCodeStatus(e?.status === 404 ? 'ok' : null); }
   };
   useEffect(() => {
@@ -82,23 +89,26 @@ export default function Referral({ onBack }) {
     finally { setSaving(false); }
   };
 
-  const count = r?.count || 0;            // paiements d'abonnement générés
-  const registeredCount = r?.registeredCount || 0; // inscrits
+  const inscrits = r?.registeredCount || 0;
+  const payments = r?.payments || 0;
   const rate = r?.rate || 0;
   const nextTier = r?.nextTier || null;
   const total = r?.totalCommission || 0;
   const earnings = r?.earnings || [];
   const referrals = r?.referrals || [];
-  const progress = nextTier ? Math.min(1, count / nextTier.need) : 1;
+
+  // Milestone actuel le plus haut atteint (index).
+  const currentTierIndex = TIERS.reduce((acc, t, i) => (inscrits >= t.need ? i : acc), -1);
+  const progress = nextTier ? Math.min(1, (inscrits - (currentTierIndex >= 0 ? TIERS[currentTierIndex].need : 0)) / (nextTier.need - (currentTierIndex >= 0 ? TIERS[currentTierIndex].need : 0))) : 1;
 
   return (
-    <Page title="Mes parrainages" subtitle="Gagnez une commission" onBack={onBack}>
+    <Page title="Mes parrainages" subtitle="Aide mutuelle" onBack={onBack}>
       {/* Code de parrainage */}
       <Card style={{ alignItems: 'center', paddingVertical: 24 }}>
         <Pill icon="gift-outline" color={colors.primary} bg={colors.primarySoft}>Programme de parrainage</Pill>
         <T size={font.h3} weight="800" color={colors.text} style={{ marginTop: 14, textAlign: 'center' }}>Partagez votre code</T>
         <T size={font.xs} weight="600" color={colors.muted} style={{ textAlign: 'center', marginTop: 4 }}>
-          Vos invités le saisissent à l'inscription. Vous gagnez {rate} % de chaque abonnement qu'ils paient.
+          Vos invités le saisissent à l'inscription. Une aide mutuelle : plus vous invitez, plus vous gagnez.
         </T>
 
         <View style={s.codeBox}>
@@ -150,20 +160,40 @@ export default function Referral({ onBack }) {
 
       {/* Stats */}
       <View style={{ flexDirection: 'row', marginTop: space.lg }}>
-        <View style={s.stat}><T size={font.h2} weight="800" color={colors.text}>{registeredCount}</T><T size={font.xs} weight="600" color={colors.muted}>Inscrits</T></View>
-        <View style={s.stat}><T size={font.h2} weight="800" color={colors.primary}>{count}</T><T size={font.xs} weight="600" color={colors.muted}>Paiements</T></View>
-        <View style={s.stat}><T size={font.h2} weight="800" color={colors.primary}>{rate} %</T><T size={font.xs} weight="600" color={colors.muted}>Taux</T></View>
-        <View style={s.stat}><T size={font.h2} weight="800" color={colors.success}>{total} F</T><T size={font.xs} weight="600" color={colors.muted}>Gains à</T></View>
+        <View style={s.stat}><T size={font.h2} weight="800" color={colors.text}>{inscrits}</T><T size={font.xs} weight="600" color={colors.muted}>Inscrits</T></View>
+        <View style={s.stat}><T size={font.h2} weight="800" color={colors.primary}>{payments}</T><T size={font.xs} weight="600" color={colors.muted}>Paiements</T></View>
+        <View style={s.stat}><T size={font.h2} weight="800" color={colors.success}>{total} F</T><T size={font.xs} weight="600" color={colors.muted}>Gains reçus</T></View>
       </View>
 
-      {/* Barre de progression du palier */}
+      {/* Paliers d'aide mutuelle */}
+      <Card style={{ marginTop: space.lg, backgroundColor: colors.primarySoft }}>
+        <T size={font.h3} weight="800" color={colors.text}>Vos paliers</T>
+        <T size={font.xs} weight="600" color={colors.muted} style={{ marginTop: 2, marginBottom: 10 }}>
+          Plus vous invitez d'utilisateurs, plus votre part augmente. (exemple sur un abonnement à 100 F/mois)
+        </T>
+        {TIERS.map((t, i) => {
+          const reached = inscrits >= t.need;
+          const current = i === currentTierIndex;
+          return (
+            <View key={t.need} style={[s.tierRow, reached && s.tierRowActive, current && s.tierRowCurrent]}>
+              <View style={{ flex: 1 }}>
+                <T size={font.body} weight={reached ? '800' : '600'} color={reached ? colors.primary : colors.text}>{t.need.toLocaleString('fr-FR')} inscrits</T>
+                <T size={font.xs} weight="600" color={colors.muted}>→ {t.label} de chaque abonnement (≈{t.amount}/mois)</T>
+              </View>
+              {reached ? <Ionicons name="checkmark-circle" size={24} color={colors.success} /> : <Ionicons name="lock-closed-outline" size={18} color={colors.muted2} />}
+            </View>
+          );
+        })}
+      </Card>
+
+      {/* Progression vers le palier suivant */}
       {nextTier ? (
         <Card style={{ marginTop: space.lg }}>
-          <T size={font.sm} weight="700" color={colors.text}>Votre taux : {rate} %</T>
+          <T size={font.sm} weight="700" color={colors.text}>
+            {rate > 0 ? `Votre part actuelle : ${rate} %` : 'Commencez à gagner dès 100 inscrits'}
+          </T>
           <T size={font.xs} weight="600" color={colors.muted} style={{ marginTop: 3 }}>
-            {rate === 0
-              ? `Encore ${nextTier.need - count} paiement(s) d'abonnement pour atteindre ${nextTier.rate} %.`
-              : `${nextTier.need - count} paiement(s) restant(s) avant ${nextTier.rate} %.`}
+            Encore {nextTier.need - inscrits} inscrit{nextTier.need - inscrits > 1 ? 's' : ''} pour passer à {nextTier.rate} % ({nextTier.need.toLocaleString('fr-FR')} inscrits).
           </T>
           <View style={s.progressTrack}><View style={[s.progressFill, { width: `${progress * 100}%` }]} /></View>
         </Card>
@@ -171,17 +201,17 @@ export default function Referral({ onBack }) {
         <Card style={{ marginTop: space.lg, backgroundColor: colors.successBg }}>
           <View style={{ flexDirection: 'row', alignItems: 'center' }}>
             <Ionicons name="trophy" size={22} color={colors.success} style={{ marginRight: 10 }} />
-            <T size={font.sm} weight="800" color={colors.success}>Taux maximum atteint : {rate} %</T>
+            <T size={font.sm} weight="800" color={colors.success}>Palier maximum atteint : {rate} %</T>
           </View>
         </Card>
       )}
 
-      {/* Mes invités inscrits */}
+      {/* Mes inscrits */}
       <Card style={{ marginTop: space.lg }}>
-        <T size={font.h3} weight="800" color={colors.text} style={{ marginBottom: 6 }}>Utilisateurs inscrits avec mon code ({registeredCount})</T>
+        <T size={font.h3} weight="800" color={colors.text} style={{ marginBottom: 6 }}>Utilisateurs inscrits avec mon code ({inscrits})</T>
         {referrals.length === 0 ? (
           <T size={font.sm} weight="600" color={colors.muted} style={{ marginTop: 4 }}>
-            Aucun inscrit pour l'instant. Partagez votre code pour recruter et gagner des commissions.
+            Aucun inscrit pour l'instant. Partagez votre code pour recruter et gagner.
           </T>
         ) : referrals.map((u) => {
           const p = PILL[u.subscription] || PILL.trial;
@@ -203,7 +233,7 @@ export default function Referral({ onBack }) {
         <T size={font.h3} weight="800" color={colors.text} style={{ marginBottom: 6 }}>Historique des gains</T>
         {earnings.length === 0 ? (
           <T size={font.sm} weight="600" color={colors.muted} style={{ marginTop: 4 }}>
-            Les commissions apparaîtront ici dès qu'un de vos invités paiera son abonnement. (Vous passez à 5 % à partir de 100 paiements.)
+            Les gains apparaîtront ici dès qu'un de vos inscrits paiera son abonnement.
           </T>
         ) : earnings.map((e) => (
           <View key={e.reference || e.id} style={s.gainRow}>
@@ -215,7 +245,7 @@ export default function Referral({ onBack }) {
                 {e.referredName} · {e.plan === 'annual' ? 'annuel' : 'mensuel'} ({e.priceLabel})
               </T>
               <T size={font.xs} weight="600" color={colors.muted}>
-                {fmtDate(e.paidAt)} · {e.rate} % de {e.amount} F {e.commission > 0 ? `= ${e.commission} F` : '(en dessous de 100 paiements)'}
+                {fmtDate(e.paidAt)} · {e.rate} % de {e.amount} F {e.commission > 0 ? `= ${e.commission} F` : ''}
               </T>
             </View>
           </View>
@@ -224,7 +254,7 @@ export default function Referral({ onBack }) {
 
       <Card style={{ marginTop: space.lg, backgroundColor: colors.primarySoft }}>
         <T size={font.xs} weight="600" color={colors.muted} style={{ textAlign: 'center' }}>
-          Vos gains sont suivis ici. La commission passe à 5 % à 100 paiements, 10 % à 1000 et 20 % à 10 000. Le propriétaire vous les verse manuellement (via Wave). Aucun argent n'est stocké ni envoyé automatiquement.
+          Vos gains sont suivis ici et vous sont versés par le propriétaire (via Wave). Aucun argent n'est stocké ni envoyé automatiquement par l'app. Cette aide mutuelle finance les partenariats et la publicité pour faire connaître l'appli.
         </T>
       </Card>
     </Page>
@@ -242,6 +272,9 @@ const s = StyleSheet.create({
   editRow: { flexDirection: 'row', alignItems: 'center', backgroundColor: colors.bg, borderRadius: radius.md, paddingHorizontal: 14, height: 52 },
   editInput: { flex: 1, fontSize: font.body, color: colors.text, height: '100%', paddingVertical: 0, outlineStyle: 'none' },
   stat: { flex: 1, alignItems: 'center' },
+  tierRow: { flexDirection: 'row', alignItems: 'center', paddingVertical: 12, borderTopWidth: 1, borderTopColor: colors.border },
+  tierRowActive: { borderTopColor: colors.border },
+  tierRowCurrent: { backgroundColor: 'rgba(255,255,255,0.6)', borderRadius: radius.md, paddingHorizontal: 10, marginVertical: 2 },
   progressTrack: { height: 10, borderRadius: 5, backgroundColor: colors.gray, marginTop: 12, overflow: 'hidden' },
   progressFill: { height: '100%', backgroundColor: colors.primary, borderRadius: 5 },
   gainRow: { flexDirection: 'row', alignItems: 'center', paddingVertical: 12, borderBottomWidth: 1, borderBottomColor: colors.border },

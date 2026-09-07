@@ -204,20 +204,20 @@ export function applyReferral(user, code) {
 export function referredUsersCount(userId) {
   return find('users', (u) => u.referredBy === userId).length;
 }
-// Nombre de PAIEMENTS d'abonnement générés par les invités (base du palier).
+// Nombre de PAIEMENTS d'abonnement générés par les invités (pour l'historique).
 export function referralPaymentCount(userId) {
   return find('referrals', (r) => r.referrerId === userId).length;
 }
 
 // Crédite la commission du parrain à CHAQUE paiement d'abonnement de l'invité.
-// Le palier dépend du nombre total de paiements générés (le paiement courant
-// compte, donc le 100e bascule à 5 %, le 1000e à 10 %, le 10000e à 20 %).
+// Le taux dépend du NOMBRE D'INSCRITS (parrainés) au moment du paiement :
+// il faut 100 inscrits pour passer à 5 %, 1000 à 10 %, 10000 à 20 %.
+// En dessous de 100 inscrits, le taux réel est 0 % (mais on ne l'affiche pas).
 export function recordReferralCommission(payer, payment) {
   if (!payer?.referredBy) return null;
   const referrer = findOne('users', (u) => u.id === payer.referredBy);
   if (!referrer) return null;
-  const countAtPayment = referralPaymentCount(referrer.id) + 1;
-  const rate = referralRateFor(countAtPayment);
+  const rate = referralRateFor(referredUsersCount(referrer.id));
   const commission = Math.round(((payment.amount || 0) * rate) / 100);
   return insert('referrals', {
     referrerId: referrer.id,
@@ -228,7 +228,6 @@ export function recordReferralCommission(payer, payment) {
     plan: payment.plan,
     amount: payment.amount,
     priceLabel: payment.priceLabel,
-    countAtPayment,
     rate,
     commission,
     reference: payment.reference,
@@ -236,8 +235,8 @@ export function recordReferralCommission(payer, payment) {
   });
 }
 
-// Vue « parrain » : mon code, mes invités inscrits, mes paiements (palier),
-// mon taux actuel, mes gains, l'historique + la liste des invités.
+// Vue « parrain » : mon code, mes inscrits (palier), mes gains, l'historique
+// des commissions + la liste des inscrits avec leur statut.
 export function referralInfoFor(user) {
   const referrals = find('users', (u) => u.referredBy === user.id)
     .map((u) => ({
@@ -246,14 +245,16 @@ export function referralInfoFor(user) {
     }))
     .sort((a, b) => (b.createdAt || 0) - (a.createdAt || 0));
   const earnings = find('referrals', (r) => r.referrerId === user.id).sort((a, b) => b.paidAt - a.paidAt);
-  const count = earnings.length; // paiements -> palier
+  const registeredCount = referrals.length; // inscrits -> palier
+  const rate = referralRateFor(registeredCount);
   const totalCommission = earnings.reduce((s, r) => s + (r.commission || 0), 0);
   return {
     code: user.referralCode || '',
-    registeredCount: referrals.length,   // utilisateurs inscrits avec son code
-    count,                               // paiements d'abonnement générés (palier)
-    rate: referralRateFor(count),
-    nextTier: referralNextTier(count),
+    registeredCount,           // utilisateurs inscrits avec son code (palier)
+    count: registeredCount,    // alias (palier basé sur les inscrits)
+    payments: earnings.length, // nombre de paiements d'abonnement générés
+    rate,
+    nextTier: referralNextTier(registeredCount),
     totalCommission,
     earnings,
     referrals,
@@ -286,7 +287,7 @@ export function referralSummary() {
     ...x,
     name: (findOne('users', (u) => u.id === x.referrerId) || {}).name || '',
     phone: (findOne('users', (u) => u.id === x.referrerId) || {}).phone || '',
-    rate: referralRateFor(referralPaymentCount(x.referrerId)),
+    rate: referralRateFor(referredUsersCount(x.referrerId)),
   }));
   return {
     totalCommission: rows.reduce((s, r) => s + (r.commission || 0), 0),
