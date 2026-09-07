@@ -2,7 +2,7 @@ import React, { useState } from 'react';
 import { View, TextInput, ScrollView, StyleSheet } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { colors, radius, space, font } from '../theme';
-import { T, Card, Btn } from '../components/ui';
+import { T, Card, Btn, StatTile, ListRow } from '../components/ui';
 import { Page } from '../components/Shell';
 import { api } from '../api';
 
@@ -22,6 +22,7 @@ export default function Admin({ onBack }) {
   const [loading, setLoading] = useState(false);
   const [err, setErr] = useState('');
   const [data, setData] = useState(null);
+  const [users, setUsers] = useState([]);
 
   const load = async () => {
     if (!key.trim()) { setErr('Saisissez la clé propriétaire.'); return; }
@@ -29,6 +30,10 @@ export default function Admin({ onBack }) {
     try {
       const summary = await api.admin.summary(key.trim());
       setData(summary);
+      try {
+        const u = await api.admin.users(key.trim());
+        setUsers(u.users || []);
+      } catch { setUsers([]); }
       setAuthed(true);
     } catch (e) {
       setErr(e && e.status === 403 ? 'Clé incorrecte.' : (e?.message || 'Erreur de chargement.'));
@@ -66,6 +71,8 @@ export default function Admin({ onBack }) {
   const payments = data?.payments || [];
   const totals = data?.totals || {};
   const referral = data?.referral || { totalCommission: 0, count: 0, referrers: [] };
+  const clientsCount = users.filter((u) => u.role === 'client').length;
+  const gerantsCount = users.filter((u) => u.role === 'gerant').length;
 
   return (
     <Page title="Paiements d'abonnement" onBack={onBack}>
@@ -106,6 +113,43 @@ export default function Admin({ onBack }) {
         )}
         <T size={font.xs} weight="600" color={colors.muted2} style={{ marginTop: 10 }}>
           Réglez ces montants aux parrains directement (via Wave). Aucun argent n'est stocké ni envoyé automatiquement.
+        </T>
+      </Card>
+
+      {/* ---- Activité : entrées / sorties des utilisateurs ---- */}
+      <T size={font.h3} weight="800" color={colors.text} style={{ marginTop: space.lg, marginBottom: space.sm }}>Activité des utilisateurs</T>
+
+      <View style={{ flexDirection: 'row', marginBottom: space.sm }}>
+        <View style={{ flex: 1, marginRight: 8 }}><StatTile icon="people-outline" value={users.length} label="Utilisateurs" tone="purple" /></View>
+        <View style={{ flex: 1, marginRight: 8 }}><StatTile icon="person-outline" value={clientsCount} label="Clients" tone="blue" /></View>
+        <View style={{ flex: 1 }}><StatTile icon="storefront-outline" value={gerantsCount} label="Gérants" tone="orange" /></View>
+      </View>
+
+      <Card style={{ marginTop: space.sm }}>
+        <T size={font.h3} weight="800" color={colors.text} style={{ marginBottom: 6 }}>Dernières inscriptions</T>
+        {users.length === 0 ? (
+          <T size={font.sm} weight="600" color={colors.muted} style={{ marginTop: 4 }}>
+            Aucun utilisateur inscrit pour l'instant. Les nouvelles inscriptions apparaîtront ici dès qu'un compte est créé.
+          </T>
+        ) : (
+          users.map((u) => {
+            const st = u.subscription?.status === 'active' ? { l: 'Actif', c: colors.success, bg: colors.successBg, i: 'checkmark-circle' }
+              : u.subscription?.status === 'expired' ? { l: 'Expiré', c: colors.danger, bg: colors.dangerBg, i: 'alert-circle' }
+              : { l: 'Essai', c: colors.primary, bg: colors.primarySoft, i: 'sparkles' };
+            return (
+              <ListRow
+                key={u.id}
+                icon={u.role === 'gerant' ? 'storefront-outline' : 'person-outline'}
+                iconColor={u.role === 'gerant' ? colors.wave : colors.primary}
+                label={`${u.name} · ${u.role === 'gerant' ? 'Gérant' : 'Client'}`}
+                value={`${st.l} · ${fmtDate(u.createdAt)}`}
+                iconBg={st.bg}
+              />
+            );
+          })
+        )}
+        <T size={font.xs} weight="500" color={colors.muted2} style={{ marginTop: 10 }}>
+          Le statut indique qui peut utiliser le service : « Actif » (abonnement payé), « Essai » (gratuit, non expiré) ou « Expiré » (à renouveler). Une fois un abonnement expiré, l'utilisateur ne peut plus envoyer/traiter de demandes (sortie).
         </T>
       </Card>
 

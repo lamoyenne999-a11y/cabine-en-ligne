@@ -36,19 +36,24 @@ router.get('/summary', requireAdmin, (req, res) => {
 });
 
 // Liste des comptes + statut d'abonnement + infos de parrainage.
+// Triée par date d'inscription (les plus récents d'abord) pour suivre
+// les entrées d'utilisateurs dans l'Espace propriétaire.
 router.get('/users', requireAdmin, (req, res) => {
-  const users = find('users', () => true).map((u) => ({
-    id: u.id,
-    name: u.name,
-    phone: u.phone,
-    role: u.role,
-    referralCode: u.referralCode || '',
-    referredBy: u.referredBy || '',
-    referredCount: referredUsersCount(u.id),
-    paymentsGenerated: referralPaymentCount(u.id),
-    rate: referralRateFor(referredUsersCount(u.id)),
-    subscription: subscriptionFor(u),
-  }));
+  const users = find('users', () => true)
+    .sort((a, b) => (b.createdAt || 0) - (a.createdAt || 0))
+    .map((u) => ({
+      id: u.id,
+      name: u.name,
+      phone: u.phone,
+      role: u.role,
+      createdAt: u.createdAt || 0,
+      referralCode: u.referralCode || '',
+      referredBy: u.referredBy || '',
+      referredCount: referredUsersCount(u.id),
+      paymentsGenerated: referralPaymentCount(u.id),
+      rate: referralRateFor(referredUsersCount(u.id)),
+      subscription: subscriptionFor(u),
+    }));
   res.json({ users });
 });
 
