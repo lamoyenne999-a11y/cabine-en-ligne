@@ -18,14 +18,14 @@ export const PLATFORM_PAY_LINK = 'https://pay.wave.com/m/M_ci_jUXE1N_gWG8_/c/ci/
 //  la confirmation de demande, l'historique et les profils.
 // ============================================================
 // Un lien marchand Wave valide commence par https:// et contient un "m/" (URL d'une
-// page de paiement Wave). On ne montre le bouton "Payer avec Wave" que si c'est le cas,
-// sinon on ne propose que le numéro à copier (fiable à 100 %).
+// page de paiement Wave). S'il est absent/invalide, on fait un repli fiable (copie du numéro).
 function isValidPayLink(link) {
   return !!link && /^https:\/\/[^\s]+\/m\//i.test(String(link).trim());
 }
 
 export function WavePayBox({ amount, merchant, merchantName, payLink }) {
   const [copied, setCopied] = useState(false);
+  const [justOpened, setJustOpened] = useState(false);
   const copy = () => {
     if (merchant && typeof navigator !== 'undefined' && navigator.clipboard) {
       navigator.clipboard.writeText(merchant).catch(() => {});
@@ -33,63 +33,44 @@ export function WavePayBox({ amount, merchant, merchantName, payLink }) {
     setCopied(true);
     setTimeout(() => setCopied(false), 1800);
   };
-  // Ouvre le lien de paiement sans casser l'app.
-  // Sur le web (PWA), on ouvre dans un NOUVEL ONGLET (sinon Linking.openURL navigue la
-  // page courante → l'utilisateur est renvoyé à l'accueil et la demande est "perdue").
-  const openLink = () => {
-    if (!isValidPayLink(payLink)) return;
-    const url = String(payLink).trim();
-    // Web : nouvel onglet (window.open). Natif : Linking.openURL.
-    if (typeof window !== 'undefined' && window.open) {
-      window.open(url, '_blank', 'noopener');
-    } else if (typeof Linking !== 'undefined') {
-      Linking.openURL(url).catch(() => {});
+  // Toujours proposer le paiement. Si un lien marchand valide existe, on l'ouvre dans
+  // un NOUVEL onglet web (l'app reste intacte). Sinon, on copie le numéro et on guide.
+  const pay = () => {
+    const link = String(payLink || '').trim();
+    if (isValidPayLink(link)) {
+      if (typeof window !== 'undefined' && window.open) {
+        window.open(link, '_blank', 'noopener');
+      } else if (typeof Linking !== 'undefined') {
+        Linking.openURL(link).catch(() => {});
+      }
+      setJustOpened(true);
+      setTimeout(() => setJustOpened(false), 2500);
+    } else {
+      // Pas de lien marchand → on copie le numéro (100 % fiable) et on guide vers l'app.
+      copy();
     }
   };
   if (!merchant) return null;
   const hasLink = isValidPayLink(payLink);
   const amt = (amount || 0).toLocaleString('fr-FR').replace(/\u202f/g, ' ');
 
-  // Avec un lien Wave marchand : on pousse le CTA de paiement en 1 clic,
-  // comme pour l'abonnement — le client est redirigé vers l'app Wave.
-  if (hasLink) {
-    return (
-      <View style={s.infoBox}>
-        <Pressable onPress={openLink} style={s.payLinkBtn}>
-          <Ionicons name="water" size={20} color="#fff" style={{ marginRight: 8 }} />
-          <T size={font.body} weight="800" color="#fff">
-            {amount ? `Payer ${amt} FCFA avec Wave` : 'Payer avec Wave'}
-          </T>
-        </Pressable>
-        <T size={font.xs} weight="600" color={colors.muted} style={{ textAlign: 'center', marginTop: 6 }}>
-          Ouvre le lien Wave du gérant pour le régler en un clic. Aucun argent ne passe par l'app.
-        </T>
-
-        {/* Backup : numéro à copier si le lien ne s'ouvre pas */}
-        <View style={[s.merchant, { marginTop: 12 }]}>
-          <Ionicons name="storefront" size={18} color={colors.primary} style={{ marginRight: 8 }} />
-          <Pressable onPress={copy} style={{ flex: 1 }}>
-            <T size={font.body} weight="800" color={colors.text}>{merchant}</T>
-            <T size={font.xs} weight="600" color={colors.muted}>{merchantName}</T>
-          </Pressable>
-          <Pressable onPress={copy} hitSlop={8} style={s.copyBtn}>
-            <Ionicons name={copied ? 'checkmark' : 'copy-outline'} size={16} color={colors.primary} />
-          </Pressable>
-        </View>
-        <T size={font.xs} weight="600" color={colors.muted} style={{ textAlign: 'center', marginTop: 6 }}>
-          {copied ? 'Numéro copié ✓' : 'Si le lien ne fonctionne pas, copiez ce numéro et payez dans votre app Wave.'}
-        </T>
-      </View>
-    );
-  }
-
-  // Sans lien : on affiche le numéro à copier + une aide claire.
   return (
     <View style={s.infoBox}>
-      <T size={font.sm} weight="700" color={colors.textSoft} style={{ marginBottom: 4 }}>
-        {amount ? `Envoyez ${amt} FCFA au Wave marchand :` : 'Envoyez l\'argent au Wave marchand :'}
+      {/* Bouton bleu "payer" : toujours présent. Ouvre Wave (lien) ou copie le numéro. */}
+      <Pressable onPress={pay} style={s.payLinkBtn}>
+        <Ionicons name="water" size={20} color="#fff" style={{ marginRight: 8 }} />
+        <T size={font.body} weight="800" color="#fff">
+          {amount ? `Payer ${amt} FCFA avec Wave` : 'Payer avec Wave'}
+        </T>
+      </Pressable>
+      <T size={font.xs} weight="600" color={colors.muted} style={{ textAlign: 'center', marginTop: 6 }}>
+        {hasLink
+          ? 'Ouvre le lien Wave du gérant pour le régler en un clic. Aucun argent ne passe par l\'app.'
+          : 'Numéro copié — ouvrez votre app Wave et envoyez le montant à ce numéro.'}
       </T>
-      <View style={s.merchant}>
+
+      {/* Numéro du gérant (toujours visible, copiable) — secours si le lien ne s'ouvre pas */}
+      <View style={[s.merchant, { marginTop: 12 }]}>
         <Ionicons name="storefront" size={18} color={colors.primary} style={{ marginRight: 8 }} />
         <Pressable onPress={copy} style={{ flex: 1 }}>
           <T size={font.body} weight="800" color={colors.text}>{merchant}</T>
@@ -99,11 +80,8 @@ export function WavePayBox({ amount, merchant, merchantName, payLink }) {
           <Ionicons name={copied ? 'checkmark' : 'copy-outline'} size={16} color={colors.primary} />
         </Pressable>
       </View>
-      <T size={font.sm} weight="600" color={copied ? colors.success : colors.muted} style={{ marginTop: 10 }}>
-        {copied ? 'Numéro copié — collez-le dans votre app Wave.' : (<>Appuyez sur le numéro pour le copier, puis ouvrez l'app <T size={font.sm} weight="800" color={colors.wave}>Wave</T> et collez-le.</>)}
-      </T>
-      <T size={font.xs} weight="600" color={colors.muted2} style={{ marginTop: 6 }}>
-        Aucun argent n'est stocké sur l'app.
+      <T size={font.xs} weight="600" color={colors.muted} style={{ textAlign: 'center', marginTop: 6 }}>
+        {copied ? 'Numéro copié ✓' : 'Appuyez sur le numéro pour le copier et payez dans votre app Wave.'}
       </T>
     </View>
   );
