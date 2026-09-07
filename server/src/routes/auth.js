@@ -67,7 +67,7 @@ router.get('/me', requireAuth, (req, res) => {
 });
 
 function publicUser(u) {
-  return { id: u.id, role: u.role, name: u.name, phone: u.phone, email: u.email, waveNumber: u.waveNumber, referralCode: u.referralCode || '' };
+  return { id: u.id, role: u.role, name: u.name, phone: u.phone, email: u.email, waveNumber: u.waveNumber, payLink: u.payLink || '', referralCode: u.referralCode || '' };
 }
 
 export default router;
