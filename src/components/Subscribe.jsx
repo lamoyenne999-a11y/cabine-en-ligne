@@ -6,21 +6,30 @@ import { T, Btn } from './ui';
 import { BottomSheet, Dialog } from './modals';
 import { WavePaySheet } from './WavePay';
 import { PLATFORM_WAVE, PLATFORM_NAME, PLATFORM_PAY_LINK } from './WavePay';
+import { useStore } from '../store';
 
 // ============================================================
 //  Feuille d'abonnement (client & gérant).
-//  Deux plans : mensuel 100 FCFA / annuel 1000 FCFA.
-//  Le paiement se fait via le lien Wave de la plateforme, puis
-//  on affiche une confirmation (« Abonnement mensuel payé —
-//  100 FCFA » / « Abonnement annuel payé — 1000 FCFA »).
+//  Les prix dépendent du rôle : Client 100/1000 FCFA,
+//  Gérant 200/2000 FCFA (ce sont eux qui bénéficient le plus).
 // ============================================================
 
-const PLANS = [
-  { key: 'monthly', label: 'Mensuel', price: 100, priceLabel: '100 FCFA / mois', note: 'Renouvelé chaque mois' },
-  { key: 'annual', label: 'Annuel', price: 1000, priceLabel: '1000 FCFA / an', note: 'Économisez 200 FCFA (~2 mois offerts)' },
-];
+function plansForRole(role) {
+  if (role === 'gerant') {
+    return [
+      { key: 'monthly', label: 'Mensuel', price: 200, priceLabel: '200 FCFA / mois', note: 'Renouvelé chaque mois' },
+      { key: 'annual', label: 'Annuel', price: 2000, priceLabel: '2000 FCFA / an', note: 'Économisez 400 FCFA (~2 mois offerts)' },
+    ];
+  }
+  return [
+    { key: 'monthly', label: 'Mensuel', price: 100, priceLabel: '100 FCFA / mois', note: 'Renouvelé chaque mois' },
+    { key: 'annual', label: 'Annuel', price: 1000, priceLabel: '1000 FCFA / an', note: 'Économisez 200 FCFA (~2 mois offerts)' },
+  ];
+}
 
 export default function SubscribeSheet({ visible, onClose, onSubscribe, subtitle }) {
+  const { state } = useStore();
+  const PLANS = plansForRole(state.role);
   const [plan, setPlan] = useState('monthly');
   const [paying, setPaying] = useState(false);
   const [paid, setPaid] = useState(null); // { plan, price, label, validUntil, reference }

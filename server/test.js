@@ -240,6 +240,15 @@ async function main() {
   const sA = await req('POST', '/client/subscribe', { plan: 'annual' }, reg2.json.token);
   check('Abonnement annuel 1000 FCFA', sA.json.subscription?.status === 'active' && sA.json.subscription?.price === 1000 && sA.json.subscription?.periodLabel === 'annuel');
 
+  // Abonnement gérant : tarif supérieur (200 FCFA/mois, 2000 FCFA/an)
+  const gph = '01' + uniq;
+  await req('POST', '/auth/register', { role: 'gerant', name: 'Gérant Pay', phone: gph, password: '1234' });
+  const gt2 = (await req('POST', '/auth/login', { phone: gph, password: '1234', role: 'gerant' })).json.token;
+  const gm = await req('POST', '/gerant/subscribe', { plan: 'monthly' }, gt2);
+  check('Abonnement gérant mensuel 200 FCFA', gm.json.subscription?.status === 'active' && gm.json.subscription?.price === 200 && gm.json.subscription?.periodLabel === 'mensuel');
+  const ga = await req('POST', '/gerant/subscribe', { plan: 'annual' }, gt2);
+  check('Abonnement gérant annuel 2000 FCFA', ga.json.subscription?.status === 'active' && ga.json.subscription?.price === 2000 && ga.json.subscription?.periodLabel === 'annuel');
+
   // Retrait du gérant (ajout/retrait libres)
   const rm = await req('DELETE', `/client/gerants/${gerantId}`, null, ct);
   check('Retrait du gérant OK', rm.status === 200 && rm.json?.ok === true);

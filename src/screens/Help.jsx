@@ -5,6 +5,7 @@ import { colors, radius, space, font } from '../theme';
 import { T, Card, Btn } from '../components/ui';
 import { Page } from '../components/Shell';
 import { PLATFORM_WAVE, PLATFORM_NAME, PLATFORM_PAY_LINK } from '../components/WavePay';
+import { useStore } from '../store';
 
 const STEPS = [
   { icon: 'create-outline', title: '1. Faites une demande', text: "Choisissez Unités, Minutes ou Internet, le montant et le gérant de votre choix." },
@@ -13,6 +14,10 @@ const STEPS = [
 ];
 
 export default function Help({ onBack }) {
+  const { state } = useStore();
+  const subOffer = state.role === 'gerant'
+    ? '200 FCFA / mois (ou 2000 FCFA / an) après 1 mois d\'essai gratuit'
+    : '100 FCFA / mois (ou 1000 FCFA / an) après 1 mois d\'essai gratuit';
   const openPay = () => { if (PLATFORM_PAY_LINK) Linking.openURL(PLATFORM_PAY_LINK).catch(() => {}); };
   const call = () => { if (PLATFORM_WAVE) Linking.openURL(`tel:${PLATFORM_WAVE}`).catch(() => {}); };
 
@@ -36,7 +41,7 @@ export default function Help({ onBack }) {
       <Card style={{ marginTop: space.lg }}>
         <T size={font.h3} weight="800" color={colors.text} style={{ marginBottom: 4 }}>Abonnement</T>
         <T size={font.sm} weight="600" color={colors.muted}>
-          100 FCFA / mois après 1 mois d'essai gratuit. Payez via votre app Wave au numéro ci-dessous, ou en ligne via le lien du compte marchand.
+          {subOffer}. Payez via votre app Wave au numéro ci-dessous, ou en ligne via le lien du compte marchand.
         </T>
         <View style={s.payRow}>
           <View style={s.payIcon}><Ionicons name="water" size={20} color={colors.wave} /></View>

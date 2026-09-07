@@ -11,28 +11,43 @@ import { config } from '../config.js';
 
 const MONTH_MS = 30 * 24 * 3600 * 1000;
 const YEAR_MS = 365 * 24 * 3600 * 1000;
-// Plans d'abonnement : mensuel 100 FCFA / annuel 1000 FCFA
-export const SUB_PLANS = {
+
+// Plans d'abonnement DIFFÉRENCIÉS PAR RÔLE.
+//  - Client  : mensuel 100 FCFA / annuel 1000 FCFA
+//  - Gérant  : mensuel 200 FCFA / annuel 2000 FCFA  (ce sont eux qui
+//    bénéficient le plus : demandes illimitées + traitement + badge).
+const SUB_PLANS_CLIENT = {
   monthly: { price: 100, ms: MONTH_MS, label: 'mensuel', priceLabel: '100 FCFA / mois' },
   annual: { price: 1000, ms: YEAR_MS, label: 'annuel', priceLabel: '1000 FCFA / an' },
 };
+const SUB_PLANS_GERANT = {
+  monthly: { price: 200, ms: MONTH_MS, label: 'mensuel', priceLabel: '200 FCFA / mois' },
+  annual: { price: 2000, ms: YEAR_MS, label: 'annuel', priceLabel: '2000 FCFA / an' },
+};
+// Rétro-compat : SUB_PLANS pointe vers les plans client (défaut).
+export const SUB_PLANS = SUB_PLANS_CLIENT;
 const SUB_DEFAULT_PLAN = 'monthly';
-const SUB_PRICE = SUB_PLANS[SUB_DEFAULT_PLAN].price; // 100 FCFA (compat)
+
+// Retourne le bon référentiel de plans selon le rôle de l'utilisateur.
+export function plansFor(role) {
+  return (role === 'gerant' ? SUB_PLANS_GERANT : SUB_PLANS_CLIENT);
+}
 
 // Libellé des types de service
 export const TYPE_LABEL = { unites: 'Unités', minutes: 'Minutes', internet: 'Internet' };
 
-// ---- Abonnement (mensuel 100 FCFA / annuel 1000 FCFA) ----
+// ---- Abonnement (prix selon le rôle) ----
 export function subscriptionFor(user) {
+  const plans = plansFor(user.role);
   const s = user.subscription || { status: 'trial', trialEndsAt: 0, subscribedUntil: 0 };
-  const plan = SUB_PLANS[s.plan] ? s.plan : SUB_DEFAULT_PLAN;
-  const price = s.price || SUB_PLANS[plan].price;
-  const periodLabel = SUB_PLANS[plan].label;
+  const plan = s.plan && plans[s.plan] ? s.plan : SUB_DEFAULT_PLAN;
+  const price = s.price || plans[plan].price;
+  const periodLabel = plans[plan].label;
   const now = Date.now();
   // Dernier paiement d'abonnement enregistré (reçu affiché à l'utilisateur).
   const lastPayment = find('subscriptions', (p) => p.userId === user.id).sort((a, b) => b.paidAt - a.paidAt)[0] || null;
   const base = {
-    plan, price, periodLabel, priceLabel: SUB_PLANS[plan].priceLabel,
+    plan, price, periodLabel, priceLabel: plans[plan].priceLabel,
     trialEndsAt: s.trialEndsAt, subscribedUntil: s.subscribedUntil,
     lastPayment: lastPayment ? { reference: lastPayment.reference, amount: lastPayment.amount, priceLabel: lastPayment.priceLabel, paidAt: lastPayment.paidAt, validUntil: lastPayment.validUntil, plan: lastPayment.plan } : null,
   };
@@ -46,12 +61,13 @@ export function subscriptionFor(user) {
 }
 
 export function activateSubscription(user, plan = SUB_DEFAULT_PLAN) {
+  const plans = plansFor(user.role);
   const now = Date.now();
-  const conf = SUB_PLANS[plan] || SUB_PLANS[SUB_DEFAULT_PLAN];
+  const conf = plans[plan] || plans[SUB_DEFAULT_PLAN];
   const s = user.subscription || {};
   const prev = s.subscribedUntil > now ? s.subscribedUntil : now;
   const subscribedUntil = prev + conf.ms;
-  const fresh = { status: 'active', plan: Object.keys(SUB_PLANS).includes(plan) ? plan : SUB_DEFAULT_PLAN, price: conf.price, trialEndsAt: s.trialEndsAt || now + MONTH_MS, subscribedUntil };
+  const fresh = { status: 'active', plan: conf === plans[plan] ? plan : SUB_DEFAULT_PLAN, price: conf.price, trialEndsAt: s.trialEndsAt || now + MONTH_MS, subscribedUntil };
   update('users', (u) => u.id === user.id, { subscription: fresh });
   return { ...subscriptionFor({ ...user, subscription: fresh }), justActivated: true };
 }
@@ -69,15 +85,16 @@ function makeSubscriptionReference() {
 }
 
 export function paySubscription(user, plan = SUB_DEFAULT_PLAN) {
+  const plans = plansFor(user.role);
   const now = Date.now();
-  const conf = SUB_PLANS[plan] || SUB_PLANS[SUB_DEFAULT_PLAN];
+  const conf = plans[plan] || plans[SUB_DEFAULT_PLAN];
   // Détermine la nouvelle date de fin (cumul si déjà actif).
   const s = user.subscription || {};
   const prev = s.subscribedUntil > now ? s.subscribedUntil : now;
   const validUntil = prev + conf.ms;
 
   // 1) Active l'abonnement côté utilisateur.
-  const fresh = { status: 'active', plan: Object.keys(SUB_PLANS).includes(plan) ? plan : SUB_DEFAULT_PLAN, price: conf.price, trialEndsAt: s.trialEndsAt || now + MONTH_MS, subscribedUntil: validUntil };
+  const fresh = { status: 'active', plan: conf === plans[plan] ? plan : SUB_DEFAULT_PLAN, price: conf.price, trialEndsAt: s.trialEndsAt || now + MONTH_MS, subscribedUntil: validUntil };
   update('users', (u) => u.id === user.id, { subscription: fresh });
 
   // 2) Enregistre le paiement (traçabilité propriétaire).
@@ -89,7 +106,7 @@ export function paySubscription(user, plan = SUB_DEFAULT_PLAN) {
     role: user.role,
     name: user.name,
     phone: user.phone,
-    plan: Object.keys(SUB_PLANS).includes(plan) ? plan : SUB_DEFAULT_PLAN,
+    plan: conf === plans[plan] ? plan : SUB_DEFAULT_PLAN,
     amount: conf.price,
     priceLabel: conf.priceLabel,
     paidAt: now,
@@ -124,7 +141,7 @@ export function subscriptionTotals() {
   };
 }
 
-export const SUB_PRICE_FCFA = SUB_PRICE;
+export const SUB_PRICE_FCFA = SUB_PLANS_CLIENT[SUB_DEFAULT_PLAN].price; // 100 FCFA (compat client)
 
 // ---- Notifications (reçues par les gérants) ----
 export function notificationsFor(userId) {

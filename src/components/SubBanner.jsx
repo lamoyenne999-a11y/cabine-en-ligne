@@ -3,18 +3,24 @@ import { View, Pressable, StyleSheet } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { colors, radius, space, font } from '../theme';
 import { T, Card } from './ui';
+import { useStore } from '../store';
 
 // ============================================================
 //  Bannière d'abonnement (client & gérant).
 //  - Affiche le statut (essai / actif / expiré).
-//  - Quand actif : montre la date de fin de validité et les
-//    jours restants.
+//  - Quand actif : montre la date de fin de validité et les jours restants.
 //  - Rappel avant expiration (≤5 j) ou expiré : bouton S'abonner.
+//  Prix selon le rôle : Client 100/1000, Gérant 200/2000.
 // ============================================================
 
 const fmtDate = (t) => (t ? new Date(t).toLocaleDateString('fr-FR', { day: '2-digit', month: 'short', year: 'numeric' }) : '');
 
+function offer(role) {
+  return role === 'gerant' ? '200 FCFA / mois ou 2000 FCFA / an' : '100 FCFA / mois ou 1000 FCFA / an';
+}
+
 export default function SubBanner({ sub, onSubscribe }) {
+  const { state } = useStore();
   const status = sub?.status || 'trial';
   const daysLeft = sub?.daysLeft ?? 30;
   const isExpired = status === 'expired';
@@ -41,8 +47,8 @@ export default function SubBanner({ sub, onSubscribe }) {
         <T size={font.body} weight="800" color={colors.text} style={{ marginTop: 1 }}>{subText}</T>
         <T size={font.xs} weight="600" color={colors.muted} style={{ marginTop: 2 }}>
           {isActive
-            ? `${sub?.price || 100} FCFA${planLabel === 'annuel' ? ' / an' : ' / mois'} · ${daysLeft} jour${daysLeft > 1 ? 's' : ''} restant${daysLeft > 1 ? 's' : ''}`
-            : '100 FCFA / mois ou 1000 FCFA / an'}
+            ? `${sub?.price || (state.role === 'gerant' ? 200 : 100)} FCFA${planLabel === 'annuel' ? ' / an' : ' / mois'} · ${daysLeft} jour${daysLeft > 1 ? 's' : ''} restant${daysLeft > 1 ? 's' : ''}`
+            : offer(state.role)}
         </T>
       </View>
       {showReminder && (
