@@ -436,7 +436,18 @@ export function publicProfile(id) {
 
 // ---- Gérants (contacts) d'un client ----
 export function gerantsFor(clientId) {
-  return find('gerants', (g) => g.ownerId === clientId);
+  // On enrichit chaque contact avec les coordonnées Wave À JOUR du compte gérant
+  // (numéro + lien marchand), pour que le client voie toujours le lien en direct
+  // même si le contact a été ajouté avant que le gérant ne configure son lien.
+  return find('gerants', (g) => g.ownerId === clientId).map((g) => {
+    if (g.userId) {
+      const u = findOne('users', (x) => x.id === g.userId);
+      if (u) {
+        return { ...g, waveNumber: u.waveNumber || g.waveNumber, payLink: u.payLink || g.payLink || '' };
+      }
+    }
+    return g;
+  });
 }
 
 // Gérants réellement inscrits sur la plateforme, proposés au client pour
