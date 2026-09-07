@@ -1,7 +1,7 @@
 import express from 'express';
 import { config } from '../config.js';
 import { subscriptionPayments, subscriptionTotals, subscriptionFor, referralSummary, referredUsersCount, referralPaymentCount, referralRateFor, deleteAccountAll } from '../services/flowService.js';
-import { find } from '../db.js';
+import { find, findOne, update } from '../db.js';
 
 const router = express.Router();
 
@@ -64,6 +64,17 @@ router.post('/delete-account', requireAdmin, (req, res) => {
   } catch (e) {
     res.status(e.status || 500).json({ error: e.message });
   }
+});
+
+// Efface le code de parrainage d'un compte (il repart sans code ; l'utilisateur
+// pourra créer le sien). Body : { phone }.
+router.post('/clear-referral-code', requireAdmin, (req, res) => {
+  const phone = String(req.body?.phone || '').trim();
+  if (!phone) return res.status(400).json({ error: 'Téléphone requis' });
+  const u = findOne('users', (x) => x.phone === phone);
+  if (!u) return res.status(404).json({ error: 'Compte introuvable' });
+  update('users', (x) => x.id === u.id, { referralCode: '' });
+  res.json({ ok: true, phone, referralCode: '' });
 });
 
 export default router;

@@ -1,7 +1,7 @@
 import { Router } from 'express';
 import { findOne, insert } from '../db.js';
 import { signToken, hashPassword, verifyPassword, requireAuth } from '../middleware/auth.js';
-import { subscriptionFor, makeReferralCode, applyReferral, referralInfoFor } from '../services/flowService.js';
+import { subscriptionFor, applyReferral, referralInfoFor } from '../services/flowService.js';
 
 const router = Router();
 
@@ -18,7 +18,9 @@ router.post('/register', async (req, res, next) => {
       role, name: name.trim(), phone, email: email?.trim() || '',
       passwordHash: await hashPassword(password),
       waveNumber: phone,
-      referralCode: makeReferralCode(),
+      // Pas de code de parrainage attribué automatiquement : l'utilisateur
+      // crée librement le sien (s'il le souhaite) depuis son profil.
+      referralCode: '',
       subscription: { status: 'trial', trialEndsAt: Date.now() + 30 * 24 * 3600 * 1000, subscribedUntil: 0 },
       createdAt: Date.now(),
     });

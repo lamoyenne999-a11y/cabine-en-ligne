@@ -148,19 +148,20 @@ export function subscriptionTotals() {
 export const SUB_PRICE_FCFA = SUB_PLANS_CLIENT[SUB_DEFAULT_PLAN].price; // 100 FCFA (compat client)
 
 // ------------------------------------------------------------------
-//  PARRAINAGE / COMMISSION (taux progressif 0 / 5 / 10 / 20 %)
-//  - Chaque utilisateur a un code de parrainage unique (CEL+5), qui peut
-//    être personnalisé (libre, 6-12 lettres/chiffres, unique).
+//  PARRAINAGE / COMMISSION (paliers 5 / 10 / 20 % selon les INSCRITS)
+//  - Chaque utilisateur peut créer son propre code de parrainage
+//    (libre, 6-12 lettres/chiffres, UNIQUE). Aucun code n'est attribué
+//    automatiquement : l'utilisateur crée le sien s'il le souhaite.
 //  - À l'inscription, le nouvel utilisateur peut saisir un code ; cela
 //    l'attache durablement à un parrain.
-//  - Quand un invité paie son abonnement (mensuel OU annuel), le parrain
+//  - Quand un inscrit paie son abonnement (mensuel OU annuel), le parrain
 //    est CRÉDITÉ : commission = taux % du montant payé.
-//  - Le palier se base sur le NOMBRE DE PAIEMENTS d'abonnement générés
-//    par les invités (un renouvellement mensuel compte à chaque paiement) :
-//      < 100  paiements -> 0 %   (aucune commission avant 100)
+//  - Le palier se base sur le NOMBRE D'INSCRITS (parrainés) :
+//      < 100  inscrits -> 0 %   (aucune commission avant 100)
 //      >= 100           -> 5 %
 //      >= 1000          -> 10 %
 //      >= 10000         -> 20 %
+//    (l'app n'affiche PAS « 0 % » : elle montre le palier à atteindre.)
 //  - Versement : les gains sont « suivis » dans l'app (parrain + propriétaire),
 //    puis le propriétaire paie le parrain manuellement (Wave). Aucun argent
 //    n'est stocké ni envoyé automatiquement par l'app.
@@ -179,16 +180,6 @@ export function referralNextTier(count) {
   if (c < 1000) return { need: 1000, rate: 10 };
   if (c < 10000) return { need: 10000, rate: 20 };
   return null;
-}
-
-// Alphabet sans caractères ambigus (pas de 0/O, 1/I).
-const REF_ALPHABET = 'ABCDEFGHJKMNPQRSTUVWXYZ23456789';
-export function makeReferralCode() {
-  let code;
-  do {
-    code = 'CEL' + Array.from({ length: 5 }, () => REF_ALPHABET[Math.floor(Math.random() * REF_ALPHABET.length)]).join('');
-  } while (findOne('users', (u) => u.referralCode === code));
-  return code;
 }
 
 // Attache un parrain au nouvel utilisateur (code saisi à l'inscription).

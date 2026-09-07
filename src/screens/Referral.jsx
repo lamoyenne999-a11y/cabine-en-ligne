@@ -64,14 +64,18 @@ export default function Referral({ onBack }) {
     return () => clearTimeout(t);
   }, [editCode]); // eslint-disable-line
 
+  const hasCode = !!r?.code;
   const doCopy = () => {
     const text = r?.code || '';
+    if (!text) { setErr('Créez d\'abord votre code de parrainage ci-dessous.'); return; }
     if (typeof navigator !== 'undefined' && navigator.clipboard) navigator.clipboard.writeText(text).then(() => { setCopied(true); setTimeout(() => setCopied(false), 2000); });
     else { setCopied(true); setTimeout(() => setCopied(false), 2000); }
   };
   const doShare = () => {
-    const url = r?.code ? buildReferralUrl(r.code) : '';
-    if (typeof navigator !== 'undefined' && navigator.share) navigator.share({ title: 'Rejoignez Cabine En Ligne', text: `Inscrivez-vous avec mon code ${r?.code || ''} : ${url}` }).catch(() => {});
+    const code = r?.code || '';
+    if (!code) { setErr('Créez d\'abord votre code de parrainage ci-dessous.'); return; }
+    const url = buildReferralUrl(code);
+    if (typeof navigator !== 'undefined' && navigator.share) navigator.share({ title: 'Rejoignez Cabine En Ligne', text: `Inscrivez-vous avec mon code ${code} : ${url}` }).catch(() => {});
     else doCopy();
   };
 
@@ -112,9 +116,10 @@ export default function Referral({ onBack }) {
         </T>
 
         <View style={s.codeBox}>
-          <Text style={s.codeText}>{r?.code || '—'}</Text>
+          <Text style={[s.codeText, !hasCode && { color: colors.muted2, fontSize: 18, letterSpacing: 1 }]}>{hasCode ? r.code : 'Aucun code'}</Text>
           <Pressable onPress={doCopy} style={s.copyBtn}><Ionicons name={copied ? 'checkmark' : 'copy-outline'} size={18} color="#fff" /></Pressable>
         </View>
+        {!hasCode && <T size={font.xs} weight="600" color={colors.primary} style={{ marginTop: 8 }}>Créez votre code ci-dessous pour commencer à gagner.</T>}
         {copied && <T size={font.xs} weight="600" color={colors.success} style={{ marginTop: 6 }}>Code copié !</T>}
 
         <View style={{ flexDirection: 'row', marginTop: 14 }}>

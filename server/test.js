@@ -252,8 +252,10 @@ async function main() {
   // ===== Parrainage / aide mutuelle (paliers 100 / 1000 / 10000 inscrits) =====
   const refPhoneA = '05' + uniq;
   const refA = await req('POST', '/auth/register', { role: 'client', name: 'Parrain A', phone: refPhoneA, password: '1234' });
-  const refCodeA = refA.json.user?.referralCode;
-  check('Parrain : code de parrainage généré', !!refCodeA && refCodeA.startsWith('CEL'));
+  // Plus de code auto-généré : l'utilisateur crée le sien.
+  check('Parrain : aucun code attribué automatiquement', !refA.json.user?.referralCode);
+  const refCodeA = 'REF' + uniq;
+  await req('POST', '/referral/code', { code: refCodeA }, refA.json.token);
   check('Parrain : 0 inscrit au départ', refA.json.referral?.registeredCount === 0 && refA.json.referral?.rate === 0);
 
   const refPhoneB = '06' + uniq;
