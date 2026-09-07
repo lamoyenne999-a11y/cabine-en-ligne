@@ -34,7 +34,35 @@ export default function Welcome({ onSelect, onAdmin }) {
       </View>
 
       <View style={s.body}>
-        <T size={font.h2} weight="800" color={colors.text} style={{ textAlign: 'center', marginBottom: space.xl }}>
+        {/* Comment ça marche — explication courte, aucune étape en plus */}
+        <T size={font.h2} weight="800" color={colors.text} style={{ textAlign: 'center', marginBottom: space.md }}>
+          Comment ça marche
+        </T>
+        <View style={s.howCard}>
+          <View style={s.step}>
+            <View style={s.stepIcon}><Ionicons name="person-outline" size={20} color={colors.primary} /></View>
+            <View style={{ flex: 1, marginLeft: 12 }}>
+              <T size={font.body} weight="800" color={colors.text}>Choisissez un gérant en ligne</T>
+              <T size={font.sm} weight="600" color={colors.muted} style={{ marginTop: 2 }}>Son nom et son numéro sont visibles avant de choisir.</T>
+            </View>
+          </View>
+          <View style={s.step}>
+            <View style={s.stepIcon}><Ionicons name="water" size={20} color={colors.primary} /></View>
+            <View style={{ flex: 1, marginLeft: 12 }}>
+              <T size={font.body} weight="800" color={colors.text}>Payez-le en direct sur son Wave</T>
+              <T size={font.sm} weight="600" color={colors.muted} style={{ marginTop: 2 }}>Aucun argent ne passe par l'app.</T>
+            </View>
+          </View>
+          <View style={s.step}>
+            <View style={s.stepIcon}><Ionicons name="flash" size={20} color={colors.primary} /></View>
+            <View style={{ flex: 1, marginLeft: 12 }}>
+              <T size={font.body} weight="800" color={colors.text}>Il vous crédite vos unités / internet</T>
+              <T size={font.sm} weight="600" color={colors.muted} style={{ marginTop: 2 }}>Rapide, sans vous déplacer.</T>
+            </View>
+          </View>
+        </View>
+
+        <T size={font.h2} weight="800" color={colors.text} style={{ textAlign: 'center', marginTop: space.xl, marginBottom: space.xl }}>
           Choisissez votre profil
         </T>
 
@@ -120,6 +148,26 @@ const s = StyleSheet.create({
   },
   profilePill: {
     width: 56, height: 56, borderRadius: 28,
+    backgroundColor: colors.primarySoft,
+    alignItems: 'center', justifyContent: 'center',
+  },
+  howCard: {
+    backgroundColor: '#fff',
+    borderRadius: radius.lg,
+    padding: space.lg,
+    shadowColor: colors.primary,
+    shadowOffset: { width: 0, height: 6 },
+    shadowOpacity: 0.08,
+    shadowRadius: 18,
+    elevation: 4,
+  },
+  step: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingVertical: 10,
+  },
+  stepIcon: {
+    width: 44, height: 44, borderRadius: 22,
     backgroundColor: colors.primarySoft,
     alignItems: 'center', justifyContent: 'center',
   },
