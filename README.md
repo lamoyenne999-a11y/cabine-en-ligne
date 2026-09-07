@@ -52,15 +52,13 @@ npm run preview                    # build web + PWA, sert l'app + proxy /api ->
 
 ## 👤 Comptes de démonstration
 
-| Rôle | Numéro | Mot de passe |
-|------|--------|--------------|
-| **Client** | `0101010101` | `demo123` |
-| **Gérant** | `771234567` | `demo123` |
+| Rôle | Numéro | Mot de passe | Statut |
+|------|--------|--------------|--------|
+| **Client** | `0101010101` | `demo123` | ✅ fonctionnel (bouton « Utiliser » sur l'écran de connexion) |
 
-Le numéro est **pré-rempli** selon le profil choisi sur l'écran d'accueil. Saisis `demo123`.
-
-D'autres gérants démo : `789876543` (Kiosque Fatou), `765554433` (Cabine Moussa),
-`0202020202` (Cabine Marie). Tous ont `demo123`.
+> Il n'y a **pas de compte gérant de démonstration** : seuls les gérants **réellement inscrits**
+> (avec un mot de passe) apparaissent dans les listes des clients, pour éviter les faux gérants.
+> Pour tester côté gérant, **créez un compte gérant** via « S'inscrire ».
 
 ---
 
