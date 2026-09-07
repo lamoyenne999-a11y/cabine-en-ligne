@@ -17,6 +17,13 @@ export const PLATFORM_PAY_LINK = 'https://pay.wave.com/m/M_ci_jUXE1N_gWG8_/c/ci/
 //  paiement cliquable si le gérant en a fourni un. Utilisée dans
 //  la confirmation de demande, l'historique et les profils.
 // ============================================================
+// Un lien marchand Wave valide commence par https:// et contient un "m/" (URL d'une
+// page de paiement Wave). On ne montre le bouton "Payer avec Wave" que si c'est le cas,
+// sinon on ne propose que le numéro à copier (fiable à 100 %).
+function isValidPayLink(link) {
+  return !!link && /^https:\/\/[^\s]+\/m\//i.test(String(link).trim());
+}
+
 export function WavePayBox({ amount, merchant, merchantName, payLink }) {
   const [copied, setCopied] = useState(false);
   const copy = () => {
@@ -26,11 +33,21 @@ export function WavePayBox({ amount, merchant, merchantName, payLink }) {
     setCopied(true);
     setTimeout(() => setCopied(false), 1800);
   };
+  // Ouvre le lien de paiement sans casser l'app.
+  // Sur le web (PWA), on ouvre dans un NOUVEL ONGLET (sinon Linking.openURL navigue la
+  // page courante → l'utilisateur est renvoyé à l'accueil et la demande est "perdue").
   const openLink = () => {
-    if (payLink && typeof Linking !== 'undefined') Linking.openURL(payLink).catch(() => {});
+    if (!isValidPayLink(payLink)) return;
+    const url = String(payLink).trim();
+    // Web : nouvel onglet (window.open). Natif : Linking.openURL.
+    if (typeof window !== 'undefined' && window.open) {
+      window.open(url, '_blank', 'noopener');
+    } else if (typeof Linking !== 'undefined') {
+      Linking.openURL(url).catch(() => {});
+    }
   };
   if (!merchant) return null;
-  const hasLink = !!payLink;
+  const hasLink = isValidPayLink(payLink);
   const amt = (amount || 0).toLocaleString('fr-FR').replace(/\u202f/g, ' ');
 
   // Avec un lien Wave marchand : on pousse le CTA de paiement en 1 clic,
