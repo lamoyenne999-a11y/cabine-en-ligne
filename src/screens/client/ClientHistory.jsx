@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from 'react';
-import { View, Text, StyleSheet } from 'react-native';
+import { View, Text, TextInput, Pressable, StyleSheet } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { colors, radius, space, font } from '../../theme';
 import { T, Card, Pill, Btn } from '../../components/ui';
@@ -57,15 +57,31 @@ const when = (t) => (t ? new Date(t).toLocaleDateString('fr-FR', { day: '2-digit
 // Une demande en attente est annulable une fois le délai (expiresAt) passé
 function isExpired(d, now) { return d.status === 'pending' && !!d.expiresAt && now > d.expiresAt; }
 
+// Recherche insensible à la casse et aux accents
+const norm = (s) => (s || '').toString().toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '');
+function matches(d, q) {
+  if (!q) return true;
+  const nq = norm(q);
+  const hay = [
+    TYPE_LABEL[d.type] || 'Demande',
+    STATUS[d.status]?.label || '',
+    d.gerantName, d.benefName, d.benefPhone,
+    when(d.createdAt), money(d.amount), d.id,
+  ].map(norm).join(' ');
+  return hay.includes(nq);
+}
+
 export default function ClientHistory() {
   const { state, markPaid, cancelDemande } = useStore();
   const [paying, setPaying] = useState(null);
   const [canceling, setCanceling] = useState(null);
+  const [q, setQ] = useState('');
   const now = useNow();
   const demandes = state.demandes || [];
   const sum = summarize(demandes);
   const purchases = sum.counts.paid + sum.counts.completed;
   const inProgress = sum.counts.pending + sum.counts.accepted;
+  const visible = q ? demandes.filter((d) => matches(d, q)) : demandes;
 
   return (
     <Page title="Historique">
@@ -85,6 +101,34 @@ export default function ClientHistory() {
         </View>
       </Card>
 
+      {/* Recherche */}
+      {demandes.length > 0 && (
+        <Card style={s.searchCard}>
+          <View style={s.search}>
+            <Ionicons name="search" size={18} color={colors.muted} />
+            <TextInput
+              value={q}
+              onChangeText={setQ}
+              placeholder="Rechercher (type, statut, nom, téléphone, montant…)"
+              placeholderTextColor={colors.muted2}
+              style={s.searchInput}
+              autoCorrect={false}
+              autoCapitalize="none"
+            />
+            {q ? (
+              <Pressable onPress={() => setQ('')} hitSlop={8}>
+                <Ionicons name="close-circle" size={18} color={colors.muted2} />
+              </Pressable>
+            ) : null}
+          </View>
+          {q ? (
+            <T size={font.sm} weight="600" color={colors.muted} style={{ marginTop: 6 }}>
+              {visible.length} résultat{visible.length > 1 ? 's' : ''}
+            </T>
+          ) : null}
+        </Card>
+      )}
+
       {/* Transactions */}
       {demandes.length === 0 ? (
         <Card style={{ alignItems: 'center', paddingVertical: 32 }}>
@@ -94,7 +138,15 @@ export default function ClientHistory() {
             Vos achats et demandes apparaîtront ici.
           </T>
         </Card>
-      ) : demandes.map((d) => {
+      ) : visible.length === 0 ? (
+        <Card style={{ alignItems: 'center', paddingVertical: 32 }}>
+          <Ionicons name="search-outline" size={40} color={colors.muted2} />
+          <T size={font.body} weight="700" color={colors.muted} style={{ marginTop: 10 }}>Aucun résultat</T>
+          <T size={font.sm} weight="600" color={colors.muted2} style={{ marginTop: 4, textAlign: 'center' }}>
+            Aucune transaction ne correspond à « {q} ».
+          </T>
+        </Card>
+      ) : visible.map((d) => {
         const st = STATUS[d.status] || STATUS.pending;
         return (
           <Card key={d.id} style={{ marginBottom: space.sm }}>
@@ -217,6 +269,9 @@ function Tile({ icon, tone, value, label }) {
 
 const s = StyleSheet.create({
   sumCard: { marginBottom: space.lg, padding: space.lg },
+  searchCard: { marginBottom: space.sm, paddingVertical: 8, paddingHorizontal: 14 },
+  search: { flexDirection: 'row', alignItems: 'center', backgroundColor: colors.bg, borderRadius: radius.md, paddingHorizontal: 12, height: 46 },
+  searchInput: { flex: 1, fontSize: font.body, color: colors.text, paddingVertical: 0, outlineStyle: 'none', marginLeft: 8 },
   sumTop: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
   sumIcon: { width: 52, height: 52, borderRadius: 26, backgroundColor: colors.primarySoft, alignItems: 'center', justifyContent: 'center' },
   sumGrid: { flexDirection: 'row', justifyContent: 'space-between', marginTop: space.lg },
