@@ -11,7 +11,6 @@ import { storage } from './storage';
 //  jusqu'à déconnexion volontaire.
 // ============================================================
 
-const now = () => Date.now();
 const SESSION_KEY = 'cel_session';
 
 function loadSession() {
@@ -152,15 +151,9 @@ export function StoreProvider({ children }) {
   useEffect(() => { probe(); }, [probe]);
 
   // ---- Auth ----
+  // Pas de compte de démonstration : la connexion exige le vrai backend.
+  // Hors ligne, on affiche un message clair au lieu de créer un faux compte.
   const login = useCallback(async ({ role, phone, password }) => {
-    if (!online) {
-      const name = role === 'gerant' ? 'Cabine Marie' : 'Jean Dupont';
-      const user = { id: role === 'gerant' ? 'u_marie' : 'u_client', role, name, phone, waveNumber: phone };
-      const subscription = { status: 'trial', daysLeft: 30, price: 100 };
-      dispatch({ type: 'LOGIN', payload: { user, subscription } });
-      persistSession({ user, subscription });
-      return { source: 'mock' };
-    }
     try {
       // On envoie le rôle pour que le serveur verrouille l'accès à la bonne
       // espace : un compte client ne peut pas se connecter en gérant, etc.
@@ -170,19 +163,13 @@ export function StoreProvider({ children }) {
       persistSession({ user, subscription });
       return { source: 'api' };
     } catch (e) {
-      // 403 = mauvais rôle ; 401 = identifiants faux. On fait remonter l'erreur
-      // pour l'afficher, quel que soit le cas (pas de bascule silencieuse en démo).
-      throw e;
+      // 403 = mauvais rôle ; 401 = identifiants faux ; réseau = hors ligne.
+      if (e && e.status) throw e;
+      throw Object.assign(new Error('Impossible de se connecter. Vérifiez votre connexion internet ou réessayez.'), { status: 0 });
     }
-  }, [online]);
+  }, []);
 
   const register = useCallback(async (payload) => {
-    if (!online) {
-      const subscription = { status: 'trial', daysLeft: 30, price: 100 };
-      dispatch({ type: 'SIGNUP', payload: { user: { ...payload }, subscription } });
-      persistSession({ user: { ...payload }, subscription });
-      return { source: 'mock' };
-    }
     try {
       const { token, user, subscription } = await api.register(payload);
       setToken(token);
@@ -190,13 +177,12 @@ export function StoreProvider({ children }) {
       persistSession({ user, subscription });
       return { source: 'api' };
     } catch (e) {
-      if (e && (e.status === 401 || e.status === 409)) throw e;
-      const subscription = { status: 'trial', daysLeft: 30, price: 100 };
-      dispatch({ type: 'SIGNUP', payload: { user: { ...payload }, subscription } });
-      persistSession({ user: { ...payload }, subscription });
-      return { source: 'mock' };
+      // 400/401/409 = message serveur à afficher (numéro déjà pris, etc.).
+      // Jamais de bascule silencieuse vers un faux compte local.
+      if (e && e.status) throw e;
+      throw Object.assign(new Error('Impossible de créer le compte. Vérifiez votre connexion internet ou réessayez.'), { status: 0 });
     }
-  }, [online]);
+  }, []);
 
   const logout = useCallback(() => { clearToken(); clearSession(); dispatch({ type: 'LOGOUT' }); }, []);
 
@@ -252,18 +238,19 @@ export function StoreProvider({ children }) {
   }, [online, state.loggedIn, state.role, refresh]);
 
   // ---- Actions ----
+  // Aucune donnée de secours hors-ligne : on ne fabrique JAMAIS de faux gérant.
   const addGerant = useCallback(async (payload) => {
-    if (online) {
+    try {
       // On ne crée PAS de contact fantôme : si le numéro n'est pas un gérant
       // inscrit, on remonte l'erreur pour l'afficher à l'écran.
       const { gerant } = await api.client.addGerant(payload);
       dispatch({ type: 'ADD_GERANT', payload: gerant });
       return gerant;
+    } catch (e) {
+      if (e && e.status) throw e;
+      throw Object.assign(new Error('Impossible d\'ajouter le gérant. Vérifiez votre connexion internet ou réessayez.'), { status: 0 });
     }
-    // Hors ligne (mode démo) : fallback minimal.
-    dispatch({ type: 'ADD_GERANT', payload: { id: 'g_' + now(), name: payload.name || `Gérant ${(payload.phone || '').slice(-4)}`, phone: payload.phone, waveNumber: payload.phone, payLink: payload.payLink || '', rating: 4.0, online: true } });
-    return { id: 'g_' + now() };
-  }, [online]);
+  }, []);
 
   const removeGerant = useCallback(async (id) => {
     dispatch({ type: 'REMOVE_GERANT', payload: id });
@@ -271,18 +258,15 @@ export function StoreProvider({ children }) {
   }, [online]);
 
   const createDemande = useCallback(async (payload) => {
-    let d;
-    if (online) {
-      try {
-        const { demande } = await api.client.createDemande(payload);
-        dispatch({ type: 'ADD_DEMANDE', payload: demande });
-        return demande;
-      } catch { /* fallback */ }
+    try {
+      const { demande } = await api.client.createDemande(payload);
+      dispatch({ type: 'ADD_DEMANDE', payload: demande });
+      return demande;
+    } catch (e) {
+      if (e && e.status) throw e;
+      throw Object.assign(new Error('Impossible d\'envoyer la demande. Vérifiez votre connexion internet ou réessayez.'), { status: 0 });
     }
-    d = { id: 'd_' + now(), status: 'pending', type: payload.type, amount: payload.amount, gerantName: payload.gerantName, gerantWave: payload.gerantWave, gerantPayLink: payload.gerantPayLink || '', clientName: 'Vous', benefName: payload.benefName, benefPhone: payload.benefPhone, gerantId: payload.gerantId, createdAt: now() };
-    dispatch({ type: 'ADD_DEMANDE', payload: d });
-    return d;
-  }, [online]);
+  }, []);
 
   const markPaid = useCallback(async (id) => {
     dispatch({ type: 'CLIENT_UPDATE_DEMANDE', payload: { id, status: 'paid' } });

@@ -10,14 +10,8 @@ import { useStore } from '../store';
 const openPay = (link) => { if (link && typeof Linking !== 'undefined') Linking.openURL(link).catch(() => {}); };
 
 // Profil public d'un utilisateur, ouvert via son lien de partage /?u=ID.
-const MOCK = {
-  u_amadou: { id: 'u_amadou', name: 'Boutique Amadou', phone: '771234567', role: 'gerant', waveNumber: '771234567' },
-  u_fatou: { id: 'u_fatou', name: 'Kiosque Fatou', phone: '789876543', role: 'gerant', waveNumber: '789876543' },
-  u_moussa: { id: 'u_moussa', name: 'Cabine Moussa', phone: '765554433', role: 'gerant', waveNumber: '765554433' },
-  u_marie: { id: 'u_marie', name: 'Cabine Marie', phone: '0202020202', role: 'gerant', waveNumber: '0202020202' },
-  u_client: { id: 'u_client', name: 'Jean Dupont', phone: '0101010101', role: 'client', waveNumber: '0101010101' },
-};
-
+// Pas de données fictives : on ne dépend que du backend réel. Si le profil
+// n'existe pas ou si le réseau ne répond pas, on affiche « Profil introuvable ».
 export default function PublicProfile({ userId }) {
   const { state, online, addGerant } = useStore();
   const [profile, setProfile] = useState(null);
@@ -28,16 +22,12 @@ export default function PublicProfile({ userId }) {
   useEffect(() => {
     (async () => {
       try {
-        if (online) {
-          const { profile } = await api.public.profile(userId);
-          setProfile(profile);
-        } else {
-          setProfile(MOCK[userId] || null);
-        }
-      } catch { setProfile(MOCK[userId] || null); }
+        const { profile } = await api.public.profile(userId);
+        setProfile(profile);
+      } catch { setProfile(null); }
       finally { setLoading(false); }
     })();
-  }, [userId, online]);
+  }, [userId]);
 
   const isGerant = profile?.role === 'gerant';
   const isMe = state.user && state.user.id === profile?.id;

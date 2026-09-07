@@ -35,6 +35,7 @@ export default function ClientHome() {
   const [lastDemande, setLastDemande] = useState(null);
   const [paying, setPaying] = useState(null);
   const [errors, setErrors] = useState({});
+  const [submitError, setSubmitError] = useState('');
 
   const gerant = sel;
   const amountNum = parseInt(amount, 10) || 0;
@@ -59,6 +60,8 @@ export default function ClientHome() {
   const submit = async () => {
     const e = validate();
     setErrors(e);
+    // On efface une éventuelle erreur d'envoi précédente dès qu'on relance la validation.
+    setSubmitError('');
     if (Object.keys(e).length > 0) return;
     const payload = {
       gerantId: sel.id || undefined,
@@ -72,17 +75,19 @@ export default function ClientHome() {
       benefName: who === 'autre' ? benefPhone : (state.user?.name || 'Moi'),
       benefPhone: who === 'autre' ? benefPhone : (state.user?.phone || ''),
     };
-    // Affiche la confirmation immédiatement (pas de blocage sur le réseau),
-    // puis remplace par la vraie demande dès qu'elle est créée.
-    setSent(true);
-    // Réinitialise tout le formulaire pour qu'une nouvelle demande soit facile.
-    setAmount(''); setWho('moi'); setBenefPhone(''); setType('unites'); setSel(null);
     try {
+      // On n'affiche la confirmation QUE si la demande a réellement été créée.
       const created = await createDemande(payload);
       if (created && created.id) setLastDemande(created);
+      setSent(true);
+      // Réinitialise tout le formulaire pour qu'une nouvelle demande soit facile.
+      setAmount(''); setWho('moi'); setBenefPhone(''); setType('unites'); setSel(null);
       // Rafraîchit le client (demandes + gérants) pour voir la demande créée.
       refresh();
-    } catch { /* garde la confirmation affichée même si l'envoi échoue */ }
+    } catch (err) {
+      // Pas de confirmation trompeuse : on affiche la vraie erreur.
+      setSubmitError(err && err.message ? err.message : 'Impossible d\'envoyer la demande. Réessayez.');
+    }
   };
 
   return (
@@ -178,6 +183,13 @@ export default function ClientHome() {
               </T>
             </View>
           )}
+
+          {submitError ? (
+            <View style={s.errBox}>
+              <Ionicons name="cloud-offline-outline" size={18} color={colors.danger} style={{ marginRight: 8 }} />
+              <T size={font.sm} weight="700" color={colors.danger} style={{ flex: 1 }}>{submitError}</T>
+            </View>
+          ) : null}
 
           <Btn title="Envoyer la demande" icon="paper-plane" onPress={submit} style={{ marginTop: space.lg }} />
           <T size={font.xs} weight="600" color={colors.muted2} style={{ textAlign: 'center', marginTop: 10 }}>
