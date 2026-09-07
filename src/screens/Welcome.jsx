@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useState } from 'react';
 import {
   View, Text, Pressable, ScrollView, StyleSheet, Platform,
 } from 'react-native';
@@ -8,6 +8,7 @@ import { T } from '../components/ui';
 import Logo from '../components/Logo';
 
 export default function Welcome({ onSelect, onAdmin }) {
+  const [showHow, setShowHow] = useState(false);
   return (
     <ScrollView
       style={{ flex: 1, backgroundColor: colors.primary }}
@@ -34,33 +35,38 @@ export default function Welcome({ onSelect, onAdmin }) {
       </View>
 
       <View style={s.body}>
-        {/* Comment ça marche — explication courte, aucune étape en plus */}
-        <T size={font.h2} weight="800" color={colors.text} style={{ textAlign: 'center', marginBottom: space.md }}>
-          Comment ça marche
-        </T>
-        <View style={s.howCard}>
-          <View style={s.step}>
-            <View style={s.stepIcon}><Ionicons name="person-outline" size={20} color={colors.primary} /></View>
-            <View style={{ flex: 1, marginLeft: 12 }}>
-              <T size={font.body} weight="800" color={colors.text}>Choisissez un gérant en ligne</T>
-              <T size={font.sm} weight="600" color={colors.muted} style={{ marginTop: 2 }}>Son nom et son numéro sont visibles avant de choisir.</T>
+        {/* Comment ça marche — accordéon compact (replié par défaut) */}
+        <Pressable onPress={() => setShowHow((v) => !v)} style={({ pressed }) => [s.howToggle, pressed && { opacity: 0.85 }]}>
+          <View style={s.howToggleIcon}><Ionicons name="help-circle-outline" size={20} color={colors.primary} /></View>
+          <T size={font.body} weight="800" color={colors.primary} style={{ marginLeft: 10, flex: 1 }}>Comment ça marche</T>
+          <Ionicons name={showHow ? 'chevron-up' : 'chevron-down'} size={18} color={colors.muted} />
+        </Pressable>
+
+        {showHow && (
+          <View style={s.howCard}>
+            <View style={s.step}>
+              <View style={s.stepIcon}><Ionicons name="person-outline" size={20} color={colors.primary} /></View>
+              <View style={{ flex: 1, marginLeft: 12 }}>
+                <T size={font.body} weight="800" color={colors.text}>Choisissez un gérant en ligne</T>
+                <T size={font.sm} weight="600" color={colors.muted} style={{ marginTop: 2 }}>Son nom et son numéro sont visibles avant de choisir.</T>
+              </View>
+            </View>
+            <View style={s.step}>
+              <View style={s.stepIcon}><Ionicons name="water" size={20} color={colors.primary} /></View>
+              <View style={{ flex: 1, marginLeft: 12 }}>
+                <T size={font.body} weight="800" color={colors.text}>Payez-le en direct sur son Wave</T>
+                <T size={font.sm} weight="600" color={colors.muted} style={{ marginTop: 2 }}>Aucun argent ne passe par l'app.</T>
+              </View>
+            </View>
+            <View style={s.step}>
+              <View style={s.stepIcon}><Ionicons name="flash" size={20} color={colors.primary} /></View>
+              <View style={{ flex: 1, marginLeft: 12 }}>
+                <T size={font.body} weight="800" color={colors.text}>Il vous crédite vos unités / internet</T>
+                <T size={font.sm} weight="600" color={colors.muted} style={{ marginTop: 2 }}>Rapide, sans vous déplacer.</T>
+              </View>
             </View>
           </View>
-          <View style={s.step}>
-            <View style={s.stepIcon}><Ionicons name="water" size={20} color={colors.primary} /></View>
-            <View style={{ flex: 1, marginLeft: 12 }}>
-              <T size={font.body} weight="800" color={colors.text}>Payez-le en direct sur son Wave</T>
-              <T size={font.sm} weight="600" color={colors.muted} style={{ marginTop: 2 }}>Aucun argent ne passe par l'app.</T>
-            </View>
-          </View>
-          <View style={s.step}>
-            <View style={s.stepIcon}><Ionicons name="flash" size={20} color={colors.primary} /></View>
-            <View style={{ flex: 1, marginLeft: 12 }}>
-              <T size={font.body} weight="800" color={colors.text}>Il vous crédite vos unités / internet</T>
-              <T size={font.sm} weight="600" color={colors.muted} style={{ marginTop: 2 }}>Rapide, sans vous déplacer.</T>
-            </View>
-          </View>
-        </View>
+        )}
 
         <T size={font.h2} weight="800" color={colors.text} style={{ textAlign: 'center', marginTop: space.xl, marginBottom: space.xl }}>
           Choisissez votre profil
@@ -151,10 +157,29 @@ const s = StyleSheet.create({
     backgroundColor: colors.primarySoft,
     alignItems: 'center', justifyContent: 'center',
   },
+  howToggle: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#fff',
+    borderRadius: radius.pill,
+    paddingHorizontal: 16,
+    paddingVertical: 12,
+    shadowColor: colors.primary,
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.06,
+    shadowRadius: 12,
+    elevation: 2,
+  },
+  howToggleIcon: {
+    width: 34, height: 34, borderRadius: 17,
+    backgroundColor: colors.primarySoft,
+    alignItems: 'center', justifyContent: 'center',
+  },
   howCard: {
     backgroundColor: '#fff',
     borderRadius: radius.lg,
     padding: space.lg,
+    marginTop: 10,
     shadowColor: colors.primary,
     shadowOffset: { width: 0, height: 6 },
     shadowOpacity: 0.08,
