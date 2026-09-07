@@ -19,7 +19,7 @@ export const PLATFORM_PAY_LINK = 'https://pay.wave.com/m/M_ci_jUXE1N_gWG8_/c/ci/
 // ============================================================
 // Un lien marchand Wave valide commence par https:// et contient un "m/" (URL d'une
 // page de paiement Wave). S'il est absent/invalide, on fait un repli fiable (copie du numéro).
-function isValidPayLink(link) {
+export function isValidPayLink(link) {
   return !!link && /^https:\/\/[^\s]+\/m\//i.test(String(link).trim());
 }
 
