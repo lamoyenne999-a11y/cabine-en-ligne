@@ -31,6 +31,7 @@ export default function Admin({ onBack }) {
   // Liste utilisateurs : recherche + filtre + pagination (compacte).
   const [uSearch, setUSearch] = useState('');
   const [uFilter, setUFilter] = useState('all');
+  const [uSort, setUSort] = useState('recent'); // recent | old | name | status
   const [uExpanded, setUExpanded] = useState(null); // phone de la ligne dépliée
   const [uCount, setUCount] = useState(25); // nombre affiché (pagination)
   const U_PAGE = 25;
@@ -136,6 +137,14 @@ export default function Admin({ onBack }) {
     if (uFilter === 'expired') return st === 'expired';
     if (uFilter === 'suspended') return !!u.frozen;
     return true;
+  }).slice().sort((a, b) => {
+    // Tri : par inscription (récent/ancien), par nom, ou par statut.
+    if (uSort === 'name') return norm(a.name).localeCompare(norm(b.name));
+    const rank = { active: 0, trial: 1, expired: 2 };
+    if (uSort === 'status') return (rank[a.subscription?.status] ?? 3) - (rank[b.subscription?.status] ?? 3);
+    // recent | old : par createdAt
+    if (uSort === 'old') return (a.createdAt || 0) - (b.createdAt || 0);
+    return (b.createdAt || 0) - (a.createdAt || 0);
   });
   const shownUsers = filteredUsers.slice(0, uCount);
   const FILTERS = [
@@ -144,6 +153,12 @@ export default function Admin({ onBack }) {
     { value: 'trial', label: 'Essais' },
     { value: 'expired', label: 'Expirés' },
     { value: 'suspended', label: 'Suspendus' },
+  ];
+  const SORTS = [
+    { value: 'recent', label: 'Récent d\'abord' },
+    { value: 'old', label: 'Ancien d\'abord' },
+    { value: 'name', label: 'Nom (A→Z)' },
+    { value: 'status', label: 'Statut' },
   ];
 
   return (
@@ -208,11 +223,27 @@ export default function Admin({ onBack }) {
       </Card>
 
       {/* Filtres par statut */}
-      <View style={{ flexDirection: 'row', flexWrap: 'wrap', marginBottom: space.sm }}>
+      <View style={{ flexDirection: 'row', flexWrap: 'wrap', marginBottom: 6 }}>
         {FILTERS.map((f) => (
           <Chip key={f.value} label={f.label} active={uFilter === f.value} onPress={() => { setUFilter(f.value); setUCount(U_PAGE); }} />
         ))}
       </View>
+
+      {/* Tri */}
+      <View style={{ flexDirection: 'row', flexWrap: 'wrap', alignItems: 'center', marginBottom: 6 }}>
+        <T size={font.xs} weight="700" color={colors.muted} style={{ marginRight: 8 }}>Tri :</T>
+        {SORTS.map((s) => (
+          <Chip key={s.value} label={s.label} active={uSort === s.value} onPress={() => { setUSort(s.value); setUCount(U_PAGE); }} />
+        ))}
+      </View>
+
+      {/* Tout replier */}
+      {uExpanded && (
+        <Pressable style={{ flexDirection: 'row', alignItems: 'center', marginBottom: 10 }} onPress={() => setUExpanded(null)}>
+          <Ionicons name="chevron-up-circle-outline" size={16} color={colors.primary} />
+          <T size={font.sm} weight="800" color={colors.primary} style={{ marginLeft: 6 }}>Tout replier</T>
+        </Pressable>
+      )}
 
       {filteredUsers.length === 0 ? (
         <Card style={{ alignItems: 'center', paddingVertical: 22 }}>
