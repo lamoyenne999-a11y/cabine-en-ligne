@@ -50,15 +50,12 @@ npm run preview                    # build web + PWA, sert l'app + proxy /api ->
 
 ---
 
-## 👤 Comptes de démonstration
+## 👤 Comptes
 
-| Rôle | Numéro | Mot de passe | Statut |
-|------|--------|--------------|--------|
-| **Client** | `0101010101` | `demo123` | ✅ fonctionnel (bouton « Utiliser » sur l'écran de connexion) |
-
-> Il n'y a **pas de compte gérant de démonstration** : seuls les gérants **réellement inscrits**
-> (avec un mot de passe) apparaissent dans les listes des clients, pour éviter les faux gérants.
-> Pour tester côté gérant, **créez un compte gérant** via « S'inscrire ».
+Il n'y a **aucun compte de démonstration** (ni client, ni gérant). L'app démarre propre et vide :
+- les **clients** et les **gérants** créent leur compte via **« S'inscrire »** (nom, numéro, mot de passe) ;
+- seuls les **gérants réellement inscrits** (avec un mot de passe) apparaissent dans les listes des
+  clients — aucun faux gérant, pour éviter les confusions et les transactions douteuses.
 
 ---
 

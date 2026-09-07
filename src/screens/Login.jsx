@@ -5,22 +5,11 @@ import { colors, radius, space, font, shadow } from '../theme';
 import { T, Btn, Field } from '../components/ui';
 import Logo from '../components/Logo';
 
-// Compte de démonstration CLIENT : il existe réellement côté backend et ce
-// mot de passe fonctionne. Il n'y a AUCUN compte gérant de démonstration
-// (pour ne pas afficher de faux gérants dans les listes des clients).
-const DEMO_CLIENT = { phone: '0101010101', password: 'demo123' };
-
 export default function Login({ role, onBack, onLogin, onSignup, connecting }) {
   const [phone, setPhone] = useState('');
   const [pwd, setPwd] = useState('');
   const [err, setErr] = useState('');
   const isGerant = role === 'gerant';
-
-  const useDemo = () => {
-    setPhone(DEMO_CLIENT.phone);
-    setPwd(DEMO_CLIENT.password);
-    setErr('');
-  };
 
   const submit = async () => {
     if (!phone.trim()) { setErr('Veuillez saisir votre numéro de téléphone.'); return; }
@@ -64,22 +53,9 @@ export default function Login({ role, onBack, onLogin, onSignup, connecting }) {
           secure
         />
 
-        {isGerant ? (
-          <T size={font.xs} weight="600" color={colors.muted2} style={{ marginTop: -8, marginBottom: space.md }}>
-            Pas de compte démo gérant : inscrivez-vous pour créer votre compte gérant.
-          </T>
-        ) : (
-          <View style={s.demo}>
-            <Ionicons name="flask-outline" size={16} color={colors.primary} />
-            <View style={{ flex: 1, marginLeft: 8 }}>
-              <T size={font.xs} weight="700" color={colors.textSoft}>Compte démo client</T>
-              <T size={font.xs} weight="600" color={colors.muted}>0101010101 · mot de passe demo123</T>
-            </View>
-            <Pressable onPress={useDemo} style={s.demoBtn}>
-              <T size={font.xs} weight="800" color="#fff">Utiliser</T>
-            </Pressable>
-          </View>
-        )}
+        <T size={font.xs} weight="600" color={colors.muted2} style={{ marginTop: -8, marginBottom: space.md }}>
+          Nouveau ? Créez un compte {isGerant ? 'gérant' : 'client'} en un instant.
+        </T>
 
         {err ? (
           <View style={s.error}>
@@ -112,6 +88,4 @@ const s = StyleSheet.create({
   card: { backgroundColor: '#fff', borderRadius: radius.lg, padding: space.xl, ...shadow.card },
   signup: { alignItems: 'center', marginTop: 18 },
   error: { flexDirection: 'row', alignItems: 'center', backgroundColor: colors.dangerBg, borderRadius: radius.sm, padding: 10, marginBottom: space.md },
-  demo: { flexDirection: 'row', alignItems: 'center', backgroundColor: colors.primarySoft, borderRadius: radius.sm, padding: 10, marginTop: -8, marginBottom: space.md },
-  demoBtn: { backgroundColor: colors.primary, paddingHorizontal: 12, paddingVertical: 6, borderRadius: radius.pill, marginLeft: 8 },
 });

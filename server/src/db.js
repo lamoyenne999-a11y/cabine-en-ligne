@@ -25,14 +25,11 @@ const DATABASE_URL = process.env.DATABASE_URL || '';
 const COLLECTIONS = ['users', 'gerants', 'demandes', 'notifications'];
 
 const now = Date.now();
-const in30 = () => now + 30 * 24 * 3600 * 1000;
-
 const seed = () => ({
-  users: [
-    // --- Client de démo (pour tester côté client ; compte réel sans gérant inscrit) ---
-    { id: 'u_client', role: 'client', name: 'Jean Dupont', phone: '0101010101', email: 'jean@example.com', passwordHash: '$2b$10$V3Ed.oiA.jq72LkYfH7z2.xU8v3P1k/uXYeFKrazPJBotSmf.kbrO', waveNumber: '0101010101', subscription: { status: 'trial', trialEndsAt: in30(), subscribedUntil: 0 }, createdAt: now },
-    // --- Aucun gérant de démo : seuls les gérants RÉELLEMENT inscrits apparaissent. ---
-  ],
+  // --- Aucun compte de démonstration (ni client, ni gérant). ---
+  // L'app démarre vide : les comptes sont créés par les vrais utilisateurs via
+  // « S'inscrire ». Aucun faux gérant n'apparaît dans les listes des clients.
+  users: [],
 
   // Aucun contact ni demande de démo : l'app démarre propre. Les gérants
   // inscrits et les contacts ajoutés par les clients seront créés en usage réel.
