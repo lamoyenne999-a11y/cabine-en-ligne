@@ -132,6 +132,35 @@ export default function Admin({ onBack }) {
     finally { setBusy(null); }
   };
 
+  // Export CSV de la liste des utilisateurs (respecte recherche + filtres + tri).
+  const exportCsv = () => {
+    const header = ['Nom', 'Téléphone', 'Rôle', 'Statut', 'Abonnement jusqu\'au', 'Suspendu'];
+    const roleLabel = (r) => (r === 'gerant' ? 'Gérant' : 'Client');
+    const statusLabel = (u) => (SUB_STATUS[u.subscription?.status] || SUB_STATUS.trial).label;
+    const rows = filteredUsers.map((u) => [
+      u.name || '',
+      u.phone || '',
+      roleLabel(u.role),
+      statusLabel(u),
+      u.subscription?.subscribedUntil ? fmtDate(u.subscription.subscribedUntil) : '',
+      u.frozen ? 'Oui' : '',
+    ]);
+    const escape = (v) => {
+      const s = String(v ?? '');
+      return /[";\n]/.test(s) ? `"${s.replace(/"/g, '""')}"` : s;
+    };
+    const csv = '\uFEFF' + [header, ...rows].map((r) => r.map(escape).join(';')).join('\n');
+    const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `utilisateurs-${new Date().toISOString().slice(0, 10)}.csv`;
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    URL.revokeObjectURL(url);
+  };
+
   // Filtre la liste utilisateurs (recherche insensible aux accents/casse + statut).
   const norm = (s) => (s || '').toString().toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '');
   const filteredUsers = users.filter((u) => {
@@ -236,10 +265,17 @@ export default function Admin({ onBack }) {
       {/* ===== Utilisateurs ===== */}
       {adminTab === 'utilisateurs' && (
         <>
-          <T size={font.h3} weight="800" color={colors.text} style={{ marginBottom: space.sm }}>Utilisateurs</T>
-          <T size={font.sm} weight="600" color={colors.muted} style={{ marginBottom: space.sm }}>
-            {users.length} compte(s) · {clientsCount} client(s) · {gerantsCount} gérant(s)
-          </T>
+          <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: space.sm }}>
+            <View style={{ flex: 1 }}>
+              <T size={font.h3} weight="800" color={colors.text}>Utilisateurs</T>
+              <T size={font.sm} weight="600" color={colors.muted} style={{ marginTop: 2 }}>
+                {users.length} compte(s) · {clientsCount} client(s) · {gerantsCount} gérant(s)
+              </T>
+            </View>
+            {users.length > 0 && (
+              <Btn title="Exporter" icon="download-outline" outline color={colors.primary} size="sm" onPress={exportCsv} />
+            )}
+          </View>
 
           <Card style={s.searchCard}>
             <View style={s.search}>
