@@ -1,8 +1,8 @@
 import React, { useState } from 'react';
-import { View, TextInput, ScrollView, StyleSheet } from 'react-native';
+import { View, TextInput, Pressable, ScrollView, StyleSheet } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { colors, radius, space, font } from '../theme';
-import { T, Card, Btn, StatTile, ListRow, Pill } from '../components/ui';
+import { T, Card, Btn, StatTile, ListRow, Pill, Chip } from '../components/ui';
 import { Page } from '../components/Shell';
 import { Dialog, DialogButtons } from '../components/modals';
 import { api } from '../api';
@@ -27,6 +27,13 @@ export default function Admin({ onBack }) {
   const [busy, setBusy] = useState(null); // phone de l'utilisateur en cours d'action
   const [suspendTarget, setSuspendTarget] = useState(null); // {user, frozen}
   const [deleteTarget, setDeleteTarget] = useState(null); // user
+
+  // Liste utilisateurs : recherche + filtre + pagination (compacte).
+  const [uSearch, setUSearch] = useState('');
+  const [uFilter, setUFilter] = useState('all');
+  const [uExpanded, setUExpanded] = useState(null); // phone de la ligne dépliée
+  const [uCount, setUCount] = useState(25); // nombre affiché (pagination)
+  const U_PAGE = 25;
 
   const load = async () => {
     if (!key.trim()) { setErr('Saisissez la clé propriétaire.'); return; }
@@ -119,6 +126,26 @@ export default function Admin({ onBack }) {
     finally { setBusy(null); }
   };
 
+  // Filtre la liste utilisateurs (recherche insensible aux accents/casse + statut).
+  const norm = (s) => (s || '').toString().toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '');
+  const filteredUsers = users.filter((u) => {
+    if (uSearch && !norm(`${u.name} ${u.phone}`).includes(norm(uSearch))) return false;
+    const st = u.subscription?.status;
+    if (uFilter === 'active') return st === 'active';
+    if (uFilter === 'trial') return st === 'trial';
+    if (uFilter === 'expired') return st === 'expired';
+    if (uFilter === 'suspended') return !!u.frozen;
+    return true;
+  });
+  const shownUsers = filteredUsers.slice(0, uCount);
+  const FILTERS = [
+    { value: 'all', label: 'Tous' },
+    { value: 'active', label: 'Actifs' },
+    { value: 'trial', label: 'Essais' },
+    { value: 'expired', label: 'Expirés' },
+    { value: 'suspended', label: 'Suspendus' },
+  ];
+
   return (
     <Page title="Espace propriétaire" onBack={onBack}>
       {/* Résumé : total reçu */}
@@ -153,65 +180,114 @@ export default function Admin({ onBack }) {
         Entrées = Inscriptions · Paiements. Sorties = Expirés · Supprimés.
       </T>
 
-      {/* Utilisateurs : noms, contacts, statut d'abonnement + actions */}
+      {/* Utilisateurs : liste compacte (recherche + filtres + pagination) */}
       <T size={font.h3} weight="800" color={colors.text} style={{ marginTop: space.lg, marginBottom: space.sm }}>Utilisateurs</T>
       <T size={font.sm} weight="600" color={colors.muted} style={{ marginBottom: space.sm }}>
         {users.length} compte(s) · {clientsCount} client(s) · {gerantsCount} gérant(s)
       </T>
-      {users.length === 0 ? (
-        <Card style={{ alignItems: 'center', paddingVertical: 26 }}>
-          <Ionicons name="people-outline" size={36} color={colors.muted2} />
-          <T size={font.sm} weight="600" color={colors.muted} style={{ marginTop: 8 }}>Aucun utilisateur pour le moment.</T>
+
+      {/* Recherche */}
+      <Card style={s.searchCard}>
+        <View style={s.search}>
+          <Ionicons name="search" size={18} color={colors.muted} />
+          <TextInput
+            value={uSearch}
+            onChangeText={(t) => { setUSearch(t); setUCount(U_PAGE); }}
+            placeholder="Rechercher un nom ou un numéro"
+            placeholderTextColor={colors.muted2}
+            style={s.searchInput}
+            autoCorrect={false}
+            autoCapitalize="none"
+          />
+          {uSearch ? (
+            <Pressable onPress={() => { setUSearch(''); setUCount(U_PAGE); }} hitSlop={8}>
+              <Ionicons name="close-circle" size={18} color={colors.muted2} />
+            </Pressable>
+          ) : null}
+        </View>
+      </Card>
+
+      {/* Filtres par statut */}
+      <View style={{ flexDirection: 'row', flexWrap: 'wrap', marginBottom: space.sm }}>
+        {FILTERS.map((f) => (
+          <Chip key={f.value} label={f.label} active={uFilter === f.value} onPress={() => { setUFilter(f.value); setUCount(U_PAGE); }} />
+        ))}
+      </View>
+
+      {filteredUsers.length === 0 ? (
+        <Card style={{ alignItems: 'center', paddingVertical: 22 }}>
+          <Ionicons name="people-outline" size={34} color={colors.muted2} />
+          <T size={font.sm} weight="600" color={colors.muted} style={{ marginTop: 8, textAlign: 'center' }}>
+            {users.length === 0 ? 'Aucun utilisateur pour le moment.' : 'Aucun utilisateur ne correspond à cette recherche ou ce filtre.'}
+          </T>
         </Card>
-      ) : users.map((u) => {
-        const st = SUB_STATUS[u.subscription?.status] || SUB_STATUS.trial;
-        return (
-          <Card key={u.id} style={{ marginBottom: space.sm }}>
-            <View style={{ flexDirection: 'row', alignItems: 'flex-start' }}>
-              <View style={s.uIcon}>
-                <Ionicons name={u.role === 'gerant' ? 'storefront-outline' : 'person-outline'} size={20} color={colors.primary} />
-              </View>
-              <View style={{ flex: 1, marginLeft: 10 }}>
-                <View style={{ flexDirection: 'row', alignItems: 'center', flexWrap: 'wrap' }}>
-                  <T size={font.body} weight="800" color={colors.text}>{u.name || '—'}</T>
-                  {u.frozen ? <View style={s.frozenBadge}><T size={font.xs} weight="800" color={colors.warn}>Suspendu</T></View> : null}
-                </View>
-                <T size={font.sm} weight="600" color={colors.muted} style={{ marginTop: 2 }}>{u.phone} · {u.role === 'gerant' ? 'Gérant' : 'Client'}</T>
-                <View style={{ flexDirection: 'row', alignItems: 'center', marginTop: 6 }}>
-                  <Pill icon={st.icon} color={st.color} bg={st.bg}>{st.label}</Pill>
-                  {u.subscription?.subscribedUntil ? (
-                    <T size={font.xs} weight="600" color={colors.muted2} style={{ marginLeft: 8 }}>
-                      {st.label === 'Actif' ? `jusqu'au ${fmtDate(u.subscription.subscribedUntil)}` : `expiré le ${fmtDate(u.subscription.subscribedUntil)}`}
+      ) : (
+        <Card style={{ paddingVertical: 4 }}>
+          {shownUsers.map((u, idx) => {
+            const st = SUB_STATUS[u.subscription?.status] || SUB_STATUS.trial;
+            const open = uExpanded === u.phone;
+            return (
+              <View key={u.id} style={[s.uRow, idx > 0 && s.uDivider]}>
+                <Pressable style={s.uLine} onPress={() => setUExpanded(open ? null : u.phone)}>
+                  <View style={s.uIconSm}>
+                    <Ionicons name={u.role === 'gerant' ? 'storefront-outline' : 'person-outline'} size={16} color={colors.primary} />
+                  </View>
+                  <View style={{ flex: 1, marginLeft: 10 }}>
+                    <View style={{ flexDirection: 'row', alignItems: 'center', flexWrap: 'wrap' }}>
+                      <T size={font.body} weight="800" color={colors.text} numberOfLines={1}>{u.name || '—'}</T>
+                      {u.frozen ? <View style={s.frozenBadge}><T size={font.xs} weight="800" color={colors.warn}>Suspendu</T></View> : null}
+                    </View>
+                    <T size={font.sm} weight="600" color={colors.muted} style={{ marginTop: 1 }}>
+                      {u.phone} · {u.role === 'gerant' ? 'Gérant' : 'Client'}
                     </T>
-                  ) : null}
-                </View>
+                  </View>
+                  <Pill icon={st.icon} color={st.color} bg={st.bg} style={{ marginLeft: 8 }}>{st.label}</Pill>
+                  <Ionicons name={open ? 'chevron-up' : 'chevron-down'} size={16} color={colors.muted2} style={{ marginLeft: 6 }} />
+                </Pressable>
+
+                {open && (
+                  <View style={s.uActions}>
+                    <T size={font.xs} weight="600" color={colors.muted2} style={{ marginBottom: 10 }}>
+                      {u.subscription?.subscribedUntil
+                        ? (u.subscription.status === 'active'
+                            ? `Abonnement actif jusqu'au ${fmtDate(u.subscription.subscribedUntil)}.`
+                            : `Abonnement expiré le ${fmtDate(u.subscription.subscribedUntil)}.`)
+                        : 'Aucun abonnement payé.'}
+                    </T>
+                    <View style={{ flexDirection: 'row' }}>
+                      <Btn
+                        title={u.frozen ? 'Réactiver' : 'Suspendre'}
+                        icon={u.frozen ? 'checkmark-circle-outline' : 'pause-circle-outline'}
+                        outline
+                        color={u.frozen ? colors.success : colors.warn}
+                        size="sm"
+                        onPress={() => setSuspendTarget({ user: u, frozen: !u.frozen })}
+                        loading={busy === u.phone}
+                        style={{ flex: 1, marginRight: 8 }}
+                      />
+                      <Btn
+                        title="Supprimer"
+                        icon="trash-outline"
+                        outline
+                        color={colors.danger}
+                        size="sm"
+                        onPress={() => setDeleteTarget(u)}
+                        loading={busy === u.phone}
+                        style={{ flex: 1 }}
+                      />
+                    </View>
+                  </View>
+                )}
               </View>
-            </View>
-            <View style={{ flexDirection: 'row', marginTop: space.md }}>
-              <Btn
-                title={u.frozen ? 'Réactiver' : 'Suspendre'}
-                icon={u.frozen ? 'checkmark-circle-outline' : 'pause-circle-outline'}
-                outline
-                color={u.frozen ? colors.success : colors.warn}
-                size="sm"
-                onPress={() => setSuspendTarget({ user: u, frozen: !u.frozen })}
-                loading={busy === u.phone}
-                style={{ flex: 1, marginRight: 8 }}
-              />
-              <Btn
-                title="Supprimer"
-                icon="trash-outline"
-                outline
-                color={colors.danger}
-                size="sm"
-                onPress={() => setDeleteTarget(u)}
-                loading={busy === u.phone}
-                style={{ flex: 1 }}
-              />
-            </View>
-          </Card>
-        );
-      })}
+            );
+          })}
+          {uCount < filteredUsers.length && (
+            <Pressable style={{ alignItems: 'center', paddingVertical: 12 }} onPress={() => setUCount((c) => c + U_PAGE)}>
+              <T size={font.sm} weight="800" color={colors.primary}>Charger plus ({filteredUsers.length - uCount} restant{filteredUsers.length - uCount > 1 ? 's' : ''})</T>
+            </Pressable>
+          )}
+        </Card>
+      )}
 
       {/* Journal d'activité */}
       <T size={font.h3} weight="800" color={colors.text} style={{ marginBottom: space.sm }}>Journal d'activité</T>
@@ -398,7 +474,14 @@ const s = StyleSheet.create({
   input: { flexDirection: 'row', alignItems: 'center', backgroundColor: colors.bg, borderRadius: radius.md, paddingHorizontal: 14, height: 52 },
   inputText: { flex: 1, fontSize: font.body, color: colors.text, paddingVertical: 0, outlineStyle: 'none' },
   sumIcon: { width: 52, height: 52, borderRadius: 26, backgroundColor: colors.primarySoft, alignItems: 'center', justifyContent: 'center' },
-  uIcon: { width: 40, height: 40, borderRadius: 20, backgroundColor: colors.primarySoft, alignItems: 'center', justifyContent: 'center' },
+  searchCard: { marginBottom: space.sm, paddingVertical: 8, paddingHorizontal: 14 },
+  search: { flexDirection: 'row', alignItems: 'center', backgroundColor: colors.bg, borderRadius: radius.md, paddingHorizontal: 12, height: 46 },
+  searchInput: { flex: 1, fontSize: font.body, color: colors.text, paddingVertical: 0, outlineStyle: 'none', marginLeft: 8 },
+  uRow: { paddingVertical: 10, paddingHorizontal: 4 },
+  uDivider: { borderTopWidth: 1, borderTopColor: colors.border },
+  uLine: { flexDirection: 'row', alignItems: 'center' },
+  uIconSm: { width: 32, height: 32, borderRadius: 16, backgroundColor: colors.primarySoft, alignItems: 'center', justifyContent: 'center' },
+  uActions: { marginTop: 12, paddingTop: 12, borderTopWidth: 1, borderTopColor: colors.border },
   frozenBadge: { backgroundColor: '#FDF0E0', borderRadius: radius.pill, paddingHorizontal: 8, paddingVertical: 2, marginLeft: 8 },
   planChip: { backgroundColor: '#fff', borderRadius: radius.pill, paddingHorizontal: 12, paddingVertical: 6, marginRight: 8 },
   codeChip: { backgroundColor: colors.primarySoft, borderRadius: radius.pill, paddingHorizontal: 12, paddingVertical: 6, marginRight: 8 },
