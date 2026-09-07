@@ -307,6 +307,16 @@ export function deleteAccountAll(phone) {
   return { removed: true, name: u.name, phone: u.phone, role: u.role };
 }
 
+// Suspend / réactive un compte (bloque les activités sans supprimer les données).
+// Réservé au propriétaire : utile pour stopper un utilisateur qui ne paie pas,
+// mais réversible (on peut le réactiver ensuite).
+export function setUserFrozen(phone, frozen) {
+  const u = findOne('users', (x) => x.phone === String(phone).trim());
+  if (!u) return { ok: false, error: 'Compte introuvable' };
+  update('users', (x) => x.id === u.id, { frozen: !!frozen });
+  return { ok: true, phone: u.phone, name: u.name, role: u.role, frozen: !!frozen };
+}
+
 // ------------------------------------------------------------------
 //  JOURNAL D'ACTIVITÉ (entrées / sorties) pour l'Espace propriétaire.
 //  Chaque événement clé est enregistré : inscription, paiement,
@@ -505,6 +515,10 @@ export function removeGerant({ clientId, gerantId }) {
 
 // ---- Demandes ----
 export function createDemande({ client, gerantId, gerantUserId, type, amount, benefName, benefPhone }) {
+  // Compte suspendu par l'administrateur (non-paiement, fraude…) => on bloque les activités.
+  if (client.frozen) {
+    throw Object.assign(new Error('Votre compte a été suspendu. Contactez l\'administration pour le réactiver.'), { status: 403 });
+  }
   // L'abonnement doit être valide (essai non expiré ou payé) pour créer une demande.
   if (!serviceAllowed(subscriptionFor(client))) {
     throw Object.assign(new Error('Votre abonnement a expiré. Renouvelez-le pour continuer à envoyer des demandes.'), { status: 403 });
@@ -614,6 +628,9 @@ export function decideDemande({ id, gerantUserId, decision }) {
   if (!d) throw Object.assign(new Error('Demande introuvable'), { status: 404 });
   // Le gérant doit avoir un abonnement valide pour traiter (accepter/refuser) les demandes.
   const g = findOne('users', (x) => x.id === gerantUserId);
+  if (g && g.frozen) {
+    throw Object.assign(new Error('Votre compte a été suspendu. Contactez l\'administration pour le réactiver.'), { status: 403 });
+  }
   if (g && !serviceAllowed(subscriptionFor(g))) {
     throw Object.assign(new Error('Votre abonnement a expiré. Renouvelez-le pour continuer à traiter les demandes.'), { status: 403 });
   }

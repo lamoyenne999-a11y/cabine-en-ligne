@@ -87,5 +87,7 @@ export const api = {
   admin: {
     summary: (key) => request('GET', '/api/admin/summary', null, { 'x-admin-key': key }),
     users: (key) => request('GET', '/api/admin/users', null, { 'x-admin-key': key }),
+    setFrozen: (key, phone, frozen) => request('POST', '/api/admin/set-frozen', { phone, frozen }, { 'x-admin-key': key }),
+    deleteAccount: (key, phone) => request('POST', '/api/admin/delete-account', { phone }, { 'x-admin-key': key }),
   },
 };

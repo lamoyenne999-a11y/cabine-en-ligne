@@ -2,8 +2,9 @@ import React, { useState } from 'react';
 import { View, TextInput, ScrollView, StyleSheet } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { colors, radius, space, font } from '../theme';
-import { T, Card, Btn, StatTile, ListRow } from '../components/ui';
+import { T, Card, Btn, StatTile, ListRow, Pill } from '../components/ui';
 import { Page } from '../components/Shell';
+import { Dialog, DialogButtons } from '../components/modals';
 import { api } from '../api';
 
 // ============================================================
@@ -23,6 +24,9 @@ export default function Admin({ onBack }) {
   const [err, setErr] = useState('');
   const [data, setData] = useState(null);
   const [users, setUsers] = useState([]);
+  const [busy, setBusy] = useState(null); // phone de l'utilisateur en cours d'action
+  const [suspendTarget, setSuspendTarget] = useState(null); // {user, frozen}
+  const [deleteTarget, setDeleteTarget] = useState(null); // user
 
   const load = async () => {
     if (!key.trim()) { setErr('Saisissez la clé propriétaire.'); return; }
@@ -88,6 +92,33 @@ export default function Admin({ onBack }) {
     user_deleted: { label: 'Compte supprimé', icon: 'trash-outline', color: colors.warn, bg: '#FDF0E0' },
   };
 
+  const SUB_STATUS = {
+    active: { label: 'Actif', color: colors.success, bg: colors.successBg },
+    trial: { label: 'Essai', color: colors.primary, bg: colors.primarySoft },
+    expired: { label: 'Expiré', color: colors.danger, bg: colors.dangerBg },
+  };
+
+  // Suspend / réactive un compte (bloque les activités sans supprimer les données).
+  const doSetFrozen = async (user, frozen) => {
+    setBusy(user.phone); setSuspendTarget(null);
+    try {
+      const out = await api.admin.setFrozen(key, user.phone, frozen);
+      setUsers((prev) => prev.map((u) => u.phone === user.phone ? { ...u, frozen: !!out.frozen } : u));
+    } catch (e) { setErr(e?.message || 'Erreur.'); }
+    finally { setBusy(null); }
+  };
+
+  // Supprime définitivement un compte + toutes ses données.
+  const doDelete = async (user) => {
+    setBusy(user.phone); setDeleteTarget(null);
+    try {
+      setUsers((prev) => prev.filter((u) => u.phone !== user.phone));
+      const summary = await api.admin.summary(key);
+      setData(summary);
+    } catch (e) { setErr(e?.message || 'Erreur.'); }
+    finally { setBusy(null); }
+  };
+
   return (
     <Page title="Espace propriétaire" onBack={onBack}>
       {/* Résumé : total reçu */}
@@ -121,6 +152,66 @@ export default function Admin({ onBack }) {
       <T size={font.xs} weight="600" color={colors.muted2} style={{ textAlign: 'center', marginBottom: space.lg }}>
         Entrées = Inscriptions · Paiements. Sorties = Expirés · Supprimés.
       </T>
+
+      {/* Utilisateurs : noms, contacts, statut d'abonnement + actions */}
+      <T size={font.h3} weight="800" color={colors.text} style={{ marginTop: space.lg, marginBottom: space.sm }}>Utilisateurs</T>
+      <T size={font.sm} weight="600" color={colors.muted} style={{ marginBottom: space.sm }}>
+        {users.length} compte(s) · {clientsCount} client(s) · {gerantsCount} gérant(s)
+      </T>
+      {users.length === 0 ? (
+        <Card style={{ alignItems: 'center', paddingVertical: 26 }}>
+          <Ionicons name="people-outline" size={36} color={colors.muted2} />
+          <T size={font.sm} weight="600" color={colors.muted} style={{ marginTop: 8 }}>Aucun utilisateur pour le moment.</T>
+        </Card>
+      ) : users.map((u) => {
+        const st = SUB_STATUS[u.subscription?.status] || SUB_STATUS.trial;
+        return (
+          <Card key={u.id} style={{ marginBottom: space.sm }}>
+            <View style={{ flexDirection: 'row', alignItems: 'flex-start' }}>
+              <View style={s.uIcon}>
+                <Ionicons name={u.role === 'gerant' ? 'storefront-outline' : 'person-outline'} size={20} color={colors.primary} />
+              </View>
+              <View style={{ flex: 1, marginLeft: 10 }}>
+                <View style={{ flexDirection: 'row', alignItems: 'center', flexWrap: 'wrap' }}>
+                  <T size={font.body} weight="800" color={colors.text}>{u.name || '—'}</T>
+                  {u.frozen ? <View style={s.frozenBadge}><T size={font.xs} weight="800" color={colors.warn}>Suspendu</T></View> : null}
+                </View>
+                <T size={font.sm} weight="600" color={colors.muted} style={{ marginTop: 2 }}>{u.phone} · {u.role === 'gerant' ? 'Gérant' : 'Client'}</T>
+                <View style={{ flexDirection: 'row', alignItems: 'center', marginTop: 6 }}>
+                  <Pill icon={st.icon} color={st.color} bg={st.bg}>{st.label}</Pill>
+                  {u.subscription?.subscribedUntil ? (
+                    <T size={font.xs} weight="600" color={colors.muted2} style={{ marginLeft: 8 }}>
+                      {st.label === 'Actif' ? `jusqu'au ${fmtDate(u.subscription.subscribedUntil)}` : `expiré le ${fmtDate(u.subscription.subscribedUntil)}`}
+                    </T>
+                  ) : null}
+                </View>
+              </View>
+            </View>
+            <View style={{ flexDirection: 'row', marginTop: space.md }}>
+              <Btn
+                title={u.frozen ? 'Réactiver' : 'Suspendre'}
+                icon={u.frozen ? 'checkmark-circle-outline' : 'pause-circle-outline'}
+                outline
+                color={u.frozen ? colors.success : colors.warn}
+                size="sm"
+                onPress={() => setSuspendTarget({ user: u, frozen: !u.frozen })}
+                loading={busy === u.phone}
+                style={{ flex: 1, marginRight: 8 }}
+              />
+              <Btn
+                title="Supprimer"
+                icon="trash-outline"
+                outline
+                color={colors.danger}
+                size="sm"
+                onPress={() => setDeleteTarget(u)}
+                loading={busy === u.phone}
+                style={{ flex: 1 }}
+              />
+            </View>
+          </Card>
+        );
+      })}
 
       {/* Journal d'activité */}
       <T size={font.h3} weight="800" color={colors.text} style={{ marginBottom: space.sm }}>Journal d'activité</T>
@@ -267,6 +358,38 @@ export default function Admin({ onBack }) {
           Charge de la base : chaque action réécrit toutes les données. Au-delà de ~5 000 utilisateurs, un passage en tables PostgreSQL sera nécessaire pour garder la fluidité.
         </T>
       </Card>
+
+      {/* Confirmation : suspendre / réactiver */}
+      <Dialog visible={!!suspendTarget}>
+        <T size={font.h3} weight="800" color={colors.text} style={{ textAlign: 'center' }}>
+          {suspendTarget?.frozen && !suspendTarget?.user?.frozen ? 'Suspendre ce compte ?' : 'Réactiver ce compte ?'}
+        </T>
+        <T size={font.sm} weight="600" color={colors.muted} style={{ textAlign: 'center', marginTop: 6, marginBottom: 6 }}>
+          {suspendTarget?.frozen && !suspendTarget?.user?.frozen
+            ? `${suspendTarget?.user?.name} (${suspendTarget?.user?.phone}) ne pourra plus envoyer ni traiter de demandes. Vous pourrez le réactiver ensuite.`
+            : `${suspendTarget?.user?.name} (${suspendTarget?.user?.phone}) retrouvera le droit d'envoyer et de traiter des demandes.`}
+        </T>
+        <DialogButtons
+          cancel="Retour"
+          confirm={suspendTarget?.frozen && !suspendTarget?.user?.frozen ? 'Suspendre' : 'Réactiver'}
+          onCancel={() => setSuspendTarget(null)}
+          onConfirm={() => doSetFrozen(suspendTarget.user, suspendTarget.frozen)}
+        />
+      </Dialog>
+
+      {/* Confirmation : suppression définitive */}
+      <Dialog visible={!!deleteTarget}>
+        <T size={font.h3} weight="800" color={colors.danger} style={{ textAlign: 'center' }}>Supprimer définitivement ?</T>
+        <T size={font.sm} weight="600" color={colors.muted} style={{ textAlign: 'center', marginTop: 6, marginBottom: 6 }}>
+          Le compte de {deleteTarget?.name} ({deleteTarget?.phone}) et TOUTES ses données (demandes, notifications, abonnements, parrainages) seront effacées. Cette action est irréversible.
+        </T>
+        <DialogButtons
+          cancel="Annuler"
+          confirm="Supprimer"
+          onCancel={() => setDeleteTarget(null)}
+          onConfirm={() => doDelete(deleteTarget)}
+        />
+      </Dialog>
     </Page>
   );
 }
@@ -275,6 +398,8 @@ const s = StyleSheet.create({
   input: { flexDirection: 'row', alignItems: 'center', backgroundColor: colors.bg, borderRadius: radius.md, paddingHorizontal: 14, height: 52 },
   inputText: { flex: 1, fontSize: font.body, color: colors.text, paddingVertical: 0, outlineStyle: 'none' },
   sumIcon: { width: 52, height: 52, borderRadius: 26, backgroundColor: colors.primarySoft, alignItems: 'center', justifyContent: 'center' },
+  uIcon: { width: 40, height: 40, borderRadius: 20, backgroundColor: colors.primarySoft, alignItems: 'center', justifyContent: 'center' },
+  frozenBadge: { backgroundColor: '#FDF0E0', borderRadius: radius.pill, paddingHorizontal: 8, paddingVertical: 2, marginLeft: 8 },
   planChip: { backgroundColor: '#fff', borderRadius: radius.pill, paddingHorizontal: 12, paddingVertical: 6, marginRight: 8 },
   codeChip: { backgroundColor: colors.primarySoft, borderRadius: radius.pill, paddingHorizontal: 12, paddingVertical: 6, marginRight: 8 },
   row: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginTop: 8 },

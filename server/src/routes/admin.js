@@ -1,6 +1,6 @@
 import express from 'express';
 import { config } from '../config.js';
-import { subscriptionPayments, subscriptionTotals, subscriptionFor, referralSummary, referredUsersCount, referralPaymentCount, referralRateFor, deleteAccountAll, eventsForAdmin, eventsCounters, referralCodeStats, expiredUsers, reconcileExpiredEvents } from '../services/flowService.js';
+import { subscriptionPayments, subscriptionTotals, subscriptionFor, referralSummary, referredUsersCount, referralPaymentCount, referralRateFor, deleteAccountAll, setUserFrozen, eventsForAdmin, eventsCounters, referralCodeStats, expiredUsers, reconcileExpiredEvents } from '../services/flowService.js';
 import { find, findOne, update, dbStats } from '../db.js';
 
 const router = express.Router();
@@ -64,6 +64,7 @@ router.get('/users', requireAdmin, (req, res) => {
       paymentsGenerated: referralPaymentCount(u.id),
       rate: referralRateFor(referredUsersCount(u.id)),
       subscription: subscriptionFor(u),
+      frozen: !!u.frozen,
     }));
   res.json({ users });
 });
@@ -76,6 +77,20 @@ router.post('/delete-account', requireAdmin, (req, res) => {
   try {
     const out = deleteAccountAll(phone);
     if (!out.removed) return res.status(404).json(out);
+    res.json(out);
+  } catch (e) {
+    res.status(e.status || 500).json({ error: e.message });
+  }
+});
+
+// Suspend / réactive un compte (bloque les activités sans supprimer les données).
+// Réservé au propriétaire. Body : { phone, frozen }.
+router.post('/set-frozen', requireAdmin, (req, res) => {
+  const phone = String(req.body?.phone || '').trim();
+  if (!phone) return res.status(400).json({ error: 'Téléphone requis' });
+  try {
+    const out = setUserFrozen(phone, !!req.body?.frozen);
+    if (!out.ok) return res.status(404).json(out);
     res.json(out);
   } catch (e) {
     res.status(e.status || 500).json({ error: e.message });
