@@ -23,9 +23,23 @@ function useShareId() {
   return id;
 }
 
+function useRefCode() {
+  const [code, setCode] = useState(null);
+  useEffect(() => {
+    if (typeof window !== 'undefined' && window.location) {
+      const c = new URLSearchParams(window.location.search).get('ref');
+      if (c) setCode(String(c).toUpperCase());
+    }
+  }, []);
+  return code;
+}
+
 function Root() {
   const { state, dispatch, login, register, logout, checking } = useStore();
-  const [screen, setScreen] = useState('welcome'); // welcome | login | signup | admin
+  const refCode = useRefCode();
+  // Si on arrive via un lien de parrainage (?ref=CODE) et qu'on n'est pas
+  // connecté, on ouvre directement l'inscription avec le code pré-rempli.
+  const [screen, setScreen] = useState(refCode ? 'signup' : 'welcome'); // welcome | login | signup | admin
   const shareId = useShareId();
 
   // Lien de partage : un profil ciblé -> page publique (par-dessus tout)
@@ -46,7 +60,7 @@ function Root() {
     }
     if (screen === 'signup') {
       return (
-        <Signup role={state.role || 'client'} onBack={() => setScreen('login')} onRegister={(u) => register(u)} connecting={checking} />
+        <Signup role={state.role || 'client'} onBack={() => setScreen('login')} onRegister={(u) => register(u)} connecting={checking} refCode={screen === 'signup' ? refCode : undefined} />
       );
     }
     return <Welcome onSelect={(role) => { dispatch({ type: 'SELECT_ROLE', role }); setScreen('login'); }} onAdmin={() => setScreen('admin')} />;

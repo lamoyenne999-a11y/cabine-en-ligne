@@ -113,9 +113,13 @@ export function paySubscription(user, plan = SUB_DEFAULT_PLAN) {
     validUntil,
   });
 
+  // 3) Crédite la commission du parrain (si l'utilisateur a été parrainé).
+  const referralCommission = recordReferralCommission(user, payment);
+
   return {
     subscription: subscriptionFor({ ...user, subscription: fresh }),
     payment,
+    referralCommission,
   };
 }
 
@@ -142,6 +146,129 @@ export function subscriptionTotals() {
 }
 
 export const SUB_PRICE_FCFA = SUB_PLANS_CLIENT[SUB_DEFAULT_PLAN].price; // 100 FCFA (compat client)
+
+// ------------------------------------------------------------------
+//  PARRAINAGE / COMMISSION (taux progressif 5 / 10 / 20 %)
+//  - Chaque utilisateur a un code de parrainage unique (CEL+5 caractères).
+//  - À l'inscription, le nouvel utilisateur peut saisir un code ; cela
+//    l'attache durablement à un parrain.
+//  - Quand un invité paie son abonnement (mensuel OU annuel), le parrain
+//    est CRÉDITÉ d'une commission = taux % du montant payé.
+//  - Taux selon le nombre d'invités parrainés :
+//      0-2 invités -> 5 % ;  3-9 -> 10 % ;  10 et + -> 20 %.
+//  - Versement : les gains sont « suivis » dans l'app (parrain + propriétaire),
+//    puis le propriétaire paie le parrain manuellement (Wave). Aucun argent
+//    n'est stocké ni envoyé automatiquement par l'app.
+// ------------------------------------------------------------------
+const REF_TIERS = [
+  { min: 10, rate: 20 },
+  { min: 3, rate: 10 },
+  { min: 0, rate: 5 },
+];
+export function referralRateFor(count) {
+  for (const t of REF_TIERS) if ((count || 0) >= t.min) return t.rate;
+  return 5;
+}
+// Prochain palier à atteindre (pour l'affichage) ; null = taux max.
+export function referralNextTier(count) {
+  const c = count || 0;
+  if (c < 3) return { need: 3, rate: 10 };
+  if (c < 10) return { need: 10, rate: 20 };
+  return null;
+}
+
+// Alphabet sans caractères ambigus (pas de 0/O, 1/I).
+const REF_ALPHABET = 'ABCDEFGHJKMNPQRSTUVWXYZ23456789';
+export function makeReferralCode() {
+  let code;
+  do {
+    code = 'CEL' + Array.from({ length: 5 }, () => REF_ALPHABET[Math.floor(Math.random() * REF_ALPHABET.length)]).join('');
+  } while (findOne('users', (u) => u.referralCode === code));
+  return code;
+}
+
+// Attache un parrain au nouvel utilisateur (code saisi à l'inscription).
+export function applyReferral(user, code) {
+  const c = String(code || '').trim().toUpperCase();
+  if (!c) return;
+  const referrer = findOne('users', (u) => u.referralCode === c);
+  if (!referrer) throw Object.assign(new Error('Code de parrainage invalide'), { status: 400 });
+  if (referrer.id === user.id) throw Object.assign(new Error('Vous ne pouvez pas vous parrainer vous-même'), { status: 400 });
+  update('users', (u) => u.id === user.id, { referredBy: referrer.id });
+}
+
+export function referredUsersCount(userId) {
+  return find('users', (u) => u.referredBy === userId).length;
+}
+
+// Crédite la commission du parrain à chaque paiement d'abonnement de l'invité.
+export function recordReferralCommission(payer, payment) {
+  if (!payer?.referredBy) return null;
+  const referrer = findOne('users', (u) => u.id === payer.referredBy);
+  if (!referrer) return null;
+  const rate = referralRateFor(referredUsersCount(referrer.id));
+  const commission = Math.round(((payment.amount || 0) * rate) / 100);
+  if (commission <= 0) return null;
+  return insert('referrals', {
+    referrerId: referrer.id,
+    referredUserId: payer.id,
+    referredName: payer.name,
+    referredPhone: payer.phone,
+    referredRole: payer.role,
+    plan: payment.plan,
+    amount: payment.amount,
+    priceLabel: payment.priceLabel,
+    rate,
+    commission,
+    reference: payment.reference,
+    paidAt: payment.paidAt,
+  });
+}
+
+// Vue « parrain » : mon code, mes invités, mon taux actuel, mes gains,
+// l'historique des commissions + la liste des invités avec leur statut.
+export function referralInfoFor(user) {
+  const referrals = find('users', (u) => u.referredBy === user.id)
+    .map((u) => ({
+      id: u.id, name: u.name, phone: u.phone, role: u.role,
+      createdAt: u.createdAt || 0, subscription: subscriptionFor(u).status,
+    }))
+    .sort((a, b) => (b.createdAt || 0) - (a.createdAt || 0));
+  const count = referrals.length;
+  const earnings = find('referrals', (r) => r.referrerId === user.id).sort((a, b) => b.paidAt - a.paidAt);
+  const totalCommission = earnings.reduce((s, r) => s + (r.commission || 0), 0);
+  return {
+    code: user.referralCode || '',
+    count,
+    rate: referralRateFor(count),
+    nextTier: referralNextTier(count),
+    totalCommission,
+    earnings,
+    referrals,
+  };
+}
+
+// Vue propriétaire : total des commissions à verser + détail par parrain.
+export function referralSummary() {
+  const rows = find('referrals', () => true);
+  const byReferrer = {};
+  for (const r of rows) {
+    const u = byReferrer[r.referrerId] || (byReferrer[r.referrerId] = { referrerId: r.referrerId, count: 0, totalCommission: 0 });
+    u.count += 1;
+    u.totalCommission += (r.commission || 0);
+  }
+  const referrers = Object.values(byReferrer).map((x) => ({
+    ...x,
+    name: (findOne('users', (u) => u.id === x.referrerId) || {}).name || '',
+    phone: (findOne('users', (u) => u.id === x.referrerId) || {}).phone || '',
+    rate: referralRateFor(referredUsersCount(x.referrerId)),
+  }));
+  return {
+    totalCommission: rows.reduce((s, r) => s + (r.commission || 0), 0),
+    count: rows.length,
+    referrers,
+  };
+}
 
 // ---- Notifications (reçues par les gérants) ----
 export function notificationsFor(userId) {

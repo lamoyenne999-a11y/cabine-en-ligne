@@ -1,6 +1,6 @@
 import express from 'express';
 import { config } from '../config.js';
-import { subscriptionPayments, subscriptionTotals, subscriptionFor } from '../services/flowService.js';
+import { subscriptionPayments, subscriptionTotals, subscriptionFor, referralSummary, referredUsersCount, referralRateFor } from '../services/flowService.js';
 import { find } from '../db.js';
 
 const router = express.Router();
@@ -32,16 +32,20 @@ router.get('/summary', requireAdmin, (req, res) => {
     paidAt: p.paidAt,
     validUntil: p.validUntil,
   }));
-  res.json({ payments, totals: subscriptionTotals() });
+  res.json({ payments, totals: subscriptionTotals(), referral: referralSummary() });
 });
 
-// Liste des comptes + statut d'abonnement (pour voir qui est actif / expiré).
+// Liste des comptes + statut d'abonnement + infos de parrainage.
 router.get('/users', requireAdmin, (req, res) => {
   const users = find('users', () => true).map((u) => ({
     id: u.id,
     name: u.name,
     phone: u.phone,
     role: u.role,
+    referralCode: u.referralCode || '',
+    referredBy: u.referredBy || '',
+    referredCount: referredUsersCount(u.id),
+    rate: referralRateFor(referredUsersCount(u.id)),
     subscription: subscriptionFor(u),
   }));
   res.json({ users });

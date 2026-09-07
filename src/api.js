@@ -76,6 +76,12 @@ export const api = {
     subscribe: (plan) => request('POST', '/api/gerant/subscribe', { plan }),
   },
 
+  // ---- Parrainage / commission ----
+  referral: {
+    my: () => request('GET', '/api/referral/my'),
+    check: (code) => request('GET', `/api/referral/check/${encodeURIComponent(code)}`),
+  },
+
   // ---- Vue propriétaire (paiements d'abonnement) ----
   admin: {
     summary: (key) => request('GET', '/api/admin/summary', null, { 'x-admin-key': key }),

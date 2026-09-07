@@ -1,14 +1,14 @@
 import { Router } from 'express';
 import { findOne, insert } from '../db.js';
 import { signToken, hashPassword, verifyPassword, requireAuth } from '../middleware/auth.js';
-import { subscriptionFor } from '../services/flowService.js';
+import { subscriptionFor, makeReferralCode, applyReferral, referralInfoFor } from '../services/flowService.js';
 
 const router = Router();
 
 // POST /api/auth/register  (1 mois d'essai gratuit)
 router.post('/register', async (req, res, next) => {
   try {
-    const { role, name, phone, email, password } = req.body || {};
+    const { role, name, phone, email, password, referrerCode } = req.body || {};
     if (role !== 'client' && role !== 'gerant') return res.status(400).json({ error: 'Rôle invalide' });
     if (!name?.trim() || !phone?.trim()) return res.status(400).json({ error: 'Nom et numéro requis' });
     if (!password || password.length < 4) return res.status(400).json({ error: 'Mot de passe trop court (min. 4)' });
@@ -18,12 +18,21 @@ router.post('/register', async (req, res, next) => {
       role, name: name.trim(), phone, email: email?.trim() || '',
       passwordHash: await hashPassword(password),
       waveNumber: phone,
+      referralCode: makeReferralCode(),
       subscription: { status: 'trial', trialEndsAt: Date.now() + 30 * 24 * 3600 * 1000, subscribedUntil: 0 },
       createdAt: Date.now(),
     });
 
+    // Parrainage optionnel : code saisi à l'inscription.
+    applyReferral(user, referrerCode);
+
     const token = signToken(user);
-    res.status(201).json({ token, user: publicUser(user), subscription: subscriptionFor(user) });
+    res.status(201).json({
+      token,
+      user: publicUser(user),
+      subscription: subscriptionFor(user),
+      referral: referralInfoFor(user),
+    });
   } catch (e) { next(e); }
 });
 
@@ -43,17 +52,17 @@ router.post('/login', async (req, res, next) => {
     }
 
     const token = signToken(user);
-    res.json({ token, user: publicUser(user), subscription: subscriptionFor(user) });
+    res.json({ token, user: publicUser(user), subscription: subscriptionFor(user), referral: referralInfoFor(user) });
   } catch (e) { next(e); }
 });
 
 // GET /api/auth/me
 router.get('/me', requireAuth, (req, res) => {
-  res.json({ user: publicUser(req.user), subscription: subscriptionFor(req.user) });
+  res.json({ user: publicUser(req.user), subscription: subscriptionFor(req.user), referral: referralInfoFor(req.user) });
 });
 
 function publicUser(u) {
-  return { id: u.id, role: u.role, name: u.name, phone: u.phone, email: u.email, waveNumber: u.waveNumber };
+  return { id: u.id, role: u.role, name: u.name, phone: u.phone, email: u.email, waveNumber: u.waveNumber, referralCode: u.referralCode || '' };
 }
 
 export default router;

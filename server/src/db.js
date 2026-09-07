@@ -22,7 +22,7 @@ const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
 const DATA_FILE = process.env.DB_FILE || path.join(__dirname, '..', 'data', 'db.json');
 const DATABASE_URL = process.env.DATABASE_URL || '';
-const COLLECTIONS = ['users', 'gerants', 'demandes', 'notifications', 'subscriptions'];
+const COLLECTIONS = ['users', 'gerants', 'demandes', 'notifications', 'subscriptions', 'referrals'];
 
 const now = Date.now();
 const seed = () => ({
@@ -39,6 +39,9 @@ const seed = () => ({
   // Registre des paiements d'abonnement (traçabilité pour le propriétaire :
   // qui a payé, combien, quand, valable jusqu'à quelle date).
   subscriptions: [],
+  // Commissions de parrainage (taux 5/10/20 % selon le nb d'invités).
+  // Chaque fois qu'un invité paie son abonnement, le parrain est crédité.
+  referrals: [],
 });
 
 // S'assure que toutes les collections existent (utile pour une base Postgres

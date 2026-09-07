@@ -51,6 +51,9 @@ const seed = () => {
   // Client : notifications (demande acceptée / refusée…)
   clientNotifications: [],
   clientUnread: 0,
+
+  // Parrainage : { code, count, rate, nextTier, totalCommission, earnings, referrals }
+  referral: null,
   };
 };
 
@@ -119,6 +122,9 @@ function reducer(state, action) {
 
     case 'SET_SUBSCRIPTION':
       return { ...state, subscription: action.payload };
+
+    case 'SET_REFERRAL':
+      return { ...state, referral: action.payload, user: { ...state.user, referralCode: action.payload?.code ?? state.user?.referralCode } };
 
     case 'SET_GERANT_PROFILE':
       return {
@@ -203,6 +209,10 @@ export function StoreProvider({ children }) {
     try {
       const sub = await (state.role === 'gerant' ? api.gerant.subscription() : api.client.subscription()).catch(() => null);
       if (sub) dispatch({ type: 'SET_SUBSCRIPTION', payload: sub.subscription });
+
+      // Parrainage : code, invités, taux et gains.
+      const ref = await api.referral.my().catch(() => null);
+      if (ref?.referral) dispatch({ type: 'SET_REFERRAL', payload: ref.referral });
 
       if (state.role === 'client') {
         const [g, av, d, n] = await Promise.all([
@@ -331,6 +341,15 @@ export function StoreProvider({ children }) {
     if (online) { try { await api.client.markAllNotificationsRead(); } catch {} }
   }, [online]);
 
+  const loadReferral = useCallback(async () => {
+    if (!online) return;
+    try {
+      const { referral } = await api.referral.my();
+      dispatch({ type: 'SET_REFERRAL', payload: referral });
+      return referral;
+    } catch { /* silencieux */ }
+  }, [online]);
+
   const updateGerantProfile = useCallback(async (patch) => {
     let updated = null;
     if (online) {
@@ -363,8 +382,8 @@ export function StoreProvider({ children }) {
   }, [state.role]);
 
   const value = useMemo(
-    () => ({ state, dispatch, online, checking, recheck: probe, login, register, logout, refresh, addGerant, removeGerant, createDemande, markPaid, cancelDemande, acceptDemande, declineDemande, completeDemande, subscribe, updateGerantProfile, loadNotifications, markNotificationRead, markAllNotificationsRead, loadClientNotifications, markClientNotificationRead, markAllClientNotificationsRead }),
-    [state, online, checking, probe, login, register, logout, refresh, addGerant, removeGerant, createDemande, markPaid, cancelDemande, acceptDemande, declineDemande, completeDemande, subscribe, updateGerantProfile, loadNotifications, markNotificationRead, markAllNotificationsRead, loadClientNotifications, markClientNotificationRead, markAllClientNotificationsRead],
+    () => ({ state, dispatch, online, checking, recheck: probe, login, register, logout, refresh, addGerant, removeGerant, createDemande, markPaid, cancelDemande, acceptDemande, declineDemande, completeDemande, subscribe, updateGerantProfile, loadNotifications, markNotificationRead, markAllNotificationsRead, loadClientNotifications, markClientNotificationRead, markAllClientNotificationsRead, loadReferral }),
+    [state, online, checking, probe, login, register, logout, refresh, addGerant, removeGerant, createDemande, markPaid, cancelDemande, acceptDemande, declineDemande, completeDemande, subscribe, updateGerantProfile, loadNotifications, markNotificationRead, markAllNotificationsRead, loadClientNotifications, markClientNotificationRead, markAllClientNotificationsRead, loadReferral],
   );
   return <Ctx.Provider value={value}>{children}</Ctx.Provider>;
 }

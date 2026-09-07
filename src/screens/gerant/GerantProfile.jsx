@@ -8,6 +8,7 @@ import SubscribeSheet from '../../components/Subscribe';
 import { useStore } from '../../store';
 import { buildShareUrl } from '../../config';
 import Help from '../Help';
+import Referral from '../Referral';
 
 export default function GerantProfile({ onLogout }) {
   const { state, subscribe, updateGerantProfile } = useStore();
@@ -16,10 +17,12 @@ export default function GerantProfile({ onLogout }) {
   const [showSub, setShowSub] = useState(false);
   const [copied, setCopied] = useState(false);
   const [showHelp, setShowHelp] = useState(false);
+  const [showReferral, setShowReferral] = useState(false);
   const [payLink, setPayLink] = useState(u?.payLink || '');
   const [saving, setSaving] = useState(false);
   const [saved, setSaved] = useState(false);
 
+  if (showReferral) return <Referral onBack={() => setShowReferral(false)} />;
   if (showHelp) return <Help onBack={() => setShowHelp(false)} />;
   const shareUrl = u ? buildShareUrl(u.id) : '';
 
@@ -140,6 +143,10 @@ export default function GerantProfile({ onLogout }) {
           <Pressable onPress={copy} style={s.copyBtn}><Ionicons name={copied ? 'checkmark' : 'copy-outline'} size={16} color="#fff" /></Pressable>
         </View>
         {copied && <T size={font.xs} weight="600" color={colors.success} style={{ marginTop: 6 }}>Lien copié !</T>}
+      </Card>
+
+      <Card style={{ marginTop: space.lg }}>
+        <ListRow icon="gift-outline" label="Mes parrainages" onPress={() => setShowReferral(true)} />
       </Card>
 
       <Card style={{ marginTop: space.lg }}>

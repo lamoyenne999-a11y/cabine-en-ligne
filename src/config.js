@@ -48,3 +48,16 @@ export function buildShareUrl(userId) {
   }
   return `${base}/?u=${userId}`;
 }
+
+// Lien de parrainage : ouvre l'inscription avec le code pré-rempli (?ref=CODE).
+export function buildReferralUrl(code) {
+  let base = '';
+  if (typeof window !== 'undefined' && window.location && window.location.origin) {
+    base = window.location.origin;
+  } else if (Platform.OS === 'web') {
+    base = '';
+  } else {
+    base = `http://${devHost() || 'localhost'}:${BACKEND_PORT}`;
+  }
+  return `${base}/?ref=${encodeURIComponent(code)}`;
+}

@@ -9,6 +9,7 @@ import { wave } from './services/waveService.js';
 import authRoutes from './routes/auth.js';
 import clientRoutes from './routes/client.js';
 import gerantRoutes from './routes/gerant.js';
+import referralRoutes from './routes/referral.js';
 import publicRoutes from './routes/public.js';
 import webhookRoutes from './routes/webhooks.js';
 import adminRoutes from './routes/admin.js';
@@ -40,6 +41,7 @@ export async function createApp(opts = {}) {
   app.use('/api/auth', authRoutes);
   app.use('/api/client', clientRoutes);
   app.use('/api/gerant', gerantRoutes);
+  app.use('/api/referral', referralRoutes);
 
   // Vue propriétaire (paiements d'abonnement) — protégée par clé admin
   app.use('/api/admin', adminRoutes);

@@ -65,6 +65,7 @@ export default function Admin({ onBack }) {
 
   const payments = data?.payments || [];
   const totals = data?.totals || {};
+  const referral = data?.referral || { totalCommission: 0, count: 0, referrers: [] };
 
   return (
     <Page title="Paiements d'abonnement" onBack={onBack}>
@@ -82,6 +83,30 @@ export default function Admin({ onBack }) {
             ))}
           </View>
         )}
+      </Card>
+
+      {/* Commissions de parrainage à verser */}
+      <Card style={{ marginTop: space.lg, backgroundColor: '#F0FBF5' }}>
+        <T size={font.sm} weight="700" color={colors.success} style={{ textTransform: 'uppercase', letterSpacing: 0.5 }}>Commissions de parrainage à verser</T>
+        <T size={font.h2} weight="900" color={colors.success} style={{ marginTop: 6 }}>{money(referral.totalCommission)}</T>
+        <T size={font.sm} weight="600" color={colors.muted} style={{ marginTop: 4 }}>{referral.count || 0} commission(s) générée(s) · {referral.referrers.length} parrain(s)</T>
+
+        {referral.referrers.length > 0 && (
+          <View style={{ marginTop: space.md }}>
+            {referral.referrers.map((r) => (
+              <View key={r.referrerId} style={s.refRow}>
+                <View style={{ flex: 1 }}>
+                  <T size={font.sm} weight="800" color={colors.text}>{r.name || '—'}</T>
+                  <T size={font.xs} weight="600" color={colors.muted}>{r.phone} · {r.count} commission(s) · {r.rate} %</T>
+                </View>
+                <T size={font.sm} weight="900" color={colors.success}>{money(r.totalCommission)}</T>
+              </View>
+            ))}
+          </View>
+        )}
+        <T size={font.xs} weight="600" color={colors.muted2} style={{ marginTop: 10 }}>
+          Réglez ces montants aux parrains directement (via Wave). Aucun argent n'est stocké ni envoyé automatiquement.
+        </T>
       </Card>
 
       {/* Liste des paiements */}
@@ -121,4 +146,5 @@ const s = StyleSheet.create({
   inputText: { flex: 1, fontSize: font.body, color: colors.text, paddingVertical: 0, outlineStyle: 'none' },
   planChip: { backgroundColor: '#fff', borderRadius: radius.pill, paddingHorizontal: 12, paddingVertical: 6, marginRight: 8 },
   row: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginTop: 8 },
+  refRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingVertical: 10, borderTopWidth: 1, borderTopColor: colors.border },
 });
