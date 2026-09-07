@@ -97,8 +97,18 @@ export default function GerantProfile({ onLogout }) {
       <Card style={{ marginTop: space.lg }}>
         <T size={font.h3} weight="800" color={colors.text} style={{ marginBottom: 4 }}>Mon lien Wave marchand</T>
         <T size={font.xs} weight="600" color={colors.muted} style={{ marginBottom: 10 }}>
-          Collez ici votre lien de paiement Wave (ex. https://pay.wave.com/m/...). Vos clients pourront cliquer dessus pour vous payer leur transaction directement.
+          Collez votre lien de paiement Wave (ex. https://pay.wave.com/m/...). Vos clients cliqueront dessus pour vous payer directement, d'un seul clic.
         </T>
+
+        {!payLink.trim() && (
+          <View style={s.linkCta}>
+            <Ionicons name="shield-checkmark" size={16} color={colors.primary} style={{ marginRight: 8 }} />
+            <T size={font.xs} weight="700" color={colors.primary} style={{ flex: 1 }}>
+              Ajoutez votre lien pour obtenir le badge « Certifié » et permettre un paiement en 1 clic.
+            </T>
+          </View>
+        )}
+
         <View style={s.input}>
           <Ionicons name="link-outline" size={18} color={colors.primary} style={{ marginRight: 10 }} />
           <TextInput
@@ -148,6 +158,7 @@ const s = StyleSheet.create({
   subBtn: { backgroundColor: colors.primary, paddingHorizontal: 20, paddingVertical: 10, borderRadius: radius.pill, marginTop: 14 },
   paidIcon: { width: 48, height: 48, borderRadius: 24, backgroundColor: '#fff', alignItems: 'center', justifyContent: 'center' },
   waveBox: { flexDirection: 'row', alignItems: 'center', paddingVertical: 14, borderBottomWidth: 1, borderBottomColor: colors.border },
+  linkCta: { flexDirection: 'row', alignItems: 'center', backgroundColor: colors.primarySoft, borderRadius: radius.md, padding: 10, marginBottom: 10 },
   input: { flexDirection: 'row', alignItems: 'center', backgroundColor: colors.bg, borderRadius: radius.md, paddingHorizontal: 14, height: 52 },
   inputText: { flex: 1, fontSize: font.sm, color: colors.text, paddingVertical: 0, outlineStyle: 'none' },
   linkRow: { flexDirection: 'row', alignItems: 'center', backgroundColor: colors.bg, borderRadius: radius.md, padding: 8 },

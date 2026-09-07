@@ -25,7 +25,8 @@ place de l'app. C'est **de l'infrastructure Render**, pas un bug de l'app.
 
 ## 2. Bonne nouvelle : l'app est déjà « indépendante du domaine »
 
-Aucun code ne référence `onrender`. Le front est prêt pour n'importe quel domaine :
+Aucun code ne référence `onrender`. Le front est prêt pour n'importe quel domaine, **y compris
+`cabineenligne.com`** :
 - **`buildShareUrl()`** (dans `src/config.js`) utilise `window.location.origin` → le lien de partage
   est **automatiquement celui du domaine d'ouverture** (officiel ou non). ✅
 - **`API_URL`** est `""` (même origine) + le serveur proxifie `/api`. Donc si tu déplaces l'ensemble,
@@ -33,7 +34,8 @@ Aucun code ne référence `onrender`. Le front est prêt pour n'importe quel dom
 - La fonction **`buildShareUrl`** et le **service worker PWA** (mode hors-ligne) fonctionnent sur tout
   domaine HTTPS. ✅
 
-**Conclusion : tu peux brancher un domaine ou changer d'hébergeur sans modifier le code.**
+**Conclusion : tu peux brancher un domaine (ex. `cabineenligne.com`) ou changer d'hébergeur
+sans modifier une seule ligne de code.** Seules « tes 3 actions » (voir §7) sont nécessaires.
 
 ---
 
@@ -63,6 +65,24 @@ Aucun code ne référence `onrender`. Le front est prêt pour n'importe quel dom
 - **Option rapide** : passer le service Render sur un **palier payant** (« toujours actif ») → plus de
   veille, l'app répond instantanément. C'est ce qui **élimine** l'écran « WELCOME TO RENDER ».
 - **Option gratuite durable** : **quitter Render** (voir §5) → hébergeur sans veille.
+
+### Étape 2-bis — Keep-alive GRATUIT (sans quitter Render, sans rien acheter) ⭐ recommandé
+Le plan **gratuit** de Render met l'app en veille après ~15 min sans requête. On peut l'**empêcher de
+dormir** en envoyant une petite requête toutes les 5 min depuis un **moniteur externe gratuit** :
+
+1. Crée un compte gratuit sur **UptimeRobot** (ou un moniteur équivalent).
+2. **Add New Monitor** → type **HTTP(s)**.
+3. URL = `https://TON-DOMAINE.onrender.com/health` (le endpoint de santé existe déjà).
+4. **Intervalle = 5 minutes** (ou 5 à 10 min).
+5. Mets **Off** les alertes de panne (on ne veut pas être notifié), ou garde-les si tu veux être prévenu
+   si le service tombe vraiment.
+
+Résultat : un ping régulier **maintient l'app éveillée** → **plus jamais l'écran « WELCOME TO RENDER »**
+pour les utilisateurs, et **sans payer ni quitter Render**. C'est le meilleur rapport effort/bénéfice
+en attendant de passer sur un hébergement sans veille (VPS ou Netlify/Vercel + API).
+
+> Le keep-alive ne remplace pas un domaine officiel : combine-le avec l'étape 1 pour avoir un lien propre
+> **et** un démarrage immédiat.
 
 ### Étape 3 — réduire l'attente de toute façon (déjà fait)
 Le **mode hors-ligne PWA** (+ service worker `v2`) : une fois l'app chargée, elle **s'ouvre
@@ -99,6 +119,25 @@ L'app = **front PWA** + **API Node** + **base de données**. Chaque brique a une
 3. En attendant, **l'app est déjà prête** : domaine-agnostique, PWA hors-ligne, bannière de
    connexion qui rassure pendant le réveil.
 
-> Tu n'as pas besoin de modifier le code pour changer de domaine / d'hébergeur. Dis-moi **quel
-> domaine** tu comptes prendre et **quel hébergeur** tu préfères (Render payant, Netlify+Neon, ou VPS)
-> et je te prépare la config exacte (DNS, variables d'environnement, commande de lancement).
+---
+
+## 7. Les 3 actions à faire par TOI (je ne peux pas les faire à ta place)
+
+1. **Acheter le domaine** `cabineenligne.com` (registrar : Namecheap, GoDaddy, etc.).
+2. **Pointer le DNS** du domaine vers l'hébergeur :
+   - Sur Render : **Custom Domains → Ajouter** `cabineenligne.com`, puis chez le registrar : ajouter un
+     enregistrement **CNAME** (Render te donne la valeur exacte). Render gère l'**HTTPS** automatiquement.
+   - Sur un VPS : enregistrement **A** pointant vers l'IP du VPS + config HTTPS (Let's Encrypt / Caddy).
+3. **Activer le keep-alive** (UptimeRobot → `https://cabineenligne.com/health` toutes les 5 min)
+   **ou** passer sur un hébergeur **sans veille** (VPS) → pour éliminer l'écran « WELCOME TO RENDER ».
+
+> ⚠️ Tant que le service Render **dort**, même avec `cabineenligne.com`, l'écran « WELCOME TO RENDER »
+> peut apparaître à l'ouverture. C'est **la raison** pour laquelle il faut le keep-alive ou un VPS.
+
+---
+
+## 8. Rappel de ce qui est DÉJÀ en œuvre pour ne pas perturber les nouveaux utilisateurs
+- **PWA hors-ligne (`sw v2`)** : l'app s'ouvre instantanément même sans réseau.
+- **Bannière « Connexion au service, un instant… »** pendant le réveil, puis **« vous êtes hors ligne »
+  + Réessayer** au lieu d'un écran vide.
+- **L'app est indépendante du domaine** : aucun code à changer pour `cabineenligne.com`.
