@@ -75,6 +75,9 @@ export default function Admin({ onBack }) {
   const events = data?.events || [];
   const eventCounters = data?.eventCounters || {};
   const expired = data?.expired || [];
+  const dbStats = data?.dbStats || {};
+  const dbCounts = dbStats.counts || {};
+  const dbSizeMo = dbStats.sizeBytes ? (dbStats.sizeBytes / 1024 / 1024) : 0;
   const clientsCount = users.filter((u) => u.role === 'client').length;
   const gerantsCount = users.filter((u) => u.role === 'gerant').length;
 
@@ -235,6 +238,35 @@ export default function Admin({ onBack }) {
       <T size={font.xs} weight="600" color={colors.muted2} style={{ textAlign: 'center', marginBottom: 20 }}>
         Vérifiez ces montants sur votre compte Wave pour confirmer la réception.
       </T>
+
+      {/* Base de données — suivi de la charge */}
+      <T size={font.h3} weight="800" color={colors.text} style={{ marginTop: space.lg, marginBottom: space.sm }}>Base de données</T>
+      <Card>
+        <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' }}>
+          <View>
+            <T size={font.xs} weight="700" color={colors.muted}>TOTAL LIGNES</T>
+            <T size={font.h1} weight="800" color={colors.primary} style={{ marginTop: 4 }}>{(dbStats.totalRecords || 0).toLocaleString('fr-FR')}</T>
+          </View>
+          <View style={s.sumIcon}>
+            <Ionicons name="server-outline" size={26} color={colors.primary} />
+          </View>
+        </View>
+        <View style={{ flexDirection: 'row', marginTop: space.lg }}>
+          <View style={{ flex: 1, marginRight: 8 }}><StatTile icon="people-outline" value={dbCounts.users || 0} label="Users" tone="purple" /></View>
+          <View style={{ flex: 1, marginRight: 8 }}><StatTile icon="swap-vertical-outline" value={dbCounts.demandes || 0} label="Demandes" tone="blue" /></View>
+          <View style={{ flex: 1, marginRight: 8 }}><StatTile icon="time-outline" value={dbCounts.events || 0} label="Événements" tone="orange" /></View>
+          <View style={{ flex: 1 }}><StatTile icon="cash-outline" value={dbCounts.subscriptions || 0} label="Paiements" tone="green" /></View>
+        </View>
+        <View style={{ flexDirection: 'row', marginTop: space.sm }}>
+          <View style={{ flex: 1, marginRight: 8 }}><StatTile icon="link-outline" value={dbCounts.referrals || 0} label="Parrainages" tone="blue" /></View>
+          <View style={{ flex: 1, marginRight: 8 }}><StatTile icon="notifications-outline" value={dbCounts.notifications || 0} label="Notifs" tone="orange" /></View>
+          <View style={{ flex: 1, marginRight: 8 }}><StatTile icon="ribbon-outline" value={dbCounts.gerants || 0} label="Contacts" tone="purple" /></View>
+          <View style={{ flex: 1 }}><StatTile icon="server-outline" value={dbSizeMo ? dbSizeMo.toFixed(1) : 0} label="Taille (Mo)" tone="green" /></View>
+        </View>
+        <T size={font.xs} weight="600" color={colors.muted2} style={{ marginTop: 12 }}>
+          Charge de la base : chaque action réécrit toutes les données. Au-delà de ~5 000 utilisateurs, un passage en tables PostgreSQL sera nécessaire pour garder la fluidité.
+        </T>
+      </Card>
     </Page>
   );
 }
@@ -242,6 +274,7 @@ export default function Admin({ onBack }) {
 const s = StyleSheet.create({
   input: { flexDirection: 'row', alignItems: 'center', backgroundColor: colors.bg, borderRadius: radius.md, paddingHorizontal: 14, height: 52 },
   inputText: { flex: 1, fontSize: font.body, color: colors.text, paddingVertical: 0, outlineStyle: 'none' },
+  sumIcon: { width: 52, height: 52, borderRadius: 26, backgroundColor: colors.primarySoft, alignItems: 'center', justifyContent: 'center' },
   planChip: { backgroundColor: '#fff', borderRadius: radius.pill, paddingHorizontal: 12, paddingVertical: 6, marginRight: 8 },
   codeChip: { backgroundColor: colors.primarySoft, borderRadius: radius.pill, paddingHorizontal: 12, paddingVertical: 6, marginRight: 8 },
   row: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginTop: 8 },

@@ -190,3 +190,20 @@ export function remove(collection, pred) {
   save();
   return d[collection];
 }
+
+// Statistiques de la base (pour l'Espace propriétaire) : nombre de lignes par
+// collection, total de lignes, et taille approximative de l'objet en mémoire.
+// Utile au propriétaire pour savoir où il en est (proximité du plafond).
+export function dbStats() {
+  const d = getDb();
+  const counts = {};
+  let totalRecords = 0;
+  for (const c of COLLECTIONS) {
+    const n = Array.isArray(d[c]) ? d[c].length : 0;
+    counts[c] = n;
+    totalRecords += n;
+  }
+  let sizeBytes = 0;
+  try { sizeBytes = Buffer.byteLength(JSON.stringify(d)); } catch { sizeBytes = 0; }
+  return { counts, totalRecords, sizeBytes };
+}

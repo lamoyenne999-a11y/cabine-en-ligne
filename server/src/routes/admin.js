@@ -1,7 +1,7 @@
 import express from 'express';
 import { config } from '../config.js';
 import { subscriptionPayments, subscriptionTotals, subscriptionFor, referralSummary, referredUsersCount, referralPaymentCount, referralRateFor, deleteAccountAll, eventsForAdmin, eventsCounters, referralCodeStats, expiredUsers, reconcileExpiredEvents } from '../services/flowService.js';
-import { find, findOne, update } from '../db.js';
+import { find, findOne, update, dbStats } from '../db.js';
 
 const router = express.Router();
 
@@ -42,6 +42,7 @@ router.get('/summary', requireAdmin, (req, res) => {
     events: eventsForAdmin(120),
     eventCounters: eventsCounters(),
     expired: expiredUsers(),
+    dbStats: dbStats(),
   });
 });
 
