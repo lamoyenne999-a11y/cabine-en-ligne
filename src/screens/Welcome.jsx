@@ -36,10 +36,10 @@ export default function Welcome({ onSelect, onAdmin }) {
 
       <View style={s.body}>
         {/* Comment ça marche — accordéon compact (replié par défaut) */}
-        <Pressable onPress={() => setShowHow((v) => !v)} style={({ pressed }) => [s.howToggle, pressed && { opacity: 0.85 }]}>
-          <View style={s.howToggleIcon}><Ionicons name="help-circle-outline" size={20} color={colors.primary} /></View>
-          <T size={font.body} weight="800" color={colors.primary} style={{ marginLeft: 10, flex: 1 }}>Comment ça marche</T>
-          <Ionicons name={showHow ? 'chevron-up' : 'chevron-down'} size={18} color={colors.muted} />
+        <Pressable onPress={() => setShowHow((v) => !v)} style={({ pressed }) => [s.howToggle, pressed && { opacity: 0.7 }]}>
+          <Ionicons name="help-circle-outline" size={16} color={colors.primary} style={{ marginRight: 6 }} />
+          <T size={font.sm} weight="800" color={colors.primary}>Comment ça marche</T>
+          <Ionicons name={showHow ? 'chevron-up' : 'chevron-down'} size={15} color={colors.muted} style={{ marginLeft: 6 }} />
         </Pressable>
 
         {showHow && (
@@ -68,7 +68,7 @@ export default function Welcome({ onSelect, onAdmin }) {
           </View>
         )}
 
-        <T size={font.h2} weight="800" color={colors.text} style={{ textAlign: 'center', marginTop: space.xl, marginBottom: space.xl }}>
+        <T size={font.h2} weight="800" color={colors.text} style={{ textAlign: 'center', marginTop: space.lg, marginBottom: space.lg }}>
           Choisissez votre profil
         </T>
 
@@ -160,25 +160,16 @@ const s = StyleSheet.create({
   howToggle: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: '#fff',
+    alignSelf: 'center',
+    backgroundColor: 'rgba(255,255,255,0.85)',
     borderRadius: radius.pill,
-    paddingHorizontal: 16,
-    paddingVertical: 12,
-    shadowColor: colors.primary,
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.06,
-    shadowRadius: 12,
-    elevation: 2,
-  },
-  howToggleIcon: {
-    width: 34, height: 34, borderRadius: 17,
-    backgroundColor: colors.primarySoft,
-    alignItems: 'center', justifyContent: 'center',
+    paddingHorizontal: 14,
+    paddingVertical: 7,
   },
   howCard: {
     backgroundColor: '#fff',
     borderRadius: radius.lg,
-    padding: space.lg,
+    padding: space.md,
     marginTop: 10,
     shadowColor: colors.primary,
     shadowOffset: { width: 0, height: 6 },
@@ -189,10 +180,10 @@ const s = StyleSheet.create({
   step: {
     flexDirection: 'row',
     alignItems: 'center',
-    paddingVertical: 10,
+    paddingVertical: 8,
   },
   stepIcon: {
-    width: 44, height: 44, borderRadius: 22,
+    width: 38, height: 38, borderRadius: 19,
     backgroundColor: colors.primarySoft,
     alignItems: 'center', justifyContent: 'center',
   },
