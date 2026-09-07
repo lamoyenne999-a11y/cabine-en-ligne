@@ -296,6 +296,22 @@ export function referralSummary() {
   };
 }
 
+// Supprime un compte et TOUTES ses données liées (contacts gérant, demandes,
+// notifications, paiements d'abonnement, commissions de parrainage).
+// Utilisé par le propriétaire (via une clé admin) pour retirer un compte.
+export function deleteAccountAll(phone) {
+  const u = findOne('users', (x) => x.phone === String(phone).trim());
+  if (!u) return { removed: false, error: 'Compte introuvable' };
+  const id = u.id;
+  remove('users', (x) => x.id === id);
+  remove('gerants', (g) => g.ownerId === id || g.userId === id);
+  remove('demandes', (d) => d.clientId === id || d.gerantUserId === id);
+  remove('notifications', (n) => n.userId === id);
+  remove('subscriptions', (s) => s.userId === id);
+  remove('referrals', (r) => r.referrerId === id || r.referredUserId === id);
+  return { removed: true, name: u.name, phone: u.phone, role: u.role };
+}
+
 // ---- Notifications (reçues par les gérants) ----
 export function notificationsFor(userId) {
   return find('notifications', (n) => n.userId === userId).sort((a, b) => b.createdAt - a.createdAt);

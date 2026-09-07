@@ -1,6 +1,6 @@
 import express from 'express';
 import { config } from '../config.js';
-import { subscriptionPayments, subscriptionTotals, subscriptionFor, referralSummary, referredUsersCount, referralPaymentCount, referralRateFor } from '../services/flowService.js';
+import { subscriptionPayments, subscriptionTotals, subscriptionFor, referralSummary, referredUsersCount, referralPaymentCount, referralRateFor, deleteAccountAll } from '../services/flowService.js';
 import { find } from '../db.js';
 
 const router = express.Router();
@@ -50,6 +50,20 @@ router.get('/users', requireAdmin, (req, res) => {
     subscription: subscriptionFor(u),
   }));
   res.json({ users });
+});
+
+// Supprime un compte + toutes ses données (abonnements, commissions, etc.).
+// Réservé au propriétaire pour retirer un compte. Body : { phone }.
+router.post('/delete-account', requireAdmin, (req, res) => {
+  const phone = String(req.body?.phone || '').trim();
+  if (!phone) return res.status(400).json({ error: 'Téléphone requis' });
+  try {
+    const out = deleteAccountAll(phone);
+    if (!out.removed) return res.status(404).json(out);
+    res.json(out);
+  } catch (e) {
+    res.status(e.status || 500).json({ error: e.message });
+  }
 });
 
 export default router;
