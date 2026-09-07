@@ -93,6 +93,9 @@ export default function ClientHome() {
         showsVerticalScrollIndicator={false}
       >
         <SectionTitle style={{ marginTop: 4 }}>Nouvelle demande</SectionTitle>
+        <T size={font.sm} weight="600" color={colors.textSoft} style={{ marginTop: 2, marginBottom: 6 }}>
+          Pas besoin de vous déplacer : choisissez un gérant, payez par Wave, on vous crédite à distance. ⚡
+        </T>
 
         {/* Type selector */}
         <View style={s.typeRow}>
@@ -191,28 +194,11 @@ export default function ClientHome() {
           <Pressable onPress={() => setShowGerants(false)}><Ionicons name="close" size={24} color={colors.muted} /></Pressable>
         </View>
 
-        {/* Gérants déjà inscrits, proposés (sans avoir à les ajouter) */}
-        {suggested.length > 0 && (
-          <>
-            <T size={font.sm} weight="800" color={colors.primary} style={{ marginBottom: 4 }}>Gérants disponibles (déjà inscrits)</T>
-            <T size={font.xs} weight="600" color={colors.muted2} style={{ marginBottom: 8 }}>Vous pouvez leur envoyer une demande directement, sans les ajouter.</T>
-            {suggested.map((g) => (
-              <Pressable key={g.userId} onPress={() => { setSel({ userId: g.userId, name: g.name, phone: g.phone, waveNumber: g.waveNumber, payLink: g.payLink || '', online: true }); clearErr('gerant'); setShowGerants(false); }} style={s.gerantRow}>
-                <View style={s.availIcon}><Ionicons name="storefront-outline" size={18} color={colors.primary} /></View>
-                <View style={{ flex: 1, marginLeft: 10 }}>
-                  <T size={font.body} weight="800" color={colors.text}>{g.name}</T>
-                  <T size={font.sm} weight="600" color={colors.muted} style={{ marginTop: 2 }}>{g.phone}</T>
-                </View>
-                <T size={font.xs} weight="700" color={colors.success}>Disponible</T>
-              </Pressable>
-            ))}
-          </>
-        )}
-
-        {/* Gérants déjà ajoutés par le client */}
+        {/* PRIORITÉ : les gérants déjà ajoutés par le client (il les connaît) */}
         {state.gerants.length > 0 && (
           <>
-            <T size={font.sm} weight="800" color={colors.text} style={{ marginBottom: 4, marginTop: space.md }}>Mes gérants ajoutés</T>
+            <T size={font.sm} weight="800" color={colors.text} style={{ marginBottom: 4 }}>Vos gérants (priorité)</T>
+            <T size={font.xs} weight="600" color={colors.muted2} style={{ marginBottom: 8 }}>Ceux que vous avez déjà ajoutés — vous les connaissez, c\'est plus sûr.</T>
             {state.gerants.map((g) => {
               const on = sel?.id === g.id;
               return (
@@ -228,6 +214,32 @@ export default function ClientHome() {
                 </Pressable>
               );
             })}
+          </>
+        )}
+
+        {/* Autres gérants de confiance (badge certifié) — proposés en complément */}
+        {suggested.length > 0 && (
+          <>
+            <T size={font.sm} weight="800" color={colors.primary} style={{ marginBottom: 4, marginTop: state.gerants.length > 0 ? space.md : 0 }}>Autres gérants de confiance</T>
+            <T size={font.xs} weight="600" color={colors.muted2} style={{ marginBottom: 8 }}>Des gérants inscrits, vérifiés par le badge « Certifié ». Envoyez-leur une demande directement.</T>
+            {suggested.map((g) => (
+              <Pressable key={g.userId} onPress={() => { setSel({ userId: g.userId, name: g.name, phone: g.phone, waveNumber: g.waveNumber, payLink: g.payLink || '', online: true }); clearErr('gerant'); setShowGerants(false); }} style={s.gerantRow}>
+                <View style={s.availIcon}><Ionicons name="storefront-outline" size={18} color={colors.primary} /></View>
+                <View style={{ flex: 1, marginLeft: 10 }}>
+                  <View style={{ flexDirection: 'row', alignItems: 'center', flexWrap: 'wrap' }}>
+                    <T size={font.body} weight="800" color={colors.text}>{g.name}</T>
+                    {g.certified && (
+                      <View style={s.certBadge}>
+                        <Ionicons name="shield-checkmark" size={12} color="#fff" />
+                        <T size={font.xs} weight="800" color="#fff" style={{ marginLeft: 3 }}>Certifié</T>
+                      </View>
+                    )}
+                  </View>
+                  <T size={font.sm} weight="600" color={colors.muted} style={{ marginTop: 2 }}>{g.phone}</T>
+                </View>
+                <T size={font.xs} weight="700" color={colors.success}>Disponible</T>
+              </Pressable>
+            ))}
           </>
         )}
 
@@ -312,6 +324,7 @@ const s = StyleSheet.create({
   gerantPick: { flexDirection: 'row', alignItems: 'center', flex: 1 },
   onlineChip: { flexDirection: 'row', alignItems: 'center', backgroundColor: colors.bg, borderRadius: radius.pill, paddingHorizontal: 10, paddingVertical: 5 },
   availIcon: { width: 34, height: 34, borderRadius: 17, backgroundColor: colors.primarySoft, alignItems: 'center', justifyContent: 'center' },
+  certBadge: { flexDirection: 'row', alignItems: 'center', backgroundColor: colors.primary, borderRadius: radius.pill, paddingHorizontal: 8, paddingVertical: 2, marginLeft: 8 },
   waveInfo: { backgroundColor: '#E7F0FE', borderRadius: radius.md, padding: 14, marginTop: space.lg },
   waveTitle: { flexDirection: 'row', alignItems: 'center', marginBottom: 12 },
   summary: { backgroundColor: colors.bg, borderRadius: radius.md, padding: 14, marginTop: space.md },

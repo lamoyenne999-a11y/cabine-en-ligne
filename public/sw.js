@@ -5,10 +5,11 @@
    - on ne cache JAMAIS /api ni /health : l'app garde le mode
      "connecté" basé sur la disponibilité de l'API.
    ============================================================ */
-const CACHE = 'cabine-en-ligne-v1';
+const CACHE = 'cabine-en-ligne-v2';
 const SHELL = ['/', '/index.html', '/manifest.webmanifest'];
 
 self.addEventListener('install', (event) => {
+  // On pré-cache l'app shell pour un démarrage instantané, même hors-ligne.
   event.waitUntil(
     caches.open(CACHE).then((cache) => cache.addAll(SHELL)).then(() => self.skipWaiting()),
   );

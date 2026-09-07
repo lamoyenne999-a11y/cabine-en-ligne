@@ -97,7 +97,13 @@ export function gerantsFor(clientId) {
 export function availableGerants(clientId) {
   const added = gerantsFor(clientId).map((g) => g.userId);
   return find('users', (u) => u.role === 'gerant' && u.passwordHash)
-    .map((u) => ({ userId: u.id, name: u.name, phone: u.phone, waveNumber: u.waveNumber || u.phone, payLink: u.payLink || '', alreadyAdded: added.includes(u.id) }))
+    .map((u) => ({
+      userId: u.id, name: u.name, phone: u.phone, waveNumber: u.waveNumber || u.phone, payLink: u.payLink || '',
+      alreadyAdded: added.includes(u.id),
+      // "Certifié" : gérant dont la confiance est renforcée (profil lié au compte
+      // + lien Wave marchand configuré). À terme : KYC complet / badge vérifié.
+      certified: !!(u.certified || u.payLink),
+    }))
     .sort((a, b) => (a.name || '').localeCompare(b.name || ''));
 }
 

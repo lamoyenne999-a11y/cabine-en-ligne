@@ -3,6 +3,7 @@ import { View } from 'react-native';
 import { StatusBar } from 'expo-status-bar';
 import { StoreProvider, useStore } from './src/store';
 import { colors } from './src/theme';
+import ConnectionBanner from './src/components/ConnectionBanner';
 import Welcome from './src/screens/Welcome';
 import Login from './src/screens/Login';
 import Signup from './src/screens/Signup';
@@ -55,7 +56,12 @@ export default function App() {
       <View style={{ flex: 1, backgroundColor: '#150D1F', alignItems: 'center', justifyContent: 'center' }}>
         <View style={{ flex: 1, width: '100%', maxWidth: 440, backgroundColor: colors.bg, overflow: 'hidden' }}>
           <StatusBar style="light" />
-          <Root />
+          <View style={{ paddingHorizontal: 16, paddingTop: 10 }}>
+            <ConnectionBanner />
+          </View>
+          <View style={{ flex: 1 }}>
+            <Root />
+          </View>
         </View>
       </View>
     </StoreProvider>
