@@ -22,7 +22,7 @@ const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
 const DATA_FILE = process.env.DB_FILE || path.join(__dirname, '..', 'data', 'db.json');
 const DATABASE_URL = process.env.DATABASE_URL || '';
-const COLLECTIONS = ['users', 'gerants', 'demandes', 'notifications', 'subscriptions', 'referrals'];
+const COLLECTIONS = ['users', 'gerants', 'demandes', 'notifications', 'subscriptions', 'referrals', 'events'];
 
 const now = Date.now();
 const seed = () => ({
@@ -42,6 +42,10 @@ const seed = () => ({
   // Commissions de parrainage (taux 5/10/20 % selon le nb d'invités).
   // Chaque fois qu'un invité paie son abonnement, le parrain est crédité.
   referrals: [],
+  // Journal d'activité (entrées / sorties) pour l'Espace propriétaire :
+  //   user_registered | user_deleted | subscription_paid | subscription_expired
+  // C'est ce qui permet au propriétaire de suivre les utilisateurs en direct.
+  events: [],
 });
 
 // S'assure que toutes les collections existent (utile pour une base Postgres

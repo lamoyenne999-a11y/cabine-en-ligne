@@ -1,6 +1,6 @@
 import express from 'express';
 import { config } from '../config.js';
-import { subscriptionPayments, subscriptionTotals, subscriptionFor, referralSummary, referredUsersCount, referralPaymentCount, referralRateFor, deleteAccountAll } from '../services/flowService.js';
+import { subscriptionPayments, subscriptionTotals, subscriptionFor, referralSummary, referredUsersCount, referralPaymentCount, referralRateFor, deleteAccountAll, eventsForAdmin, eventsCounters, referralCodeStats, expiredUsers, reconcileExpiredEvents } from '../services/flowService.js';
 import { find, findOne, update } from '../db.js';
 
 const router = express.Router();
@@ -32,7 +32,17 @@ router.get('/summary', requireAdmin, (req, res) => {
     paidAt: p.paidAt,
     validUntil: p.validUntil,
   }));
-  res.json({ payments, totals: subscriptionTotals(), referral: referralSummary() });
+  // Détecte les expirations (sorties) avant de renvoyer la vue.
+  reconcileExpiredEvents();
+  res.json({
+    payments,
+    totals: subscriptionTotals(),
+    referral: referralSummary(),
+    referralCodes: referralCodeStats(),
+    events: eventsForAdmin(120),
+    eventCounters: eventsCounters(),
+    expired: expiredUsers(),
+  });
 });
 
 // Liste des comptes + statut d'abonnement + infos de parrainage.

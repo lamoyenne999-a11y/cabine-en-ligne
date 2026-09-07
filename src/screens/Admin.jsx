@@ -71,12 +71,23 @@ export default function Admin({ onBack }) {
   const payments = data?.payments || [];
   const totals = data?.totals || {};
   const referral = data?.referral || { totalCommission: 0, count: 0, referrers: [] };
+  const referralCodes = data?.referralCodes || { registeredWithCode: 0, registeredWithoutCode: 0, uniqueCodesUsed: 0, byCode: [] };
+  const events = data?.events || [];
+  const eventCounters = data?.eventCounters || {};
+  const expired = data?.expired || [];
   const clientsCount = users.filter((u) => u.role === 'client').length;
   const gerantsCount = users.filter((u) => u.role === 'gerant').length;
 
+  const EVENT_META = {
+    user_registered: { label: 'Nouvel utilisateur', icon: 'person-add-outline', color: colors.primary, bg: colors.primarySoft },
+    subscription_paid: { label: 'Abonnement payé', icon: 'cash-outline', color: colors.success, bg: colors.successBg },
+    subscription_expired: { label: 'Abonnement expiré', icon: 'alert-circle-outline', color: colors.danger, bg: colors.dangerBg },
+    user_deleted: { label: 'Compte supprimé', icon: 'trash-outline', color: colors.warn, bg: '#FDF0E0' },
+  };
+
   return (
-    <Page title="Paiements d'abonnement" onBack={onBack}>
-      {/* Résumé */}
+    <Page title="Espace propriétaire" onBack={onBack}>
+      {/* Résumé : total reçu */}
       <Card style={{ backgroundColor: colors.primarySoft }}>
         <T size={font.sm} weight="700" color={colors.primary} style={{ textTransform: 'uppercase', letterSpacing: 0.5 }}>Total reçu (déclaré)</T>
         <T size={font.h2} weight="900" color={colors.primary} style={{ marginTop: 6 }}>{money(totals.totalReceived)}</T>
@@ -92,64 +103,107 @@ export default function Admin({ onBack }) {
         )}
       </Card>
 
-      {/* Commissions de parrainage à verser */}
-      <Card style={{ marginTop: space.lg, backgroundColor: '#F0FBF5' }}>
-        <T size={font.sm} weight="700" color={colors.success} style={{ textTransform: 'uppercase', letterSpacing: 0.5 }}>Commissions de parrainage à verser</T>
-        <T size={font.h2} weight="900" color={colors.success} style={{ marginTop: 6 }}>{money(referral.totalCommission)}</T>
-        <T size={font.sm} weight="600" color={colors.muted} style={{ marginTop: 4 }}>{referral.count || 0} commission(s) générée(s) · {referral.referrers.length} parrain(s)</T>
-
-        {referral.referrers.length > 0 && (
-          <View style={{ marginTop: space.md }}>
-            {referral.referrers.map((r) => (
-              <View key={r.referrerId} style={s.refRow}>
-                <View style={{ flex: 1 }}>
-                  <T size={font.sm} weight="800" color={colors.text}>{r.name || '—'}</T>
-                  <T size={font.xs} weight="600" color={colors.muted}>{r.phone} · {r.count} commission(s) · {r.rate} %</T>
-                </View>
-                <T size={font.sm} weight="900" color={colors.success}>{money(r.totalCommission)}</T>
-              </View>
-            ))}
-          </View>
-        )}
-        <T size={font.xs} weight="600" color={colors.muted2} style={{ marginTop: 10 }}>
-          Réglez ces montants aux parrains directement (via Wave). Aucun argent n'est stocké ni envoyé automatiquement.
-        </T>
-      </Card>
-
-      {/* ---- Activité : entrées / sorties des utilisateurs ---- */}
-      <T size={font.h3} weight="800" color={colors.text} style={{ marginTop: space.lg, marginBottom: space.sm }}>Activité des utilisateurs</T>
-
-      <View style={{ flexDirection: 'row', marginBottom: space.sm }}>
+      {/* Compteurs d'activité */}
+      <View style={{ flexDirection: 'row', marginTop: space.lg, marginBottom: space.sm }}>
         <View style={{ flex: 1, marginRight: 8 }}><StatTile icon="people-outline" value={users.length} label="Utilisateurs" tone="purple" /></View>
         <View style={{ flex: 1, marginRight: 8 }}><StatTile icon="person-outline" value={clientsCount} label="Clients" tone="blue" /></View>
         <View style={{ flex: 1 }}><StatTile icon="storefront-outline" value={gerantsCount} label="Gérants" tone="orange" /></View>
       </View>
+      <View style={{ flexDirection: 'row', marginBottom: space.sm }}>
+        <View style={{ flex: 1, marginRight: 8 }}><StatTile icon="person-add-outline" value={eventCounters.user_registered || 0} label="Inscriptions" tone="green" /></View>
+        <View style={{ flex: 1, marginRight: 8 }}><StatTile icon="cash-outline" value={eventCounters.subscription_paid || 0} label="Paiements" tone="green" /></View>
+        <View style={{ flex: 1, marginRight: 8 }}><StatTile icon="alert-circle-outline" value={eventCounters.subscription_expired || 0} label="Expirés" tone="orange" /></View>
+        <View style={{ flex: 1 }}><StatTile icon="trash-outline" value={eventCounters.user_deleted || 0} label="Supprimés" tone="orange" /></View>
+      </View>
+      <T size={font.xs} weight="600" color={colors.muted2} style={{ textAlign: 'center', marginBottom: space.lg }}>
+        Entrées = Inscriptions · Paiements. Sorties = Expirés · Supprimés.
+      </T>
 
-      <Card style={{ marginTop: space.sm }}>
-        <T size={font.h3} weight="800" color={colors.text} style={{ marginBottom: 6 }}>Dernières inscriptions</T>
-        {users.length === 0 ? (
-          <T size={font.sm} weight="600" color={colors.muted} style={{ marginTop: 4 }}>
-            Aucun utilisateur inscrit pour l'instant. Les nouvelles inscriptions apparaîtront ici dès qu'un compte est créé.
-          </T>
+      {/* Journal d'activité */}
+      <T size={font.h3} weight="800" color={colors.text} style={{ marginBottom: space.sm }}>Journal d'activité</T>
+      <Card>
+        {events.length === 0 ? (
+          <View style={{ alignItems: 'center', paddingVertical: 16 }}>
+            <Ionicons name="time-outline" size={30} color={colors.muted2} />
+            <T size={font.sm} weight="600" color={colors.muted} style={{ marginTop: 8, textAlign: 'center' }}>
+              Aucune activité pour l'instant. Les inscriptions, paiements, expirations et suppressions apparaîtront ici.
+            </T>
+          </View>
         ) : (
-          users.map((u) => {
-            const st = u.subscription?.status === 'active' ? { l: 'Actif', c: colors.success, bg: colors.successBg, i: 'checkmark-circle' }
-              : u.subscription?.status === 'expired' ? { l: 'Expiré', c: colors.danger, bg: colors.dangerBg, i: 'alert-circle' }
-              : { l: 'Essai', c: colors.primary, bg: colors.primarySoft, i: 'sparkles' };
+          events.map((e) => {
+            const m = EVENT_META[e.type] || { label: e.type, icon: 'ellipse-outline', color: colors.muted, bg: colors.gray };
             return (
               <ListRow
-                key={u.id}
-                icon={u.role === 'gerant' ? 'storefront-outline' : 'person-outline'}
-                iconColor={u.role === 'gerant' ? colors.wave : colors.primary}
-                label={`${u.name} · ${u.role === 'gerant' ? 'Gérant' : 'Client'}`}
-                value={`${st.l} · ${fmtDate(u.createdAt)}`}
-                iconBg={st.bg}
+                key={e.id}
+                icon={m.icon}
+                iconColor={m.color}
+                iconBg={m.bg}
+                label={`${e.name || '—'}${e.phone ? ' · ' + e.phone : ''}${e.role ? ' · ' + (e.role === 'gerant' ? 'Gérant' : 'Client') : ''}`}
+                value={`${m.label} · ${fmtDate(e.createdAt)}${e.amount ? ' · ' + money(e.amount) : ''}`}
               />
             );
           })
         )}
+      </Card>
+
+      {/* Codes de parrainage utilisés */}
+      <T size={font.h3} weight="800" color={colors.text} style={{ marginTop: space.lg, marginBottom: space.sm }}>Codes de parrainage</T>
+      <Card>
+        <View style={{ flexDirection: 'row', marginBottom: space.sm }}>
+          <View style={s.codeChip}><T size={font.xs} weight="800" color={colors.primary}>{referralCodes.registeredWithCode || 0} inscrit(s) avec un code</T></View>
+          <View style={s.codeChip}><T size={font.xs} weight="800" color={colors.muted}>{referralCodes.uniqueCodesUsed || 0} code(s) utilisés</T></View>
+        </View>
+        {referralCodes.byCode.length === 0 ? (
+          <T size={font.sm} weight="600" color={colors.muted}>Aucun code de parrainage utilisé pour l'instant.</T>
+        ) : referralCodes.byCode.map((c) => (
+          <View key={c.code} style={s.refRow}>
+            <View style={{ flex: 1 }}>
+              <T size={font.sm} weight="800" color={colors.text}>{c.code || '(parrain sans code)'}</T>
+              <T size={font.xs} weight="600" color={colors.muted}>{c.referrerName || ''} · {c.referrerPhone || ''}</T>
+            </View>
+            <T size={font.sm} weight="900" color={colors.primary}>{c.count} utilisateur(s)</T>
+          </View>
+        ))}
+      </Card>
+
+      {/* Abonnements expirés */}
+      <T size={font.h3} weight="800" color={colors.text} style={{ marginTop: space.lg, marginBottom: space.sm }}>Abonnements expirés</T>
+      <Card>
+        {expired.length === 0 ? (
+          <T size={font.sm} weight="600" color={colors.muted}>Aucun abonnement expiré en ce moment.</T>
+        ) : (
+          expired.map((u) => (
+            <ListRow
+              key={u.id}
+              icon="alert-circle-outline"
+              iconColor={colors.danger}
+              iconBg={colors.dangerBg}
+              label={`${u.name} · ${u.phone} · ${u.role === 'gerant' ? 'Gérant' : 'Client'}`}
+              value={`Expiré depuis le ${fmtDate(u.subscribedUntil)}`}
+            />
+          ))
+        )}
         <T size={font.xs} weight="500" color={colors.muted2} style={{ marginTop: 10 }}>
-          Le statut indique qui peut utiliser le service : « Actif » (abonnement payé), « Essai » (gratuit, non expiré) ou « Expiré » (à renouveler). Une fois un abonnement expiré, l'utilisateur ne peut plus envoyer/traiter de demandes (sortie).
+          Un abonnement expiré bloque l'utilisateur : un client ne peut plus envoyer de demande, un gérant ne peut plus en traiter. C'est une « sortie » à surveiller.
+        </T>
+      </Card>
+
+      {/* Commissions de parrainage à verser */}
+      <T size={font.h3} weight="800" color={colors.text} style={{ marginTop: space.lg, marginBottom: space.sm }}>Commissions à verser</T>
+      <Card style={{ backgroundColor: '#F0FBF5' }}>
+        <T size={font.h2} weight="900" color={colors.success}>{money(referral.totalCommission)}</T>
+        <T size={font.sm} weight="600" color={colors.muted} style={{ marginTop: 2 }}>{referral.count || 0} commission(s) · {referral.referrers.length} parrain(s)</T>
+        {referral.referrers.map((r) => (
+          <View key={r.referrerId} style={s.refRow}>
+            <View style={{ flex: 1 }}>
+              <T size={font.sm} weight="800" color={colors.text}>{r.name || '—'}</T>
+              <T size={font.xs} weight="600" color={colors.muted}>{r.phone} · {r.count} · {r.rate} %</T>
+            </View>
+            <T size={font.sm} weight="900" color={colors.success}>{money(r.totalCommission)}</T>
+          </View>
+        ))}
+        <T size={font.xs} weight="600" color={colors.muted2} style={{ marginTop: 10 }}>
+          Réglez ces montants aux parrains directement (via Wave). Aucun argent n'est stocké ni envoyé automatiquement.
         </T>
       </Card>
 
@@ -189,6 +243,7 @@ const s = StyleSheet.create({
   input: { flexDirection: 'row', alignItems: 'center', backgroundColor: colors.bg, borderRadius: radius.md, paddingHorizontal: 14, height: 52 },
   inputText: { flex: 1, fontSize: font.body, color: colors.text, paddingVertical: 0, outlineStyle: 'none' },
   planChip: { backgroundColor: '#fff', borderRadius: radius.pill, paddingHorizontal: 12, paddingVertical: 6, marginRight: 8 },
+  codeChip: { backgroundColor: colors.primarySoft, borderRadius: radius.pill, paddingHorizontal: 12, paddingVertical: 6, marginRight: 8 },
   row: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginTop: 8 },
   refRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingVertical: 10, borderTopWidth: 1, borderTopColor: colors.border },
 });

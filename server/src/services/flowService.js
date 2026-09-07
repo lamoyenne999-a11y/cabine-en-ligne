@@ -94,7 +94,7 @@ export function paySubscription(user, plan = SUB_DEFAULT_PLAN) {
   const validUntil = prev + conf.ms;
 
   // 1) Active l'abonnement côté utilisateur.
-  const fresh = { status: 'active', plan: conf === plans[plan] ? plan : SUB_DEFAULT_PLAN, price: conf.price, trialEndsAt: s.trialEndsAt || now + MONTH_MS, subscribedUntil: validUntil };
+  const fresh = { status: 'active', plan: conf === plans[plan] ? plan : SUB_DEFAULT_PLAN, price: conf.price, trialEndsAt: s.trialEndsAt || now + MONTH_MS, subscribedUntil: validUntil, expiryNotified: false };
   update('users', (u) => u.id === user.id, { subscription: fresh });
 
   // 2) Enregistre le paiement (traçabilité propriétaire).
@@ -115,6 +115,9 @@ export function paySubscription(user, plan = SUB_DEFAULT_PLAN) {
 
   // 3) Crédite la commission du parrain (si l'utilisateur a été parrainé).
   const referralCommission = recordReferralCommission(user, payment);
+
+  // 4) Journal : signale le paiement dans l'Espace propriétaire.
+  recordEvent({ type: 'subscription_paid', name: user.name, phone: user.phone, role: user.role, amount: conf.price, plan: conf === plans[plan] ? plan : SUB_DEFAULT_PLAN, reference });
 
   return {
     subscription: subscriptionFor({ ...user, subscription: fresh }),
@@ -300,7 +303,90 @@ export function deleteAccountAll(phone) {
   remove('notifications', (n) => n.userId === id);
   remove('subscriptions', (s) => s.userId === id);
   remove('referrals', (r) => r.referrerId === id || r.referredUserId === id);
+  recordEvent({ type: 'user_deleted', name: u.name, phone: u.phone, role: u.role });
   return { removed: true, name: u.name, phone: u.phone, role: u.role };
+}
+
+// ------------------------------------------------------------------
+//  JOURNAL D'ACTIVITÉ (entrées / sorties) pour l'Espace propriétaire.
+//  Chaque événement clé est enregistré : inscription, paiement,
+//  expiration, suppression. Le propriétaire suit ainsi les entrées et
+//  sorties d'utilisateurs en direct.
+// ------------------------------------------------------------------
+export function recordEvent({ type, name = '', phone = '', role = '', amount = 0, plan = '', reference = '' }) {
+  return insert('events', {
+    type,                 // user_registered | user_deleted | subscription_paid | subscription_expired
+    name, phone, role,
+    amount, plan, reference,
+    createdAt: Date.now(),
+  });
+}
+export function eventsForAdmin(limit = 100) {
+  return find('events', () => true).sort((a, b) => b.createdAt - a.createdAt).slice(0, limit);
+}
+// Compteurs par type d'événement.
+export function eventsCounters() {
+  const rows = find('events', () => true);
+  const c = { total: rows.length };
+  for (const type of ['user_registered', 'user_deleted', 'subscription_paid', 'subscription_expired']) {
+    c[type] = rows.filter((r) => r.type === type).length;
+  }
+  return c;
+}
+
+// ------------------------------------------------------------------
+//  ANALYSE CODES DE PARRAINAGE : combien de codes utilisés à l'inscription,
+//  et combien d'utilisateurs rattachés à chaque code.
+// ------------------------------------------------------------------
+export function referralCodeStats() {
+  const users = find('users', () => true);
+  const withRef = users.filter((u) => u.referredBy);
+  const byCode = {};
+  // On retrouve le code d'un utilisateur via son parrain.
+  for (const u of withRef) {
+    const referrer = findOne('users', (x) => x.id === u.referredBy);
+    const code = (referrer?.referralCode || '').trim();
+    if (!code) continue;
+    byCode[code] = byCode[code] || { code, count: 0, referrerName: referrer.name, referrerPhone: referrer.phone };
+    byCode[code].count += 1;
+  }
+  return {
+    registeredWithCode: withRef.length,          // nb d'utilisateurs inscrits via un code
+    registeredWithoutCode: users.length - withRef.length,
+    uniqueCodesUsed: Object.keys(byCode).length, // nb de codes différents utilisés
+    byCode: Object.values(byCode).sort((a, b) => b.count - a.count),
+  };
+}
+
+// ------------------------------------------------------------------
+//  ABONNEMENTS EXPIRÉS : liste des utilisateurs dont l'abonnement est
+//  expiré (ne peut plus utiliser le service). Pour que le propriétaire
+//  soit informé des « sorties » par expiration.
+// ------------------------------------------------------------------
+export function expiredUsers() {
+  const now = Date.now();
+  return find('users', () => true)
+    .map((u) => ({ user: u, subscription: subscriptionFor(u) }))
+    .filter((x) => x.subscription.status === 'expired')
+    .map((x) => ({ id: x.user.id, name: x.user.name, phone: x.user.phone, role: x.user.role, subscribedUntil: x.subscription.subscribedUntil }));
+}
+
+// Détecte les abonnements qui viennent d'expirer et enregistre UNE fois
+// l'événement dans le journal (pour informer le propriétaire de la sortie).
+// Idempotent : ne signale pas deux fois la même expiration.
+export function reconcileExpiredEvents() {
+  const now = Date.now();
+  const expired = find('users', () => true).filter((u) => {
+    const s = u.subscription || {};
+    return (s.subscribedUntil > 0 && s.subscribedUntil <= now) && !s.expiryNotified;
+  });
+  for (const u of expired) {
+    recordEvent({ type: 'subscription_expired', name: u.name, phone: u.phone, role: u.role });
+    const s = { ...(u.subscription || {}) };
+    s.expiryNotified = true;
+    update('users', (x) => x.id === u.id, { subscription: s });
+  }
+  return expired.length;
 }
 
 // ---- Notifications (reçues par les gérants) ----

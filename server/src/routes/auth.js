@@ -1,7 +1,7 @@
 import { Router } from 'express';
 import { findOne, insert } from '../db.js';
 import { signToken, hashPassword, verifyPassword, requireAuth } from '../middleware/auth.js';
-import { subscriptionFor, applyReferral, referralInfoFor } from '../services/flowService.js';
+import { subscriptionFor, applyReferral, referralInfoFor, recordEvent } from '../services/flowService.js';
 
 const router = Router();
 
@@ -27,6 +27,9 @@ router.post('/register', async (req, res, next) => {
 
     // Parrainage optionnel : code saisi à l'inscription.
     applyReferral(user, referrerCode);
+
+    // Journal : enregistre l'inscription (entrée) pour l'Espace propriétaire.
+    recordEvent({ type: 'user_registered', name: user.name, phone: user.phone, role: user.role });
 
     const token = signToken(user);
     res.status(201).json({
