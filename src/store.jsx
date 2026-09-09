@@ -193,46 +193,58 @@ export function StoreProvider({ children }) {
   const logout = useCallback(() => { clearToken(); clearSession(); dispatch({ type: 'LOGOUT' }); }, []);
 
   // ---- Restauration de session au démarrage (rester connecté) ----
+  // Si le compte a été SUPPRIMÉ pendant que l'utilisateur était connecté, le
+  // serveur répond 401 (utilisateur introuvable) : on force la déconnexion et
+  // on le renvoie à l'accueil pour qu'il ne puisse plus utiliser l'app.
   const restore = useCallback(async () => {
     if (!online) return;             // hors ligne : on garde la session locale
     try {
       const { user, subscription } = await api.me();
       dispatch({ type: 'LOGIN', payload: { user, subscription } });
       persistSession({ user, subscription });
-    } catch { /* jeton invalide/expiré → on laisse la session locale (démo) */ }
+    } catch (e) {
+      if (e && e.status === 401) { clearToken(); clearSession(); dispatch({ type: 'LOGOUT' }); }
+      /* autre erreur (réseau…) : on garde la session locale */
+    }
   }, [online]);
   useEffect(() => { if (online && state.loggedIn && getToken()) restore(); }, [online]); // eslint-disable-line
 
   // ---- Rafraîchit depuis le serveur ----
+  // `safe` déconnecte l'utilisateur et le renvoie à l'accueil si le serveur
+  // répond 401 (compte supprimé ou jeton invalidé), sinon renvoie null.
+  const safe = (e) => {
+    if (e && e.status === 401) { clearToken(); clearSession(); dispatch({ type: 'LOGOUT' }); }
+    return null;
+  };
   const refresh = useCallback(async () => {
     if (!online) return;
     try {
-      const sub = await (state.role === 'gerant' ? api.gerant.subscription() : api.client.subscription()).catch(() => null);
+      const sub = await (state.role === 'gerant' ? api.gerant.subscription() : api.client.subscription()).catch(safe);
       if (sub) dispatch({ type: 'SET_SUBSCRIPTION', payload: sub.subscription });
 
       // Parrainage : code, invités, taux et gains.
-      const ref = await api.referral.my().catch(() => null);
+      const ref = await api.referral.my().catch(safe);
       if (ref?.referral) dispatch({ type: 'SET_REFERRAL', payload: ref.referral });
 
       if (state.role === 'client') {
         const [g, av, d, n] = await Promise.all([
-          api.client.gerants().catch(() => null),
-          api.client.availableGerants().catch(() => null),
-          api.client.myDemandes().catch(() => null),
-          api.client.notifications().catch(() => null),
+          api.client.gerants().catch(safe),
+          api.client.availableGerants().catch(safe),
+          api.client.myDemandes().catch(safe),
+          api.client.notifications().catch(safe),
         ]);
         dispatch({ type: 'HYDRATE', payload: { gerants: g?.gerants, demandes: d?.demandes } });
         if (av) dispatch({ type: 'SET_AVAILABLE_GERANTS', payload: av.gerants });
         if (n) dispatch({ type: 'SET_CLIENT_NOTIFICATIONS', payload: n });
       } else if (state.role === 'gerant') {
         const [d, n] = await Promise.all([
-          api.gerant.demandes().catch(() => null),
-          api.gerant.notifications().catch(() => null),
+          api.gerant.demandes().catch(safe),
+          api.gerant.notifications().catch(safe),
         ]);
         if (d) dispatch({ type: 'SET_GERANT_DEMANDES', payload: d.demandes });
         if (n) dispatch({ type: 'SET_NOTIFICATIONS', payload: n });
       }
-    } catch { /* silencieux */ }
+    } catch (e) { safe(e); }
   }, [online, state.role, state.loggedIn]);
 
   useEffect(() => { if (online && state.loggedIn) refresh(); }, [online, state.loggedIn]); // eslint-disable-line
@@ -301,6 +313,13 @@ export function StoreProvider({ children }) {
   const completeDemande = useCallback(async (id) => {
     dispatch({ type: 'GERANT_UPDATE_DEMANDE', payload: { id, status: 'completed' } });
     if (online) { try { await api.gerant.complete(id); } catch {} }
+  }, [online]);
+
+  // Enregistre le jeton de notification push de l'appareil (app mobile uniquement)
+  // pour recevoir les alertes directement sur le téléphone.
+  const registerPushToken = useCallback(async (token) => {
+    if (!online || !token) return;
+    try { await api.pushToken(token); } catch { /* silencieux */ }
   }, [online]);
 
   // Mise à jour du profil gérant (numéro + lien Wave marchand)
@@ -393,8 +412,8 @@ export function StoreProvider({ children }) {
   }, [state.role]);
 
   const value = useMemo(
-    () => ({ state, dispatch, online, checking, recheck: probe, login, register, logout, refresh, addGerant, removeGerant, createDemande, markPaid, cancelDemande, acceptDemande, declineDemande, completeDemande, subscribe, updateGerantProfile, loadNotifications, markNotificationRead, markAllNotificationsRead, loadClientNotifications, markClientNotificationRead, markAllClientNotificationsRead, loadReferral, updateReferralCode }),
-    [state, online, checking, probe, login, register, logout, refresh, addGerant, removeGerant, createDemande, markPaid, cancelDemande, acceptDemande, declineDemande, completeDemande, subscribe, updateGerantProfile, loadNotifications, markNotificationRead, markAllNotificationsRead, loadClientNotifications, markClientNotificationRead, markAllClientNotificationsRead, loadReferral, updateReferralCode],
+    () => ({ state, dispatch, online, checking, recheck: probe, login, register, logout, refresh, addGerant, removeGerant, createDemande, markPaid, cancelDemande, acceptDemande, declineDemande, completeDemande, subscribe, updateGerantProfile, registerPushToken, loadNotifications, markNotificationRead, markAllNotificationsRead, loadClientNotifications, markClientNotificationRead, markAllClientNotificationsRead, loadReferral, updateReferralCode }),
+    [state, online, checking, probe, login, register, logout, refresh, addGerant, removeGerant, createDemande, markPaid, cancelDemande, acceptDemande, declineDemande, completeDemande, subscribe, updateGerantProfile, registerPushToken, loadNotifications, markNotificationRead, markAllNotificationsRead, loadClientNotifications, markClientNotificationRead, markAllClientNotificationsRead, loadReferral, updateReferralCode],
   );
   return <Ctx.Provider value={value}>{children}</Ctx.Provider>;
 }

@@ -83,3 +83,30 @@ lui envoyer une petite requête toutes les 5 min pour empêcher le service de do
 
 > ⏱️ **Temps total : ~5 minutes.** C'est le geste qui fait le plus pour la bonne
 > première impression de tes testeurs.
+
+---
+
+## ⚠️ 8. Le piège à connaître : les 750 h/mois du plan gratuit
+
+Le keep-alive **empêche bien la mise en veille** (donc plus de page « Welcome to Render »).
+MAIS il a une conséquence cachée :
+
+- Le plan gratuit de Render donne **750 h d'instance par mois** (par workspace).
+- Un keep-alive qui tourne **24h/24** fait que le service reste **allumé en continu** :
+  - **~730 à 744 h** par mois (soit presque tout le quota de 750 h).
+- Quand le quota est atteint, Render **suspends** les services gratuits du workspace
+  **jusqu'au 1ᵉʳ du mois suivant** (le site devient injoignable).
+
+### Donc :
+| Situation | Keep-alive nécessaire ? | Risque |
+|---|---|---|
+| **Test 10–15 personnes** (1 à 3 semaines) | ✅ Oui | **Aucun** — tu consommes ~300 h, loin du plafond. |
+| **Production continue 24/7** | ⚠️ Non idéal | Tu atteins le plafond de **750 h en ~1 mois** → suspension. |
+
+### La solution durable
+Le **plan payant (Starter ≈ 7 $/mois)** supprime **à la fois** :
+- la **mise en veille** (plus de cold start), **et**
+- le **plafond d'heures** (le service reste actif sans suspension).
+
+➡️ Donc : **keep-alive = parfait pour le lancement test** (gratuit). Pour les vrais clients,
+passe au plan payant — c'est ce qui évite BOTH le cold start ET le plafond horaire.

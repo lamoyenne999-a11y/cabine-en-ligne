@@ -87,6 +87,9 @@ export default function GerantDemandes() {
                   </T>
                 </View>
                 <View style={s.actions}>
+                  <Btn title="Refuser" icon="close-circle" outline color={colors.danger} onPress={() => setConfirm({ id: d.id, action: 'decline' })} style={{ flex: 1 }} />
+                </View>
+                <View style={s.actions}>
                   <Btn title="Accepter" icon="checkmark" outline onPress={() => setConfirm({ id: d.id, action: 'accept' })} style={{ flex: 1, marginRight: 6 }} />
                   <Btn title="J'ai servi" icon="checkmark-done" onPress={() => setConfirm({ id: d.id, action: 'complete' })} style={{ flex: 1 }} />
                 </View>
@@ -111,7 +114,16 @@ export default function GerantDemandes() {
           {confirm?.action === 'accept' ? 'Accepter la demande' : confirm?.action === 'decline' ? 'Refuser la demande' : 'Confirmer le service'}
         </T>
         <T size={font.sm} weight="600" color={colors.muted} style={{ textAlign: 'center', marginTop: 6, marginBottom: 6 }}>
-          {confirm?.action === 'accept' ? 'Le client vous enverra le paiement via votre Wave marchand.' : confirm?.action === 'decline' ? 'La demande sera signalée comme refusée.' : 'Vous avez bien crédité le bénéficiaire ?'}
+          {(() => {
+            if (confirm?.action === 'accept') return 'Le client vous enverra le paiement via votre Wave.';
+            if (confirm?.action === 'decline') {
+              const wasPaid = (demandes.find((d) => d.id === confirm?.id) || {}).status === 'paid';
+              return wasPaid
+                ? 'Le client a déjà payé. Si vous refusez, le montant doit lui être remboursé (par Wave).'
+                : 'La demande sera signalée comme refusée.';
+            }
+            return 'Vous avez bien servi le client ?';
+          })()}
         </T>
         <DialogButtons cancel="Annuler" confirm="Confirmer" onCancel={() => setConfirm(null)} onConfirm={doAction} />
       </Dialog>

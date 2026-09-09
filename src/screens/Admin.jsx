@@ -560,8 +560,12 @@ export default function Admin({ onBack }) {
         </T>
         <T size={font.sm} weight="600" color={colors.muted} style={{ textAlign: 'center', marginTop: 6, marginBottom: 6 }}>
           {suspendTarget?.frozen && !suspendTarget?.user?.frozen
-            ? `${suspendTarget?.user?.name} (${suspendTarget?.user?.phone}) ne pourra plus envoyer ni traiter de demandes. Vous pourrez le réactiver ensuite.`
-            : `${suspendTarget?.user?.name} (${suspendTarget?.user?.phone}) retrouvera le droit d'envoyer et de traiter des demandes.`}
+            ? (suspendTarget?.user?.role === 'gerant'
+                ? `Ce gérant ne recevra PAS de nouvelles demandes et ne sera plus proposé aux clients tant que vous ne l'aurez pas réactivé.`
+                : `${suspendTarget?.user?.name} (${suspendTarget?.user?.phone}) ne pourra plus envoyer de demandes. Vous pourrez le réactiver ensuite.`)
+            : (suspendTarget?.user?.role === 'gerant'
+                ? `Ce gérant retrouvera le droit de recevoir et traiter des demandes, et réapparaîtra dans le choix des clients.`
+                : `${suspendTarget?.user?.name} (${suspendTarget?.user?.phone}) retrouvera le droit d'envoyer des demandes.`)}
         </T>
         <DialogButtons
           cancel="Retour"

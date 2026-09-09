@@ -407,7 +407,7 @@ export function unreadCount(userId) {
   return notificationsFor(userId).filter((n) => !n.read).length;
 }
 export function createNotification({ userId, type, text, demandeId }) {
-  return insert('notifications', {
+  const n = insert('notifications', {
     userId,
     type,             // 'new_demande' | 'demande_accepted' | 'demande_declined' | 'demande_canceled' | 'demande_paid' | 'demande_completed'
     text,
@@ -415,6 +415,10 @@ export function createNotification({ userId, type, text, demandeId }) {
     read: false,
     createdAt: Date.now(),
   });
+  // En complément de la notif in-app, on alerte le téléphone de l'utilisateur
+  // (si l'appareil a enregistré son jeton et que l'envoi est activé).
+  notifyPush(userId, { type, text, demandeId: n.demandeId });
+  return n;
 }
 export function markNotificationRead({ id, userId }) {
   const n = findOne('notifications', (x) => x.id === id && x.userId === userId);
@@ -425,6 +429,49 @@ export function markNotificationRead({ id, userId }) {
 export function markAllNotificationsRead(userId) {
   notificationsFor(userId).forEach((n) => update('notifications', (x) => x.id === n.id, { read: true }));
   return { ok: true };
+}
+
+// ------------------------------------------------------------------
+//  NOTIFICATIONS PUSH (Expo) — alerte sur le téléphone de l'utilisateur,
+//  en complément de la notification in-app.
+//  - L'appareil enregistre son jeton Expo via POST /api/auth/push-token.
+//  - À chaque notification créée, on envoie une push à tous les jetons de
+//    l'utilisateur, si l'envoi est activé (config.pushEnabled).
+//  - L'envoi est "fire-and-forget" : jamais bloquant pour le flux métier.
+// ------------------------------------------------------------------
+export function registerPushToken(userId, token) {
+  const t = String(token || '').trim();
+  if (!t) throw Object.assign(new Error('Jeton de notification requis'), { status: 400 });
+  const existing = findOne('push_tokens', (p) => p.userId === userId && p.token === t);
+  if (existing) return existing;
+  return insert('push_tokens', { userId, token: t, createdAt: Date.now() });
+}
+
+// Envoie une push à tous les appareils enregistrés pour un utilisateur.
+export async function sendPushToUser(userId, { title = 'Cabine En Ligne', body = '', data = {} }) {
+  if (!config.pushEnabled) return { skipped: 'disabled' };
+  const tokens = find('push_tokens', (p) => p.userId === userId).map((p) => p.token);
+  if (!tokens.length) return { skipped: 'no_tokens' };
+  try {
+    const res = await fetch('https://exp.host/--/api/v2/push/send', {
+      method: 'POST',
+      headers: {
+        'content-type': 'application/json',
+        ...(config.expoAccessToken ? { authorization: `Bearer ${config.expoAccessToken}` } : {}),
+      },
+      body: JSON.stringify({ to: tokens, title, body, data, sound: 'default', channelId: 'default' }),
+    });
+    const json = await res.json().catch(() => ({}));
+    return { sent: tokens.length, receipts: json.data || [] };
+  } catch (e) {
+    console.error('[push] envoi Expo échoué :', e.message);
+    return { error: e.message };
+  }
+}
+
+// Fire-and-forget : déclenche l'envoi push sans bloquer la création de la notif.
+function notifyPush(userId, { type, text, demandeId }) {
+  sendPushToUser(userId, { body: text, data: { type, demandeId } }).catch(() => {});
 }
 
 // ---- Public profile (lien de partage) ----
@@ -439,11 +486,13 @@ export function gerantsFor(clientId) {
   // On enrichit chaque contact avec les coordonnées Wave À JOUR du compte gérant
   // (numéro + lien marchand), pour que le client voie toujours le lien en direct
   // même si le contact a été ajouté avant que le gérant ne configure son lien.
+  // Un gérant suspendu par le propriétaire est marqué `suspended` : le client
+  // ne peut plus lui envoyer de demande tant que la suspension n'est pas levée.
   return find('gerants', (g) => g.ownerId === clientId).map((g) => {
     if (g.userId) {
       const u = findOne('users', (x) => x.id === g.userId);
       if (u) {
-        return { ...g, waveNumber: u.waveNumber || g.waveNumber, payLink: u.payLink || g.payLink || '' };
+        return { ...g, waveNumber: u.waveNumber || g.waveNumber, payLink: u.payLink || g.payLink || '', suspended: !!u.frozen };
       }
     }
     return g;
@@ -452,10 +501,12 @@ export function gerantsFor(clientId) {
 
 // Gérants réellement inscrits sur la plateforme, proposés au client pour
 // simplifier sa tâche. On exclut les comptes sans mot de passe (fantômes /
-// créés à la volée) pour n'afficher que des gérants enregistrés.
+// créés à la volée) pour n'afficher que des gérants enregistrés. Un gérant
+// SUSPENDU (frozen) est retiré de la liste : il ne réapparaît que lorsque sa
+// suspension est annulée par le propriétaire.
 export function availableGerants(clientId) {
   const added = gerantsFor(clientId).map((g) => g.userId);
-  return find('users', (u) => u.role === 'gerant' && u.passwordHash)
+  return find('users', (u) => u.role === 'gerant' && u.passwordHash && !u.frozen)
     .map((u) => ({
       userId: u.id, name: u.name, phone: u.phone, waveNumber: u.waveNumber || u.phone, payLink: u.payLink || '',
       alreadyAdded: added.includes(u.id),
@@ -549,6 +600,14 @@ export function createDemande({ client, gerantId, gerantUserId, type, amount, be
     }
   }
   if (!g) throw Object.assign(new Error('Gérant introuvable'), { status: 404 });
+  // Le gérant ciblé peut être suspendu par le propriétaire : on bloque la demande
+  // pour qu'il ne reçoive rien tant que sa suspension n'est pas annulée.
+  if (g.userId) {
+    const gTarget = findOne('users', (x) => x.id === g.userId);
+    if (gTarget && gTarget.frozen) {
+      throw Object.assign(new Error(`${g.name} est actuellement suspendu. Choisissez un autre gérant.`), { status: 403 });
+    }
+  }
   if (!['unites', 'minutes', 'internet'].includes(type)) throw Object.assign(new Error('Type invalide'), { status: 400 });
   if (!(parseInt(amount, 10) > 0)) throw Object.assign(new Error('Montant invalide'), { status: 400 });
 
@@ -658,10 +717,20 @@ export function decideDemande({ id, gerantUserId, decision }) {
     throw Object.assign(new Error('Votre abonnement a expiré. Renouvelez-le pour continuer à traiter les demandes.'), { status: 403 });
   }
   if (decision === 'decline') {
-    if (d.status !== 'pending') throw Object.assign(new Error('Impossible de refuser une demande déjà payée ou traitée'), { status: 400 });
+    // Le gérant peut refuser UNE DEMANDE EN ATTENTE OU DÉJÀ PAYÉE.
+    if (!['pending', 'paid'].includes(d.status)) throw Object.assign(new Error('Impossible de refuser une demande déjà traitée'), { status: 400 });
+    const wasPaid = d.status === 'paid';
     update('demandes', (x) => x.id === id, { status: 'declined', acceptedAt: Date.now() });
     const upd = findOne('demandes', (x) => x.id === id);
-    if (upd && upd.clientId) createNotification({ userId: upd.clientId, type: 'demande_declined', text: `${upd.gerantName} a refusé votre demande — ${TYPE_LABEL[upd.type] || upd.type}  ${upd.amount} F`, demandeId: upd.id });
+    if (upd && upd.clientId) createNotification({
+      userId: upd.clientId,
+      type: 'demande_declined',
+      // Si le client avait déjà payé, on lui rappelle que le montant doit lui être remboursé.
+      text: wasPaid
+        ? `${upd.gerantName} a refusé votre demande — ${TYPE_LABEL[upd.type] || upd.type}  ${upd.amount} F. Vous avez déjà payé via Wave : le montant doit vous être remboursé. Contactez ${upd.gerantName} si besoin.`
+        : `${upd.gerantName} a refusé votre demande — ${TYPE_LABEL[upd.type] || upd.type}  ${upd.amount} F`,
+      demandeId: upd.id,
+    });
     return upd;
   } else {
     // Acceptation possible en attente OU après paiement anticipé du client

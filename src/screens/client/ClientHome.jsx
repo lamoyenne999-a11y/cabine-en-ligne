@@ -42,6 +42,9 @@ export default function ClientHome() {
   // Gérants inscrits proposés = ceux que le client n'a pas encore ajoutés.
   const addedIds = new Set((state.gerants || []).map((g) => g.userId));
   const suggested = (state.availableGerants || []).filter((g) => !g.alreadyAdded && !addedIds.has(g.userId));
+  // On masque les gérants SUSPENDUS du choix : un gérant suspendu ne doit pas
+  // apparaître quand le client veut faire une demande.
+  const myGerants = (state.gerants || []).filter((g) => !g.suspended);
 
   // Validation : on n'envoie jamais la demande tant qu'il manque une info.
   const validate = () => {
@@ -205,11 +208,11 @@ export default function ClientHome() {
         </View>
 
         {/* PRIORITÉ : les gérants déjà ajoutés par le client (il les connaît) */}
-        {state.gerants.length > 0 && (
+        {myGerants.length > 0 && (
           <>
             <T size={font.sm} weight="800" color={colors.text} style={{ marginBottom: 4 }}>Vos gérants (priorité)</T>
             <T size={font.xs} weight="600" color={colors.muted2} style={{ marginBottom: 8 }}>Ceux que vous avez déjà ajoutés — vous les connaissez, c\'est plus sûr.</T>
-            {state.gerants.map((g) => {
+            {myGerants.map((g) => {
               const on = sel?.id === g.id;
               return (
                 <Pressable key={g.id} onPress={() => { setSel({ id: g.id, userId: g.userId, name: g.name, phone: g.phone, waveNumber: g.waveNumber, payLink: g.payLink || '', online: g.online }); clearErr('gerant'); setShowGerants(false); }} style={[s.gerantRow, on && { opacity: 0.7 }]}>
@@ -253,7 +256,7 @@ export default function ClientHome() {
           </>
         )}
 
-        {suggested.length === 0 && state.gerants.length === 0 && (
+        {suggested.length === 0 && myGerants.length === 0 && (
           <View style={{ alignItems: 'center', paddingVertical: 24 }}>
             <Ionicons name="storefront-outline" size={36} color={colors.muted2} />
             <T size={font.sm} weight="600" color={colors.muted} style={{ marginTop: 8, textAlign: 'center' }}>Aucun gérant disponible pour le moment.</T>

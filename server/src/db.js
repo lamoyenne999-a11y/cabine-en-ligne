@@ -22,7 +22,7 @@ const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
 const DATA_FILE = process.env.DB_FILE || path.join(__dirname, '..', 'data', 'db.json');
 const DATABASE_URL = process.env.DATABASE_URL || '';
-const COLLECTIONS = ['users', 'gerants', 'demandes', 'notifications', 'subscriptions', 'referrals', 'events'];
+const COLLECTIONS = ['users', 'gerants', 'demandes', 'notifications', 'subscriptions', 'referrals', 'events', 'push_tokens'];
 
 const now = Date.now();
 const seed = () => ({

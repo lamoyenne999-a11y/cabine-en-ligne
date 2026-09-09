@@ -2,7 +2,7 @@ import React, { useState } from 'react';
 import { View, Text, TextInput, Pressable, StyleSheet } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { colors, radius, space, font } from '../../theme';
-import { T, Card, Pill } from '../../components/ui';
+import { T, Card, Pill, Chip } from '../../components/ui';
 import { Page } from '../../components/Shell';
 import { useStore } from '../../store';
 
@@ -49,11 +49,28 @@ function matches(d, q) {
 export default function GerantHistory() {
   const { state } = useStore();
   const [q, setQ] = useState('');
+  const [group, setGroup] = useState('all');
   const demandes = state.gerantDemandes || [];
   const sum = summarize(demandes);
   const served = sum.counts.completed;
   const treated = sum.counts.completed + sum.counts.paid + sum.counts.accepted;
-  const visible = q ? demandes.filter((d) => matches(d, q)) : demandes;
+
+  // L'historique est trié par famille (En attente / Traitées / Refusées / Annulées)
+  // pour ne jamais mélanger les statuts. La recherche s'applique ensuite.
+  const GROUPS = [
+    { value: 'all', label: `Toutes (${demandes.length})` },
+    { value: 'pending', label: `En attente (${sum.counts.pending})` },
+    { value: 'treated', label: `Traitées (${sum.counts.completed + sum.counts.paid + sum.counts.accepted})` },
+    { value: 'declined', label: `Refusées (${sum.counts.declined})` },
+    { value: 'canceled', label: `Annulées (${sum.counts.canceled})` },
+  ];
+  const inGroup = (d) => {
+    if (group === 'all') return true;
+    if (group === 'treated') return ['accepted', 'paid', 'completed'].includes(d.status);
+    return d.status === group;
+  };
+  const filtered = demandes.filter(inGroup);
+  const visible = q ? filtered.filter((d) => matches(d, q)) : filtered;
 
   return (
     <Page title="Historique">
@@ -71,6 +88,13 @@ export default function GerantHistory() {
           <Tile icon="close-circle" tone="red" value={sum.counts.declined} label="Refusées" />
         </View>
       </Card>
+
+      {/* Filtre par statut (En attente / Traitées / Refusées / Annulées) */}
+      <View style={{ flexDirection: 'row', flexWrap: 'wrap', marginBottom: 6 }}>
+        {GROUPS.map((g) => (
+          <Chip key={g.value} label={g.label} active={group === g.value} onPress={() => setGroup(g.value)} />
+        ))}
+      </View>
 
       {/* Recherche */}
       {demandes.length > 0 && (

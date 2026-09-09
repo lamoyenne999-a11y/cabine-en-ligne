@@ -36,6 +36,7 @@ export const api = {
   register: (p) => request('POST', '/api/auth/register', p),
   login: (p) => request('POST', '/api/auth/login', p),
   me: () => request('GET', '/api/auth/me'),
+  pushToken: (token) => request('POST', '/api/auth/push-token', { token }),
 
   // ---- public (liens de partage) ----
   public: {

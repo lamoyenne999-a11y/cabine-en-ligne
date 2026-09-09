@@ -28,4 +28,12 @@ export const config = {
   // Clé secrète à renseigner dans l'environnement (dashboard Render) pour accéder
   // à GET /api/admin/summary. Si absente, l'admin est désactivé (403).
   adminKey: process.env.ADMIN_KEY || '',
+
+  // -------- Notifications push (Expo) --------
+  // PUSH_ENABLED=true active l'envoi de push vers les téléphones (via exp.host).
+  // Dans un contexte web/mock cela reste inactif ; sur l'app native (Expo Go /
+  // build EAS) les appareils enregistrent leur jeton et reçoivent les alertes.
+  pushEnabled: process.env.PUSH_ENABLED === 'true',
+  // Jeton d'accès Expo (optionnel, pour un plus gros quota d'envoi).
+  expoAccessToken: process.env.EXPO_ACCESS_TOKEN || '',
 };

@@ -1,7 +1,7 @@
 import { Router } from 'express';
 import { findOne, insert } from '../db.js';
 import { signToken, hashPassword, verifyPassword, requireAuth } from '../middleware/auth.js';
-import { subscriptionFor, applyReferral, referralInfoFor, recordEvent } from '../services/flowService.js';
+import { subscriptionFor, applyReferral, referralInfoFor, recordEvent, registerPushToken } from '../services/flowService.js';
 
 const router = Router();
 
@@ -64,6 +64,19 @@ router.post('/login', async (req, res, next) => {
 // GET /api/auth/me
 router.get('/me', requireAuth, (req, res) => {
   res.json({ user: publicUser(req.user), subscription: subscriptionFor(req.user), referral: referralInfoFor(req.user) });
+});
+
+// POST /api/auth/push-token — enregistre le jeton de notification push de l'appareil
+// (client et gérant). L'app le récupère via expo-notifications sur mobile et nous le
+// transmet pour recevoir les alertes sur le téléphone.
+router.post('/push-token', requireAuth, (req, res) => {
+  const { token } = req.body || {};
+  try {
+    const pushToken = registerPushToken(req.user.id, token);
+    res.status(201).json({ ok: true, pushToken });
+  } catch (e) {
+    res.status(e.status || 400).json({ error: e.message });
+  }
 });
 
 function publicUser(u) {

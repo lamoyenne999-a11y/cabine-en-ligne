@@ -2,7 +2,7 @@ import React, { useEffect, useState } from 'react';
 import { View, Text, TextInput, Pressable, StyleSheet } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { colors, radius, space, font } from '../../theme';
-import { T, Card, Pill, Btn } from '../../components/ui';
+import { T, Card, Pill, Btn, Chip } from '../../components/ui';
 import { Page } from '../../components/Shell';
 import { WavePaySheet, WavePayBox } from '../../components/WavePay';
 import { Dialog, DialogButtons } from '../../components/modals';
@@ -76,12 +76,30 @@ export default function ClientHistory() {
   const [paying, setPaying] = useState(null);
   const [canceling, setCanceling] = useState(null);
   const [q, setQ] = useState('');
+  const [group, setGroup] = useState('all');
   const now = useNow();
   const demandes = state.demandes || [];
   const sum = summarize(demandes);
   const purchases = sum.counts.paid + sum.counts.completed;
   const inProgress = sum.counts.pending + sum.counts.accepted;
-  const visible = q ? demandes.filter((d) => matches(d, q)) : demandes;
+
+  // L'historique est trié par famille (En attente / À payer / Traitées /
+  // Refusées / Annulées) pour ne jamais mélanger les statuts.
+  const GROUPS = [
+    { value: 'all', label: `Toutes (${demandes.length})` },
+    { value: 'pending', label: `En attente (${sum.counts.pending})` },
+    { value: 'accepted', label: `À payer (${sum.counts.accepted})` },
+    { value: 'treated', label: `Traitées (${sum.counts.paid + sum.counts.completed})` },
+    { value: 'declined', label: `Refusées (${sum.counts.declined})` },
+    { value: 'canceled', label: `Annulées (${sum.counts.canceled})` },
+  ];
+  const inGroup = (d) => {
+    if (group === 'all') return true;
+    if (group === 'treated') return ['paid', 'completed'].includes(d.status);
+    return d.status === group;
+  };
+  const filtered = demandes.filter(inGroup);
+  const visible = q ? filtered.filter((d) => matches(d, q)) : filtered;
 
   return (
     <Page title="Historique">
@@ -100,6 +118,13 @@ export default function ClientHistory() {
           <Tile icon="close-circle" tone="blue" value={sum.counts.declined + sum.counts.canceled} label="Non traitées" />
         </View>
       </Card>
+
+      {/* Filtre par statut (En attente / À payer / Traitées / Refusées / Annulées) */}
+      <View style={{ flexDirection: 'row', flexWrap: 'wrap', marginBottom: 6 }}>
+        {GROUPS.map((g) => (
+          <Chip key={g.value} label={g.label} active={group === g.value} onPress={() => setGroup(g.value)} />
+        ))}
+      </View>
 
       {/* Recherche */}
       {demandes.length > 0 && (

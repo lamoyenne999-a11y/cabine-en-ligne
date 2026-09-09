@@ -42,5 +42,13 @@ services:
       # d'abonnement). À renseigner dans le dashboard Render.
       - key: ADMIN_KEY
         sync: false
+      # Notifications push (Expo) : mettez à "true" pour envoyer les alertes
+      # sur le téléphone des utilisateurs (sur l'app mobile). Laissez "false"
+      # tant que vous voulez uniquement les notifications in-app (web/mock).
+      - key: PUSH_ENABLED
+        value: "false"
+      # (facultatif) ID du projet EAS — nécessaire pour les push sur une build native.
+      - key: EXPO_PUBLIC_EAS_PROJECT_ID
+        sync: false
       - key: EXPO_PUBLIC_API_URL
         value: ""          # même origine : le serveur proxyfie /api

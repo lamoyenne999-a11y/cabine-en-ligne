@@ -98,7 +98,11 @@ export default function ClientGerants() {
             <View style={{ flex: 1 }}>
               <View style={{ flexDirection: 'row', alignItems: 'center' }}>
                 <T size={font.body} weight="800" color={colors.text}>{g.name}</T>
-                <View style={{ width: 8, height: 8, borderRadius: 4, backgroundColor: g.online ? colors.success : colors.muted2, marginLeft: 8 }} />
+                {g.suspended ? (
+                  <View style={s.suspendBadge}><T size={font.xs} weight="800" color={colors.warn}>Suspendu</T></View>
+                ) : (
+                  <View style={{ width: 8, height: 8, borderRadius: 4, backgroundColor: g.online ? colors.success : colors.muted2, marginLeft: 8 }} />
+                )}
               </View>
               <View style={{ flexDirection: 'row', alignItems: 'center', marginTop: 5 }}>
                 <Ionicons name="call-outline" size={14} color={colors.primary} />
@@ -156,4 +160,5 @@ const s = StyleSheet.create({
   payBtn: { flexDirection: 'row', alignItems: 'center', backgroundColor: colors.waveAccent, borderRadius: radius.pill, paddingHorizontal: 12, paddingVertical: 7, marginTop: 6, alignSelf: 'flex-start' },
   suggestRow: { flexDirection: 'row', alignItems: 'center', paddingVertical: 10, borderTopWidth: 1, borderTopColor: colors.border },
   suggestIcon: { width: 34, height: 34, borderRadius: 17, backgroundColor: '#fff', alignItems: 'center', justifyContent: 'center' },
+  suspendBadge: { backgroundColor: '#FDF0E0', borderRadius: radius.pill, paddingHorizontal: 8, paddingVertical: 2, marginLeft: 8 },
 });
