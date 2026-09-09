@@ -26,5 +26,8 @@
     "build:web": "expo export --platform web && node scripts/pwa-postbuild.mjs",
     "preview": "npm run build:web && node serve.js"
   },
-  "private": true
+  "private": true,
+  "engines": {
+    "node": ">=20 <21"
+  }
 }

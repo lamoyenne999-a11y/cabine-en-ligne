@@ -1,8 +1,11 @@
 # Dépôt de la mise à jour — Web Push (PWA) + bloc Wave compact
 
-> Tout le code est prêt dans le dépôt (worktree), testé en local. Le déploiement
-> se déclenche **depuis votre compte Render** (le sandbox n'a ni jeton GitHub, ni
-> clé d'API Render). Voici exactement quoi faire.
+> ✅ **Le code est déjà poussé sur GitHub** (`main` = `4763f9b`, via la clé de
+> déploiement SSH `cel_deploy_ed25519`). Vérifié : `git ls-remote origin main`
+> → `4763f9b…`.
+> ⏳ **Il reste UNE seule action** : déclencher le redéploiement **depuis votre
+> compte Render** (Render ne se redéploie pas automatiquement depuis ce dépôt —
+> vérifié : ~14 min après le push, la prod sert encore l'ancien bundle et `sw.js` v2).
 
 ---
 
@@ -22,24 +25,21 @@
 
 ---
 
-## 🚀 Déclencher le déploiement (2 possibilités)
+## 🚀 Déclencher le déploiement (UNE action de votre côté)
 
-### Option A — Push sur le dépôt GitHub connecté à Render (recommandé)
-Depuis une machine avec votre compte :
-```bash
-# depuis la racine du projet
-git add -A
-git commit -m "Web Push PWA + bloc Wave compact"
-git remote add origin git@github.com:<vous>/<repo>.git   # si pas déjà fait
-git push -u origin main
-```
-Render détecte le push → **build automatique** → nouvelle version en ligne.
+Le code est **déjà sur GitHub** (`main` = `4763f9b`). Render ne le redéploie pas
+tout seul, donc il faut le lancer **depuis votre dashboard Render** :
 
-### Option B — Déploiement manuel depuis le dashboard Render
+### Déploiement manuel (recommandé, le plus simple)
 1. **render.com** → service **cabine-en-ligne**.
-2. **Events / Deploys** → **Manual Deploy**.
-3. Attendre la fin du build (Render exécute : `npm install && cd server && npm install && cd .. && npm run build:web`, puis `node server/src/combined.js`).
-4. Vérifier : `https://cabineenligne.com/health` → `{"status":"ok","mode":"mock"}`, et la page `/` sert un **nouveau** hash `index-…`.
+2. Onglet **Events / Deploys** → bouton **Manual Deploy**.
+3. Attendre ~5–15 min (Render exécute : `npm install && cd server && npm install && cd .. && npm run build:web`, puis `node server/src/combined.js`).
+4. Vérifier : `https://cabineenligne.com/health` → `{"status":"ok","mode":"mock"}`,
+   et la page `/` sert un **nouveau** hash `index-…` (le service worker passe à **`cabine-en-ligne-v3`**).
+
+> Si vous préférez le **déploiement automatique** : connectez le dépôt GitHub dans
+> Render (projet connecté + « Auto Deploy » activé). Comme ce n'est pas le cas ici,
+> le **Manual Deploy** est le plus fiable.
 
 ---
 
