@@ -1,0 +1,10 @@
+# Fichiers à exclure de la build EAS (app native) pour la garder légère.
+# Le serveur et le front web sont déployés sur Render, pas dans l'app native.
+server/
+dist/
+DOCS/
+*.md
+KEEPALIVE-UPTIMEROBOT.md
+render.yaml
+netlify.toml
+vercel.json

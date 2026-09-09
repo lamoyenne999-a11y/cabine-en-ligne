@@ -6,6 +6,7 @@
 // ==================================================================
 import * as Notifications from 'expo-notifications';
 import * as Device from 'expo-device';
+import Constants from 'expo-constants';
 import { Platform } from 'react-native';
 
 export function pushSupported() {
@@ -30,7 +31,12 @@ export async function enableNotifications() {
     if (perm.status !== 'granted') {
       return { ok: false, reason: 'Autorisation de notifications refusée. Activez-les dans les réglages du téléphone.' };
     }
-    const projectId = process.env.EXPO_PUBLIC_EAS_PROJECT_ID || undefined;
+    // L'ID du projet EAS (propriétaire des push) vient de la variable d'env,
+    // ou de app.json (extra.eas.projectId) défini par `eas init`.
+    const projectId =
+      process.env.EXPO_PUBLIC_EAS_PROJECT_ID ||
+      Constants.expoConfig?.extra?.eas?.projectId ||
+      undefined;
     const token = await Notifications.getExpoPushTokenAsync({ projectId });
     return { ok: true, token: token.data };
   } catch (e) {

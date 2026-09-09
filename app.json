@@ -6,6 +6,7 @@
     "orientation": "portrait",
     "icon": "./assets/icon.png",
     "userInterfaceStyle": "light",
+    "scheme": "cabineenligne",
     "splash": {
       "backgroundColor": "#7B1FA2",
       "image": "./assets/cabine-logo.png"
@@ -25,6 +26,9 @@
       "favicon": "./public/icons/favicon-32.png",
       "output": "single",
       "bundler": "metro"
-    }
+    },
+    "plugins": [
+      "expo-notifications"
+    ]
   }
 }
