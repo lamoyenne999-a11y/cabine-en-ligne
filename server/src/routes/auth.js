@@ -2,6 +2,7 @@ import { Router } from 'express';
 import { findOne, insert } from '../db.js';
 import { signToken, hashPassword, verifyPassword, requireAuth } from '../middleware/auth.js';
 import { subscriptionFor, applyReferral, referralInfoFor, recordEvent, registerPushToken } from '../services/flowService.js';
+import { registerWebPushSubscription } from '../services/pushService.js';
 
 const router = Router();
 
@@ -74,6 +75,17 @@ router.post('/push-token', requireAuth, (req, res) => {
   try {
     const pushToken = registerPushToken(req.user.id, token);
     res.status(201).json({ ok: true, pushToken });
+  } catch (e) {
+    res.status(e.status || 400).json({ error: e.message });
+  }
+});
+
+// POST /api/auth/push-subscription — enregistre l'abonnement Web Push du
+// navigateur (PWA installée). Le client le récupère via PushManager.subscribe.
+router.post('/push-subscription', requireAuth, (req, res) => {
+  try {
+    const sub = registerWebPushSubscription(req.user.id, req.body?.subscription);
+    res.status(201).json({ ok: true, subscription: sub });
   } catch (e) {
     res.status(e.status || 400).json({ error: e.message });
   }

@@ -5,7 +5,7 @@
    - on ne cache JAMAIS /api ni /health : l'app garde le mode
      "connecté" basé sur la disponibilité de l'API.
    ============================================================ */
-const CACHE = 'cabine-en-ligne-v2';
+const CACHE = 'cabine-en-ligne-v3';
 const SHELL = ['/', '/index.html', '/manifest.webmanifest'];
 
 self.addEventListener('install', (event) => {
@@ -54,6 +54,34 @@ self.addEventListener('fetch', (event) => {
         return res;
       }).catch(() => cached);
       return cached || fetchPromise;
+    }),
+  );
+});
+
+// ---- Web Push : affiche la notification reçue (même app fermée) ----
+self.addEventListener('push', (event) => {
+  let data = { title: 'Cabine En Ligne', body: 'Vous avez une nouvelle notification.' };
+  try { data = event.data.json(); } catch (e) { /* payload non JSON */ }
+  event.waitUntil(
+    self.registration.showNotification(data.title || 'Cabine En Ligne', {
+      body: data.body || '',
+      icon: '/icons/icon-192.png',
+      badge: '/icons/icon-192.png',
+      data: { url: '/' },
+    }),
+  );
+});
+
+// ---- Clic sur la notification : ouvre / met au premier plan l'app ----
+self.addEventListener('notificationclick', (event) => {
+  event.notification.close();
+  const url = (event.notification.data && event.notification.data.url) || '/';
+  event.waitUntil(
+    self.clients.matchAll({ type: 'window', includeUncontrolled: true }).then((list) => {
+      for (const client of list) {
+        if ('focus' in client) { client.navigate(url); return client.focus(); }
+      }
+      return self.clients.openWindow(url);
     }),
   );
 });

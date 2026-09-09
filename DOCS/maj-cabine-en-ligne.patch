@@ -1,0 +1,1452 @@
+From 30ce2f1c699caf5f177d685cc27b91a43d59892e Mon Sep 17 00:00:00 2001
+From: Cabine <dev@cabineenligne.local>
+Date: Wed, 9 Sep 2026 08:08:16 +0000
+Subject: [PATCH 1/2] =?UTF-8?q?G=C3=A9rant=20suspendu/supprim=C3=A9=20+=20?=
+ =?UTF-8?q?notifications=20push=20+=20historiques=20tri=C3=A9s?=
+MIME-Version: 1.0
+Content-Type: text/plain; charset=UTF-8
+Content-Transfer-Encoding: 8bit
+
+- Suspension: retirer un gérant frozen des listes client et bloquer l'envoi de demande (403).
+- Suppression: forcer la déconnexion (retour accueil) au 401 côté client.
+- Push: collection push_tokens, endpoint /api/auth/push-token, envoi Expo (PUSH_ENABLED) + option dans les profils (web/natif par plateforme).
+- Historiques: filtres En attente / Traitées / Refusées / Annulées (client + gérant).
+- render.yaml: variables PUSH_ENABLED et EXPO_PUBLIC_EAS_PROJECT_ID.
+---
+ DOCS/connecter-domaine-render.md      | 111 +++++++++++++++++++++++
+ DOCS/domaine-cabineenligne.md         | 125 ++++++++++++++++++++++++++
+ DOCS/payer-domaine-mobile-money.md    | 105 ++++++++++++++++++++++
+ KEEPALIVE-UPTIMEROBOT.md              |  27 ++++++
+ package-lock.json                     |  73 +++++++++++++++
+ package.json                          |   2 +
+ render.yaml                           |   8 ++
+ server/src/config.js                  |   8 ++
+ server/src/db.js                      |   2 +-
+ server/src/routes/auth.js             |  15 +++-
+ server/src/services/flowService.js    |  81 +++++++++++++++--
+ src/api.js                            |   1 +
+ src/components/PushSettings.jsx       |  73 +++++++++++++++
+ src/push.js                           |  14 +++
+ src/push.native.js                    |  39 ++++++++
+ src/push.web.js                       |  14 +++
+ src/screens/Admin.jsx                 |   8 +-
+ src/screens/client/ClientGerants.jsx  |   7 +-
+ src/screens/client/ClientHistory.jsx  |  29 +++++-
+ src/screens/client/ClientHome.jsx     |   9 +-
+ src/screens/client/ClientProfile.jsx  |   3 +
+ src/screens/gerant/GerantDemandes.jsx |  14 ++-
+ src/screens/gerant/GerantHistory.jsx  |  28 +++++-
+ src/screens/gerant/GerantProfile.jsx  |   3 +
+ src/store.jsx                         |  43 ++++++---
+ 25 files changed, 811 insertions(+), 31 deletions(-)
+ create mode 100644 DOCS/connecter-domaine-render.md
+ create mode 100644 DOCS/domaine-cabineenligne.md
+ create mode 100644 DOCS/payer-domaine-mobile-money.md
+ create mode 100644 src/components/PushSettings.jsx
+ create mode 100644 src/push.js
+ create mode 100644 src/push.native.js
+ create mode 100644 src/push.web.js
+
+diff --git a/DOCS/connecter-domaine-render.md b/DOCS/connecter-domaine-render.md
+new file mode 100644
+index 0000000..dedec52
+--- /dev/null
++++ b/DOCS/connecter-domaine-render.md
+@@ -0,0 +1,111 @@
++# 🌐 Connecter `cabineenligne.com` à Render (pas-à-pas)
++
++> Après l'achat chez **Porkbun**, voici comment mettre le domaine en ligne sur **Render**
++> sans rien casser. Ton appli est déjà prête (tout en chemins relatifs — vérifié plus tôt).
++
++---
++
++## ✅ Prérequis
++- [ ] `cabineenligne.com` **acheté** chez Porkbun (11,08 $/an).
++- [ ] Email de **vérification ICANN confirmé**.
++- [ ] Ton service Render **cabine-en-ligne** existe et tourne (site `.onrender.com` OK).
++- [ ] Le domaine est **à ton nom** (tu es le `registrant`).
++
++---
++
++## 1️⃣ Étape A — Chez **Porkbun** : récupérer la config DNS à utiliser
++
++Tu vas laisser les DNS **chez Porkbun** (le plus simple) et juste **pointer vers Render**.
++
++---
++
++## 2️⃣ Étape B — Sur **Render** : déclarer le domaine
++
++1. **Dashboard Render** → ton service **cabine-en-ligne** → menu **Settings**.
++2. Section **Networking** → **Custom Domains** → **Add Domain**.
++3. Entre `cabineenligne.com` (sans `www`).
++4. Render te montre les **enregistrements DNS à créer**. Note-les. Exemple :
++   - Un enregistrement **`A`** pour `@` (apex) → une adresse IP type `216.24.57.1`.
++   - Un enregistrement **`CNAME`** pour `www` → une cible type `cname.vercel-dns.com`.
++
++> ⚠️ Les IP/cibles exactes sont affichées dans **ton** dashboard Render — prends **celles-là**.
++
++---
++
++## 3️⃣ Étape C — Chez **Porkbun** : créer les enregistrements DNS
++
++1. **Porkbun Dashboard** → **Domains** → clique sur `cabineenligne.com` → **DNS Records**.
++2. Crée les enregistrements **exactement** comme indiqués par Render, par exemple :
++
++| Type | Host (Name) | Content / Value | TTL |
++|---|---|---|---|
++| `A` | `@` | *(l'IP Render donnée)* | 300 |
++| `CNAME` | `www` | *(la cible Render donnée)* | 300 |
++
++3. **Supprime** les éventuels enregistrements `A`/`CNAME` qui pointeraient vers un autre hébergeur (si le domaine en avait un).
++4. **Enregistre** les changements.
++
++> 💡 Porkbun a une interface très claire pour ça : tu ajoutes un enregistrement, tu choisis le type,
++> tu colles la valeur, tu sauvegardes. C'est tout.
++
++---
++
++## 4️⃣ Étape D — Créer le certificat SSL + redirection (vers le domaine)
++
++1. Retourne sur **Render → Settings → Custom Domains**. Le domaine s'affiche **"Pending"**.
++2. Dès que le DNS propage, Render **émet le certificat SSL (Let's Encrypt)** automatiquement.
++   → Le domaine passe à **"Issued / Active"** avec un cadenas 🔒.
++
++### Redirections conseillées
++- **`http://cabineenligne.com` → `https://cabineenligne.com`** : Render le fait si tu actives la redirection HTTPS.
++- **`.onrender.com` → `cabineenligne.com`** : coche l'option **"Redirect all .onrender.com traffic to..."**
++  chez Render (Settings → Custom Domains) pour que les anciens liens de partage continuent de marcher.
++
++---
++
++## 5️⃣ Étape E — Vérifications finales
++
++- [ ] `https://cabineenligne.com/health` → `{"status":"ok","mode":"mock"}`
++- [ ] `https://cabineenligne.com/` → l'appli se charge (pas de page blanche)
++- [ ] `https://cabineenligne.com/?u=<idGérant>` → profil public OK
++- [ ] `https://cabineenligne.com/?ref=<code>` → inscription avec code OK
++- [ ] **Connexion** client + gérant OK
++- [ ] **Demande** + **paiement** (copie numéro Wave) OK
++- [ ] **PWA** : "Ajouter à l'écran d'accueil" + icônes OK
++- [ ] Cadenas 🔒 + `https://` sur toute la page
++
++---
++
++## 🕐 Timeline à anticiper
++
++| Étape | Délai |
++|---|---|
++| Enregistrement domaine (Porkbun) | **Instantané** une fois payé |
++| Confirmation email ICANN | Quelques minutes |
++| Création des DNS | 5 min |
++| **Propagation DNS** | **30 min à 24 h** |
++| **SSL (Let's Encrypt)** | Quelques minutes après propagation |
++
++> ⚠️ Pendant la propagation, `cabineenligne.com` peut afficher une erreur. **C'est normal**, pas une panne.
++> Ton site `.onrender.com` reste disponible pendant ce temps.
++
++---
++
++## 🆘 En cas de souci
++
++- **Le domaine ne charge pas après 24 h** → vérifie que les enregistrements `A`/`CNAME` chez Porkbun sont
++  bien **ceux affichés par Render**, pas les valeurs par défaut de Porkbun.
++- **Erreur SSL** → attends la propagation ; sinon, re-vérifie les DNS (un enregistrement erroné bloque le SSL).
++- **L'ancien `.onrender.com` ne redirige pas** → coche l'option de redirection dans Render → Custom Domains.
++- **Prends bien l'IP/la cible de TON dashboard Render** (elles varient selon les comptes).
++
++---
++
++## 🛡️ Rappel : plan free temporaire
++- Le keep-alive **UptimeRobot** sur `https://cabineenligne.com/health` (5 min) garde le site éveillé
++  pour le **test**. Mets à jour l'URL du moniteur vers le domaine une fois connecté.
++- Pour les **vrais clients** : passe au plan **Starter (~7 $/mois)** pour éviter la mise en veille ET le plafond d'heures.
++
++---
++
++_Guide technique de mise en service du domaine. À adapter aux valeurs exactes affichées dans ton dashboard Render._
+diff --git a/DOCS/domaine-cabineenligne.md b/DOCS/domaine-cabineenligne.md
+new file mode 100644
+index 0000000..565a927
+--- /dev/null
++++ b/DOCS/domaine-cabineenligne.md
+@@ -0,0 +1,125 @@
++# 🌐 Mise en service du domaine `cabineenligne.com`
++
++> But : servir l'appli (et la PWA) depuis `https://cabineenligne.com` au lieu de `.onrender.com`,
++> **sans rien casser**. Document de suivi — à garder.
++
++---
++
++## ✅ 1) Vérifié : l'appli est PRÊTE pour le domaine
++
++J'ai audité le code. **Aucune URL n'est codée en dur** sur `cabineenligne.onrender.com`.
++Tout suit automatiquement le domaine sur lequel l'appli est servie :
++
++| Élément | Mécanisme | Conséquence avec le domaine |
++|---|---|---|
++| **API** | `API_URL = ''` en web + proxy `/api` (même origine) | `https://cabineenligne.com/api/...` marche direct |
++| **Liens de partage** | `window.location.origin/?u=ID` | deviennent `https://cabineenligne.com/?u=ID` |
++| **Liens de parrainage** | `window.location.origin/?ref=CODE` | suivent le domaine |
++| **PWA manifest** | `/manifest.webmanifest` (relatif) | OK sur le domaine |
++| **Service worker** | `/sw.js` (relatif) | OK sur le domaine |
++| **Routage SPA** | fallback `index.html` pour toute route non `/api` | `/?u=ID`, `/` OK |
++| **SSL** | Render fournit un cert. automatique (Let's Encrypt) | HTTPS OK sans manip |
++
++➡️ **Conclusion : à condition de bien connecter le domaine à Render, rien ne casse.**
++Aucune modification de code requise.
++
++---
++
++## 🛒 2) Étape A — Acheter le domaine
++
++1. Choisir un registrar fiable (Namecheap, GoDaddy, OVH, Hostinger…). `cabineenligne.com`
++   est un **.com** : pas besoin de présence locale en CI.
++2. Vérifier l'**e-mail de vérification** (obligation ICANN) et le confirmer.
++3. **Activer le renouvellement automatique** (sinon le domaine expire et le site tombe).
++4. **Désactiver le "registrar lock" temporairement** si besoin de transférer les DNS (en général non requis).
++
++> ⏱️ L'activation du transfert de propriété peut prendre de quelques minutes à 24 h.
++> La **propagation DNS** (voir Étape C) peut prendre de **30 min à 24 h**.
++
++---
++
++## 🔗 3) Étape B — Ajouter le domaine sur Render
++
++1. Dashboard Render → ton service **cabine-en-ligne** → **Settings** → **Custom Domains**.
++2. Clique **Add Domain** et entre `cabineenligne.com`.
++3. Render affiche les **enregistrements DNS à créer** chez ton registrar :
++   - **Apex** (`cabineenligne.com`) → un **enregistrement A** pointant vers l'IP Render fournie
++     (ou l'`ALIAS/ANAME`/`CNAME` que Render indique).
++   - **`www`** (optionnel) → un **enregistrement CNAME** vers la cible fournie.
++4. **Recommandé** : coche l'option **"Redirect all .onrender.com traffic to custom domain"** pour
++   que les anciens liens / liens de partage `.onrender.com` redirigent vers `cabineenligne.com`
++   (sinon ceux-là continuent d'afficher l'ancien domaine).
++
++> ⚠️ **Ne supprime pas** le service `.onrender.com` : il sert de repli tant que le DNS propage.
++> Tu pourras masquer/rediriger une fois que `cabineenligne.com` répond en HTTPS.
++
++---
++
++## 📡 4) Étape C — Créer les enregistrements DNS chez le registrar
++
++Chez ton registrar (Zone DNS), ajoute exactement ce que Render demande, par exemple :
++
++| Type | Hôte | Valeur |
++|---|---|---|
++| `A` | `@` | `216.24.57.1` *(IP exemple — prends celle affichée dans Render)* |
++| `CNAME` | `www` | `cname.vercel-dns.com` *(ou la cible donnée par Render)* |
++
++- Laisse les enregistrements **par défaut** du registrar pour le mail si tu n'en as pas besoin.
++- Si tu as déjà un site sur ce domaine, **retire** le vieil enregistrement qui pointe ailleurs.
++- Supprime les vieux `A`/`CNAME` qui pointeraient sur un autre hébergeur.
++
++---
++
++## 🛡️ 5) Étape D — SSL, HTTPS et redirections
++
++- Render **active SSL automatiquement** quand le DNS propage (cert. Let's Encrypt).
++- Vérifie que `https://cabineenligne.com` → `https://cabineenligne.com` et que
++  `http://` redirige vers `https://` (Render le fait par défaut si activé).
++- Vérifie la redirection **non-www ⇄ www** selon ton choix (choisis UN seul, cohérent).
++
++---
++
++## 🧪 6) Vérifications après connexion (à faire soi-même)
++
++- [ ] `https://cabineenligne.com/health` → `{"status":"ok","mode":"mock"}`
++- [ ] `https://cabineenligne.com/` → l'appli se charge (pas d'erreur blanche)
++- [ ] `https://cabineenligne.com/?u=<idGérant>` → le profil public s'ouvre
++- [ ] `https://cabineenligne.com/?ref=<code>` → l'inscription garde le code
++- [ ] **Inscription** client + gérant OK
++- [ ] **Création de demande** → l'appel `/api` fonctionne (même origine)
++- [ ] **Paiement Wave** (copie numéro) OK
++- [ ] **Installation PWA** (Ajouter à l'écran d'accueil) + icônes OK
++- [ ] **Service worker** : note dans la console "PWA: service worker prêt"
++
++---
++
++## ⚠️ 7) Deux vrais points d'attention (à ne pas sous-estimer)
++
++### ⚠️ A. Plan Render GRATUIT → mise en veille
++Le plan **free** de Render met le service **en veille après ~15 min d'inactivité** :
++le premier visiteur après une pause doit attendre **~30 s à 1 min** (cold start).
++- **Pour un test de 10–15 personnes** : acceptable.
++- **Pour de vrais clients en production** : envisage un plan **payant** (Starter ≈ 7 $/mois)
++  qui garde le service **toujours actif**.
++
++> 💡 Avec un domaine acheté, les visiteurs s'attendent à un site **immédiatement disponible**.
++> La mise en veille est le seul vrai "ça ne marche pas comme il se doit" à anticiper.
++
++### ⚠️ B. Propagation DNS
++La connexion du domaine peut prendre de **30 min à 24 h**. Tant qu'elle n'est pas finie,
++`cabineenligne.com` peut renvoyer une erreur. **Ce n'est pas une panne** : c'est normal.
++Le site `.onrender.com` reste disponible pendant ce temps.
++
++---
++
++## 🆘 En cas de souci
++
++- **Le domaine ne s'ouvre pas après 24 h** → vérifie que les enregistrements DNS sont bien ceux
++  indiqués par Render, pas ceux par défaut du registrar.
++- **Erreur SSL** → attends la propagation ; sinon re-vérifie les DNS (mauvais enregistrement = SSL en échec).
++- **Le site charge mais les données ne vont pas** → vérifie que l'app appelle `/api` en **même origine** (normal en web).
++- **L'ancien lien `.onrender.com` ne redirige pas** → active l'option "redirect to custom domain" chez Render.
++
++---
++
++_À faire valider par un professionnel (avocat / ARTCI) pour la partie conformité juridique. Ce document couvre uniquement la partie technique de mise en service du domaine._
+diff --git a/DOCS/payer-domaine-mobile-money.md b/DOCS/payer-domaine-mobile-money.md
+new file mode 100644
+index 0000000..6f06a70
+--- /dev/null
++++ b/DOCS/payer-domaine-mobile-money.md
+@@ -0,0 +1,105 @@
++# 💳 Payer le domaine `cabineenligne.com` par Mobile Money (Côte d'Ivoire)
++
++> But : acheter et enregistrer le domaine **sans carte bancaire ni PayPal**, en payant
++> avec **Orange Money / MTN MoMo / Wave / Moov**.
++> Toutes les informations ci-dessous ont été vérifiées en ligne (sept. 2026).
++> ⚠️ Vérifie toujours le prix au moment de la commande (ils changent).
++
++---
++
++## 🎯 Le point clé
++
++**La plupart des registraires internationaux** (Porkbun, Namecheap, Cloudflare, GoDaddy) **n'acceptent PAS
++le mobile money** — ils exigent une **carte bancaire (Visa/Mastercard)** ou **PayPal**.
++
++Mais il y a **deux solutions** pour toi, en Côte d'Ivoire :
++
++- **Option A** : acheter via un **registraire local ivoirien** qui accepte directement
++  **Orange Money, MTN MoMo, Wave, Moov** (le plus simple, paiement natif).
++- **Option B** : utiliser une **carte virtuelle Visa** rechargée avec ton **mobile money**,
++  puis payer le registraire international (Porkbun/Namecheap) avec cette carte.
++
++---
++
++## ✅ Option A — Registraires locaux qui acceptent le mobile money (recommandé pour toi)
++
++Ces plateformes ivoiriennes acceptent **Orange Money, MTN MoMo, Wave, Moov Money** directement.
++
++| Plateforme | Prix `.com` (indicatif) | Paiement | Remarque |
++|---|---|---|---|
++| **nomdedomaine.ci** | ~9 500 FCFA/an | Orange Money, MTN MoMo, Wave, Moov, carte | Activ. instantanée, DNS + SSL inclus. Gère `.com` et `.ci`. [1](https://nomdedomaine.ci/) |
++| **lenomdedomaine.ci** | ~9 000 FCFA/an | Wave, Orange Money, MTN, carte | `.ci` surtout. Act. instantanée. [2](https://lenomdedomaine.ci/) |
++| **Systalink** | ~14,78 $/an (≈ 9 000 FCFA) | Wave, Orange Money, carte | `.com`, `.net`, `.org` + hébergement. [4](https://systalink.com/payer-hebergement-web-avec-mobile-money/) |
++| **CCN Technologies** | variable | MTN MoMo, Orange Money, Wave, Airtel, carte | Afrique francophone (XOF). [5](https://www.ccntechnologies.com/commentpayer.php) |
++
++### ➕ Avantages d'acheter chez un registraire local
++- **Paiement natif mobile money** (validation sur ton téléphone en < 1 min). [4](https://systalink.com/payer-hebergement-web-avec-mobile-money/)
++- **Activation instantanée** dès le paiement confirmé.
++- **FCFA** → pas de conversion de devise, pas de frais de change élevés.
++- Souvent **SSL + gestion DNS** inclus.
++
++### ➖ Points à vérifier avant d'acheter
++- **Contrôle DNS complet** : tu dois pouvoir **pointer vers Render** (enregistrement `A` + `CNAME`)
++  — c'est indispensable. Vérifie que tu as accès à la zone DNS (pas juste un hébergement verrouillé).
++- **Propriété** : le domaine doit être **à ton nom** (tu es le `registrant`), pas au reseller.
++- **Renouvellement** : active le **renouvellement automatique** pour ne pas perdre le domaine.
++- Si la plateforme te vend aussi un **hébergement**, tu n'es **pas obligé** de le prendre — tu peux garder Render.
++- **Pas de mobile money sur les grands registraires** : c'est justement pour ça qu'on passe par un local.
++
++---
++
++## ✅ Option B — Carte virtuelle Visa rechargée par mobile money (pour le registraire international)
++
++Si tu préfères **Porkbun / Namecheap** (registraires mondiaux, plus robustes), tu peux payer avec
++une **carte virtuelle Visa** **rechargée depuis ton mobile money**. En Côte d'Ivoire :
++
++| Carte virtuelle | Où l'obtenir | Rechargement | Note |
++|---|---|---|---|
++| **Orange Money × Visa** | App **Max it** | Depuis le compte Orange Money | **3 clics**, 0 F d'activation/recharge, 3D Secure, plafonds 2 M FCFA/j. [1](https://www.pulse.ci/article/orange-money-cote-divoire-lance-officiellement-sa-carte-virtuelle-visa-une-avancee-majeure-pour-linclusion-financiere-et-le-e-commerce-2025121509154771172), [2](https://www.sikafinance.com/marches/cote-divoire-orange-money-et-visa-lancent-une-carte-virtuelle-pour-democratiser-les-paiements-en-ligne_58408) |
++| **Wave × Orabank** | App **Wave** | Depuis le compte Wave | 2 min, 0 F d'émission, taux de change avantageux. [4](https://www.7info.ci/mobile-money-une-carte-visa-virtuelle-pour-accelerer-linclusion-financiere-en-cote-divoire/) |
++| **Push CI** | App **Push CI** | Recharge via mobile money (USSD *755*1#) | Visa internationale, carte gratuite, rechargement 0 F. [5](https://push-ci.com/) |
++
++### Comment faire (carte virtuelle → Porkbun/Namecheap)
++1. Dans l'app (Max it / Wave / Push), **active ta carte virtuelle Visa** (gratuite).
++2. **Recharge-la** avec ton solde **mobile money** (montant du domaine + marge).
++3. Sur **Porkbun/Namecheap**, au paiement, entre les **infos de la carte virtuelle** (n° + CVV + exp.).
++4. Valide avec le **code 3D Secure** (reçu sur ton téléphone).
++
++> ✅ C'est la solution **la plus propre** : le domaine est chez un registraire mondial fiable,
++> et tu payes avec ton mobile money via la carte virtuelle.
++
++---
++
++## 🧭 Que te recommande-je ?
++
++| Ton besoin | Recommandation |
++|---|---|
++| **Le plus simple, en FCFA, sans carte** | **Option A** → un registraire local (nomdedomaine.ci ou Systalink) payable en **Wave / Orange Money / MTN**. |
++| **Registraire mondial + prix coûtant (Porkbun/Cloudflare)** | **Option B** → **carte virtuelle Visa** (Orange Money via Max it, ou Wave × Orabank) rechargée avec ton mobile money. |
++
++**Mon conseil** : 
++- Pour **démarrer vite et en FCFA**, prends l'**Option A** (un registraire local qui accepte Wave/Orange Money).
++  Le domaine **`.com`** reste le même, il pointe vers Render — **rien ne change** pour la technique.
++- Garde l'**Option B** en réserve si tu veux un registraire international (Porkbun) à prix coûtant.
++
++---
++
++## ✅ Checklist avant de payer
++
++- [ ] `cabineenligne.com` est **disponible** (vérifié via le registraire).
++- [ ] Tu peux **gérer la zone DNS** (enregistrement `A` + `CNAME`) vers Render.
++- [ ] Le domaine est **à ton nom** (registrant = toi).
++- [ ] **Renouvellement automatique** activé.
++- [ ] Tu as bien choisi **`/com`** et non une sous-extension (`com.ci`, `co.ci`, etc.).
++- [ ] Tu as une trace (reçu / e-mail de confirmation) du paiement.
++
++---
++
++## 🆘 Si tu n'as aucun des deux
++
++- **Ni carte, ni compte bancaire, ni PayPal** → l'**Option A** (registraire local + Wave/Orange/MTN) est faite pour toi.
++- L'**activation** est instantanée : tu paies par mobile money, le domaine est enregistré, tu branches sur Render.
++
++---
++
++_À confirmer auprès de chaque registraire au moment de l'achat. Ce document est un guide, pas un conseil d'achat garanti._
+diff --git a/KEEPALIVE-UPTIMEROBOT.md b/KEEPALIVE-UPTIMEROBOT.md
+index 7db09a5..abda341 100644
+--- a/KEEPALIVE-UPTIMEROBOT.md
++++ b/KEEPALIVE-UPTIMEROBOT.md
+@@ -83,3 +83,30 @@ lui envoyer une petite requête toutes les 5 min pour empêcher le service de do
+ 
+ > ⏱️ **Temps total : ~5 minutes.** C'est le geste qui fait le plus pour la bonne
+ > première impression de tes testeurs.
++
++---
++
++## ⚠️ 8. Le piège à connaître : les 750 h/mois du plan gratuit
++
++Le keep-alive **empêche bien la mise en veille** (donc plus de page « Welcome to Render »).
++MAIS il a une conséquence cachée :
++
++- Le plan gratuit de Render donne **750 h d'instance par mois** (par workspace).
++- Un keep-alive qui tourne **24h/24** fait que le service reste **allumé en continu** :
++  - **~730 à 744 h** par mois (soit presque tout le quota de 750 h).
++- Quand le quota est atteint, Render **suspends** les services gratuits du workspace
++  **jusqu'au 1ᵉʳ du mois suivant** (le site devient injoignable).
++
++### Donc :
++| Situation | Keep-alive nécessaire ? | Risque |
++|---|---|---|
++| **Test 10–15 personnes** (1 à 3 semaines) | ✅ Oui | **Aucun** — tu consommes ~300 h, loin du plafond. |
++| **Production continue 24/7** | ⚠️ Non idéal | Tu atteins le plafond de **750 h en ~1 mois** → suspension. |
++
++### La solution durable
++Le **plan payant (Starter ≈ 7 $/mois)** supprime **à la fois** :
++- la **mise en veille** (plus de cold start), **et**
++- le **plafond d'heures** (le service reste actif sans suspension).
++
++➡️ Donc : **keep-alive = parfait pour le lancement test** (gratuit). Pour les vrais clients,
++passe au plan payant — c'est ce qui évite BOTH le cold start ET le plafond horaire.
+diff --git a/package-lock.json b/package-lock.json
+index d670272..b201e2c 100644
+--- a/package-lock.json
++++ b/package-lock.json
+@@ -12,6 +12,8 @@
+         "@expo/vector-icons": "^15.0.2",
+         "expo": "~57.0.20",
+         "expo-constants": "~57.0.17",
++        "expo-device": "~57.0.1",
++        "expo-notifications": "~57.0.17",
+         "expo-status-bar": "~57.0.1",
+         "react": "19.2.3",
+         "react-dom": "19.2.3",
+@@ -2035,6 +2037,12 @@
+         "@babel/plugin-syntax-flow": "^7.12.1"
+       }
+     },
++    "node_modules/badgin": {
++      "version": "1.2.3",
++      "resolved": "https://registry.npmjs.org/badgin/-/badgin-1.2.3.tgz",
++      "integrity": "sha512-NQGA7LcfCpSzIbGRbkgjgdWkjy7HI+Th5VLxTJfW5EeaAf3fnS+xWQaQOCYiny+q6QSvxqoSO04vCx+4u++EJw==",
++      "license": "MIT"
++    },
+     "node_modules/balanced-match": {
+       "version": "4.0.4",
+       "resolved": "https://registry.npmjs.org/balanced-match/-/balanced-match-4.0.4.tgz",
+@@ -2844,6 +2852,15 @@
+         }
+       }
+     },
++    "node_modules/expo-application": {
++      "version": "57.0.2",
++      "resolved": "https://registry.npmjs.org/expo-application/-/expo-application-57.0.2.tgz",
++      "integrity": "sha512-q31YwcXyymviAmdrtDfAg3Dld4VMxLCNAfgMHip7vZpPX4lzF/AfwsywqBJUAjQnJknzaNAkzqvMVjO5XmKYDA==",
++      "license": "MIT",
++      "peerDependencies": {
++        "expo": "*"
++      }
++    },
+     "node_modules/expo-constants": {
+       "version": "57.0.17",
+       "resolved": "https://registry.npmjs.org/expo-constants/-/expo-constants-57.0.17.tgz",
+@@ -2857,6 +2874,44 @@
+         "react-native": "*"
+       }
+     },
++    "node_modules/expo-device": {
++      "version": "57.0.1",
++      "resolved": "https://registry.npmjs.org/expo-device/-/expo-device-57.0.1.tgz",
++      "integrity": "sha512-jyEMDUticH+dhcL3GHa2aiifOvGXJsmb3oVT2R2q4i8bN7Bddy61+NkpMmuS2VAZrvoLQwf0TJJ/1vi1ukvutA==",
++      "license": "MIT",
++      "dependencies": {
++        "ua-parser-js": "^0.7.33"
++      },
++      "peerDependencies": {
++        "expo": "*"
++      }
++    },
++    "node_modules/expo-device/node_modules/ua-parser-js": {
++      "version": "0.7.41",
++      "resolved": "https://registry.npmjs.org/ua-parser-js/-/ua-parser-js-0.7.41.tgz",
++      "integrity": "sha512-O3oYyCMPYgNNHuO7Jjk3uacJWZF8loBgwrfd/5LE/HyZ3lUIOdniQ7DNXJcIgZbwioZxk0fLfI4EVnetdiX5jg==",
++      "funding": [
++        {
++          "type": "opencollective",
++          "url": "https://opencollective.com/ua-parser-js"
++        },
++        {
++          "type": "paypal",
++          "url": "https://paypal.me/faisalman"
++        },
++        {
++          "type": "github",
++          "url": "https://github.com/sponsors/faisalman"
++        }
++      ],
++      "license": "MIT",
++      "bin": {
++        "ua-parser-js": "script/cli.js"
++      },
++      "engines": {
++        "node": "*"
++      }
++    },
+     "node_modules/expo-font": {
+       "version": "57.0.3",
+       "resolved": "https://registry.npmjs.org/expo-font/-/expo-font-57.0.3.tgz",
+@@ -2916,6 +2971,24 @@
+         "react-native": "*"
+       }
+     },
++    "node_modules/expo-notifications": {
++      "version": "57.0.17",
++      "resolved": "https://registry.npmjs.org/expo-notifications/-/expo-notifications-57.0.17.tgz",
++      "integrity": "sha512-P/9ZqBOlFBVCZK3T5bhqORtWJhtVBcXQXe/MY1YWuKaxWgKvoGeEvD9ItWuo87jg2nD+eloVmFYqwdhhVCxPlA==",
++      "license": "MIT",
++      "dependencies": {
++        "@expo/image-utils": "^0.11.5",
++        "abort-controller": "^3.0.0",
++        "badgin": "^1.1.5",
++        "expo-application": "~57.0.2",
++        "expo-constants": "~57.0.17"
++      },
++      "peerDependencies": {
++        "expo": "*",
++        "react": "*",
++        "react-native": "*"
++      }
++    },
+     "node_modules/expo-server": {
+       "version": "57.0.3",
+       "resolved": "https://registry.npmjs.org/expo-server/-/expo-server-57.0.3.tgz",
+diff --git a/package.json b/package.json
+index 9696e7b..ac8dc76 100644
+--- a/package.json
++++ b/package.json
+@@ -7,6 +7,8 @@
+     "@expo/vector-icons": "^15.0.2",
+     "expo": "~57.0.20",
+     "expo-constants": "~57.0.17",
++    "expo-device": "~57.0.1",
++    "expo-notifications": "~57.0.17",
+     "expo-status-bar": "~57.0.1",
+     "react": "19.2.3",
+     "react-dom": "19.2.3",
+diff --git a/render.yaml b/render.yaml
+index ed838d5..9105bad 100644
+--- a/render.yaml
++++ b/render.yaml
+@@ -42,5 +42,13 @@ services:
+       # d'abonnement). À renseigner dans le dashboard Render.
+       - key: ADMIN_KEY
+         sync: false
++      # Notifications push (Expo) : mettez à "true" pour envoyer les alertes
++      # sur le téléphone des utilisateurs (sur l'app mobile). Laissez "false"
++      # tant que vous voulez uniquement les notifications in-app (web/mock).
++      - key: PUSH_ENABLED
++        value: "false"
++      # (facultatif) ID du projet EAS — nécessaire pour les push sur une build native.
++      - key: EXPO_PUBLIC_EAS_PROJECT_ID
++        sync: false
+       - key: EXPO_PUBLIC_API_URL
+         value: ""          # même origine : le serveur proxyfie /api
+diff --git a/server/src/config.js b/server/src/config.js
+index 32b99f9..e48294b 100644
+--- a/server/src/config.js
++++ b/server/src/config.js
+@@ -28,4 +28,12 @@ export const config = {
+   // Clé secrète à renseigner dans l'environnement (dashboard Render) pour accéder
+   // à GET /api/admin/summary. Si absente, l'admin est désactivé (403).
+   adminKey: process.env.ADMIN_KEY || '',
++
++  // -------- Notifications push (Expo) --------
++  // PUSH_ENABLED=true active l'envoi de push vers les téléphones (via exp.host).
++  // Dans un contexte web/mock cela reste inactif ; sur l'app native (Expo Go /
++  // build EAS) les appareils enregistrent leur jeton et reçoivent les alertes.
++  pushEnabled: process.env.PUSH_ENABLED === 'true',
++  // Jeton d'accès Expo (optionnel, pour un plus gros quota d'envoi).
++  expoAccessToken: process.env.EXPO_ACCESS_TOKEN || '',
+ };
+diff --git a/server/src/db.js b/server/src/db.js
+index 02b507f..2b11709 100644
+--- a/server/src/db.js
++++ b/server/src/db.js
+@@ -22,7 +22,7 @@ const __dirname = path.dirname(fileURLToPath(import.meta.url));
+ 
+ const DATA_FILE = process.env.DB_FILE || path.join(__dirname, '..', 'data', 'db.json');
+ const DATABASE_URL = process.env.DATABASE_URL || '';
+-const COLLECTIONS = ['users', 'gerants', 'demandes', 'notifications', 'subscriptions', 'referrals', 'events'];
++const COLLECTIONS = ['users', 'gerants', 'demandes', 'notifications', 'subscriptions', 'referrals', 'events', 'push_tokens'];
+ 
+ const now = Date.now();
+ const seed = () => ({
+diff --git a/server/src/routes/auth.js b/server/src/routes/auth.js
+index 4b95531..811c8a1 100644
+--- a/server/src/routes/auth.js
++++ b/server/src/routes/auth.js
+@@ -1,7 +1,7 @@
+ import { Router } from 'express';
+ import { findOne, insert } from '../db.js';
+ import { signToken, hashPassword, verifyPassword, requireAuth } from '../middleware/auth.js';
+-import { subscriptionFor, applyReferral, referralInfoFor, recordEvent } from '../services/flowService.js';
++import { subscriptionFor, applyReferral, referralInfoFor, recordEvent, registerPushToken } from '../services/flowService.js';
+ 
+ const router = Router();
+ 
+@@ -66,6 +66,19 @@ router.get('/me', requireAuth, (req, res) => {
+   res.json({ user: publicUser(req.user), subscription: subscriptionFor(req.user), referral: referralInfoFor(req.user) });
+ });
+ 
++// POST /api/auth/push-token — enregistre le jeton de notification push de l'appareil
++// (client et gérant). L'app le récupère via expo-notifications sur mobile et nous le
++// transmet pour recevoir les alertes sur le téléphone.
++router.post('/push-token', requireAuth, (req, res) => {
++  const { token } = req.body || {};
++  try {
++    const pushToken = registerPushToken(req.user.id, token);
++    res.status(201).json({ ok: true, pushToken });
++  } catch (e) {
++    res.status(e.status || 400).json({ error: e.message });
++  }
++});
++
+ function publicUser(u) {
+   return { id: u.id, role: u.role, name: u.name, phone: u.phone, email: u.email, waveNumber: u.waveNumber, payLink: u.payLink || '', referralCode: u.referralCode || '' };
+ }
+diff --git a/server/src/services/flowService.js b/server/src/services/flowService.js
+index 18a1564..7f383d5 100644
+--- a/server/src/services/flowService.js
++++ b/server/src/services/flowService.js
+@@ -407,7 +407,7 @@ export function unreadCount(userId) {
+   return notificationsFor(userId).filter((n) => !n.read).length;
+ }
+ export function createNotification({ userId, type, text, demandeId }) {
+-  return insert('notifications', {
++  const n = insert('notifications', {
+     userId,
+     type,             // 'new_demande' | 'demande_accepted' | 'demande_declined' | 'demande_canceled' | 'demande_paid' | 'demande_completed'
+     text,
+@@ -415,6 +415,10 @@ export function createNotification({ userId, type, text, demandeId }) {
+     read: false,
+     createdAt: Date.now(),
+   });
++  // En complément de la notif in-app, on alerte le téléphone de l'utilisateur
++  // (si l'appareil a enregistré son jeton et que l'envoi est activé).
++  notifyPush(userId, { type, text, demandeId: n.demandeId });
++  return n;
+ }
+ export function markNotificationRead({ id, userId }) {
+   const n = findOne('notifications', (x) => x.id === id && x.userId === userId);
+@@ -427,6 +431,49 @@ export function markAllNotificationsRead(userId) {
+   return { ok: true };
+ }
+ 
++// ------------------------------------------------------------------
++//  NOTIFICATIONS PUSH (Expo) — alerte sur le téléphone de l'utilisateur,
++//  en complément de la notification in-app.
++//  - L'appareil enregistre son jeton Expo via POST /api/auth/push-token.
++//  - À chaque notification créée, on envoie une push à tous les jetons de
++//    l'utilisateur, si l'envoi est activé (config.pushEnabled).
++//  - L'envoi est "fire-and-forget" : jamais bloquant pour le flux métier.
++// ------------------------------------------------------------------
++export function registerPushToken(userId, token) {
++  const t = String(token || '').trim();
++  if (!t) throw Object.assign(new Error('Jeton de notification requis'), { status: 400 });
++  const existing = findOne('push_tokens', (p) => p.userId === userId && p.token === t);
++  if (existing) return existing;
++  return insert('push_tokens', { userId, token: t, createdAt: Date.now() });
++}
++
++// Envoie une push à tous les appareils enregistrés pour un utilisateur.
++export async function sendPushToUser(userId, { title = 'Cabine En Ligne', body = '', data = {} }) {
++  if (!config.pushEnabled) return { skipped: 'disabled' };
++  const tokens = find('push_tokens', (p) => p.userId === userId).map((p) => p.token);
++  if (!tokens.length) return { skipped: 'no_tokens' };
++  try {
++    const res = await fetch('https://exp.host/--/api/v2/push/send', {
++      method: 'POST',
++      headers: {
++        'content-type': 'application/json',
++        ...(config.expoAccessToken ? { authorization: `Bearer ${config.expoAccessToken}` } : {}),
++      },
++      body: JSON.stringify({ to: tokens, title, body, data, sound: 'default', channelId: 'default' }),
++    });
++    const json = await res.json().catch(() => ({}));
++    return { sent: tokens.length, receipts: json.data || [] };
++  } catch (e) {
++    console.error('[push] envoi Expo échoué :', e.message);
++    return { error: e.message };
++  }
++}
++
++// Fire-and-forget : déclenche l'envoi push sans bloquer la création de la notif.
++function notifyPush(userId, { type, text, demandeId }) {
++  sendPushToUser(userId, { body: text, data: { type, demandeId } }).catch(() => {});
++}
++
+ // ---- Public profile (lien de partage) ----
+ export function publicProfile(id) {
+   const u = findOne('users', (x) => x.id === id);
+@@ -439,11 +486,13 @@ export function gerantsFor(clientId) {
+   // On enrichit chaque contact avec les coordonnées Wave À JOUR du compte gérant
+   // (numéro + lien marchand), pour que le client voie toujours le lien en direct
+   // même si le contact a été ajouté avant que le gérant ne configure son lien.
++  // Un gérant suspendu par le propriétaire est marqué `suspended` : le client
++  // ne peut plus lui envoyer de demande tant que la suspension n'est pas levée.
+   return find('gerants', (g) => g.ownerId === clientId).map((g) => {
+     if (g.userId) {
+       const u = findOne('users', (x) => x.id === g.userId);
+       if (u) {
+-        return { ...g, waveNumber: u.waveNumber || g.waveNumber, payLink: u.payLink || g.payLink || '' };
++        return { ...g, waveNumber: u.waveNumber || g.waveNumber, payLink: u.payLink || g.payLink || '', suspended: !!u.frozen };
+       }
+     }
+     return g;
+@@ -452,10 +501,12 @@ export function gerantsFor(clientId) {
+ 
+ // Gérants réellement inscrits sur la plateforme, proposés au client pour
+ // simplifier sa tâche. On exclut les comptes sans mot de passe (fantômes /
+-// créés à la volée) pour n'afficher que des gérants enregistrés.
++// créés à la volée) pour n'afficher que des gérants enregistrés. Un gérant
++// SUSPENDU (frozen) est retiré de la liste : il ne réapparaît que lorsque sa
++// suspension est annulée par le propriétaire.
+ export function availableGerants(clientId) {
+   const added = gerantsFor(clientId).map((g) => g.userId);
+-  return find('users', (u) => u.role === 'gerant' && u.passwordHash)
++  return find('users', (u) => u.role === 'gerant' && u.passwordHash && !u.frozen)
+     .map((u) => ({
+       userId: u.id, name: u.name, phone: u.phone, waveNumber: u.waveNumber || u.phone, payLink: u.payLink || '',
+       alreadyAdded: added.includes(u.id),
+@@ -549,6 +600,14 @@ export function createDemande({ client, gerantId, gerantUserId, type, amount, be
+     }
+   }
+   if (!g) throw Object.assign(new Error('Gérant introuvable'), { status: 404 });
++  // Le gérant ciblé peut être suspendu par le propriétaire : on bloque la demande
++  // pour qu'il ne reçoive rien tant que sa suspension n'est pas annulée.
++  if (g.userId) {
++    const gTarget = findOne('users', (x) => x.id === g.userId);
++    if (gTarget && gTarget.frozen) {
++      throw Object.assign(new Error(`${g.name} est actuellement suspendu. Choisissez un autre gérant.`), { status: 403 });
++    }
++  }
+   if (!['unites', 'minutes', 'internet'].includes(type)) throw Object.assign(new Error('Type invalide'), { status: 400 });
+   if (!(parseInt(amount, 10) > 0)) throw Object.assign(new Error('Montant invalide'), { status: 400 });
+ 
+@@ -658,10 +717,20 @@ export function decideDemande({ id, gerantUserId, decision }) {
+     throw Object.assign(new Error('Votre abonnement a expiré. Renouvelez-le pour continuer à traiter les demandes.'), { status: 403 });
+   }
+   if (decision === 'decline') {
+-    if (d.status !== 'pending') throw Object.assign(new Error('Impossible de refuser une demande déjà payée ou traitée'), { status: 400 });
++    // Le gérant peut refuser UNE DEMANDE EN ATTENTE OU DÉJÀ PAYÉE.
++    if (!['pending', 'paid'].includes(d.status)) throw Object.assign(new Error('Impossible de refuser une demande déjà traitée'), { status: 400 });
++    const wasPaid = d.status === 'paid';
+     update('demandes', (x) => x.id === id, { status: 'declined', acceptedAt: Date.now() });
+     const upd = findOne('demandes', (x) => x.id === id);
+-    if (upd && upd.clientId) createNotification({ userId: upd.clientId, type: 'demande_declined', text: `${upd.gerantName} a refusé votre demande — ${TYPE_LABEL[upd.type] || upd.type}  ${upd.amount} F`, demandeId: upd.id });
++    if (upd && upd.clientId) createNotification({
++      userId: upd.clientId,
++      type: 'demande_declined',
++      // Si le client avait déjà payé, on lui rappelle que le montant doit lui être remboursé.
++      text: wasPaid
++        ? `${upd.gerantName} a refusé votre demande — ${TYPE_LABEL[upd.type] || upd.type}  ${upd.amount} F. Vous avez déjà payé via Wave : le montant doit vous être remboursé. Contactez ${upd.gerantName} si besoin.`
++        : `${upd.gerantName} a refusé votre demande — ${TYPE_LABEL[upd.type] || upd.type}  ${upd.amount} F`,
++      demandeId: upd.id,
++    });
+     return upd;
+   } else {
+     // Acceptation possible en attente OU après paiement anticipé du client
+diff --git a/src/api.js b/src/api.js
+index b87b16b..df88c0d 100644
+--- a/src/api.js
++++ b/src/api.js
+@@ -36,6 +36,7 @@ export const api = {
+   register: (p) => request('POST', '/api/auth/register', p),
+   login: (p) => request('POST', '/api/auth/login', p),
+   me: () => request('GET', '/api/auth/me'),
++  pushToken: (token) => request('POST', '/api/auth/push-token', { token }),
+ 
+   // ---- public (liens de partage) ----
+   public: {
+diff --git a/src/components/PushSettings.jsx b/src/components/PushSettings.jsx
+new file mode 100644
+index 0000000..1b8fd11
+--- /dev/null
++++ b/src/components/PushSettings.jsx
+@@ -0,0 +1,73 @@
++import React, { useState } from 'react';
++import { View, StyleSheet, Switch } from 'react-native';
++import { Ionicons } from '@expo/vector-icons';
++import { colors, radius, space, font } from '../theme';
++import { T } from './ui';
++import { pushSupported, enableNotifications } from '../push';
++import { useStore } from '../store';
++
++// ==================================================================
++//  Option « notifications push » — paramétrable dans le profil
++//  (client et gérant). Sur mobile, on demande la permission, on
++//  récupère le jeton Expo et on l'enregistre côté serveur pour que
++//  l'utilisateur soit alerté directement sur son téléphone.
++//  Sur le web (PWA), les push ne sont pas disponibles : on l'explique.
++// ==================================================================
++
++function usePushRegistration() {
++  const { registerPushToken } = useStore();
++  const [enabled, setEnabled] = useState(typeof window !== 'undefined' && typeof window.__celPushEnabled === 'boolean' ? window.__celPushEnabled : false);
++  const [busy, setBusy] = useState(false);
++  const [msg, setMsg] = useState('');
++  const supported = pushSupported();
++
++  const toggle = async (value) => {
++    setBusy(true); setMsg('');
++    if (!value) { setEnabled(false); setBusy(false); return; }
++    const res = await enableNotifications();
++    setBusy(false);
++    if (res && res.ok && res.token) {
++      await registerPushToken(res.token);
++      setEnabled(true);
++      try { if (typeof window !== 'undefined') window.__celPushEnabled = true; } catch { /* ignore */ }
++    } else {
++      setEnabled(false);
++      setMsg((res && res.reason) || 'Impossible d’activer les notifications.');
++    }
++  };
++
++  return { enabled, busy, msg, supported, toggle };
++}
++
++export default function PushSettings() {
++  const { enabled, busy, msg, supported, toggle } = usePushRegistration();
++
++  return (
++    <View style={s.card}>
++      <View style={{ flexDirection: 'row', alignItems: 'center' }}>
++        <View style={s.icon}><Ionicons name="notifications" size={18} color={colors.primary} /></View>
++        <View style={{ flex: 1, marginLeft: 12 }}>
++          <T size={font.body} weight="800" color={colors.text}>Notifications sur le téléphone</T>
++          <T size={font.xs} weight="600" color={colors.muted} style={{ marginTop: 2 }}>
++            {supported
++              ? 'Soyez alerté immédiatement (nouvelle demande, paiement, réponse…).'
++              : 'Réservé à l’application mobile (Expo Go / build EAS).'}
++          </T>
++        </View>
++        <Switch
++          value={enabled}
++          onValueChange={toggle}
++          disabled={busy || !supported}
++          trackColor={{ true: colors.primary, false: colors.gray }}
++          thumbColor={enabled ? '#fff' : '#fff'}
++        />
++      </View>
++      {msg ? <T size={font.sm} weight="600" color={colors.danger} style={{ marginTop: 10 }}>{msg}</T> : null}
++    </View>
++  );
++}
++
++const s = StyleSheet.create({
++  card: { backgroundColor: '#fff', borderRadius: radius.md, padding: 16, marginBottom: space.md, marginTop: space.lg },
++  icon: { width: 36, height: 36, borderRadius: 18, backgroundColor: colors.primarySoft, alignItems: 'center', justifyContent: 'center' },
++});
+diff --git a/src/push.js b/src/push.js
+new file mode 100644
+index 0000000..36e1e77
+--- /dev/null
++++ b/src/push.js
+@@ -0,0 +1,14 @@
++// ==================================================================
++//  Notifications push — fallback générique.
++//  La version web (push.web.js) et la version native (push.native.js)
++//  sont résolues automatiquement selon la plateforme par Metro/expo.
++//  Ce fichier sert de repli si aucune variante n'est trouvée.
++// ==================================================================
++
++export function pushSupported() {
++  return false;
++}
++
++export async function enableNotifications() {
++  return { ok: false, reason: 'Les notifications push nécessitent l’application mobile.' };
++}
+diff --git a/src/push.native.js b/src/push.native.js
+new file mode 100644
+index 0000000..b1adbe6
+--- /dev/null
++++ b/src/push.native.js
+@@ -0,0 +1,39 @@
++// ==================================================================
++//  Notifications push — version NATIVE (Expo Go / build EAS).
++//  Demande la permission, configure le canal Android puis récupère le
++//  jeton Expo Push. Ce jeton est ensuite envoyé au serveur pour recevoir
++//  les alertes sur le téléphone (à chaque nouvelle demande/paiement…).
++// ==================================================================
++import * as Notifications from 'expo-notifications';
++import * as Device from 'expo-device';
++import { Platform } from 'react-native';
++
++export function pushSupported() {
++  return Platform.OS !== 'web' && Device.isDevice;
++}
++
++export async function enableNotifications() {
++  try {
++    if (!Device.isDevice) {
++      return { ok: false, reason: 'Les notifications push ne fonctionnent pas sur un simulateur/émulateur.' };
++    }
++    if (Platform.OS === 'android') {
++      await Notifications.setNotificationChannelAsync('default', {
++        name: 'Cabine En Ligne',
++        importance: Notifications.AndroidImportance.HIGH,
++      });
++    }
++    let perm = await Notifications.getPermissionsAsync();
++    if (perm.status !== 'granted') {
++      perm = await Notifications.requestPermissionsAsync();
++    }
++    if (perm.status !== 'granted') {
++      return { ok: false, reason: 'Autorisation de notifications refusée. Activez-les dans les réglages du téléphone.' };
++    }
++    const projectId = process.env.EXPO_PUBLIC_EAS_PROJECT_ID || undefined;
++    const token = await Notifications.getExpoPushTokenAsync({ projectId });
++    return { ok: true, token: token.data };
++  } catch (e) {
++    return { ok: false, reason: e && e.message ? e.message : 'Impossible d’activer les notifications.' };
++  }
++}
+diff --git a/src/push.web.js b/src/push.web.js
+new file mode 100644
+index 0000000..ef3effa
+--- /dev/null
++++ b/src/push.web.js
+@@ -0,0 +1,14 @@
++// ==================================================================
++//  Notifications push — version WEB (PWA).
++//  Le web ne peut pas recevoir de push « native » via expo-notifications.
++//  On affiche un message clair laissant entendre que cette option est
++//  réservée à l'application mobile (Expo Go / build EAS).
++// ==================================================================
++
++export function pushSupported() {
++  return false;
++}
++
++export async function enableNotifications() {
++  return { ok: false, reason: 'Les notifications push sont réservées à l’application mobile (Expo Go / build EAS).' };
++}
+diff --git a/src/screens/Admin.jsx b/src/screens/Admin.jsx
+index 20ea1be..41f8ecc 100644
+--- a/src/screens/Admin.jsx
++++ b/src/screens/Admin.jsx
+@@ -560,8 +560,12 @@ export default function Admin({ onBack }) {
+         </T>
+         <T size={font.sm} weight="600" color={colors.muted} style={{ textAlign: 'center', marginTop: 6, marginBottom: 6 }}>
+           {suspendTarget?.frozen && !suspendTarget?.user?.frozen
+-            ? `${suspendTarget?.user?.name} (${suspendTarget?.user?.phone}) ne pourra plus envoyer ni traiter de demandes. Vous pourrez le réactiver ensuite.`
+-            : `${suspendTarget?.user?.name} (${suspendTarget?.user?.phone}) retrouvera le droit d'envoyer et de traiter des demandes.`}
++            ? (suspendTarget?.user?.role === 'gerant'
++                ? `Ce gérant ne recevra PAS de nouvelles demandes et ne sera plus proposé aux clients tant que vous ne l'aurez pas réactivé.`
++                : `${suspendTarget?.user?.name} (${suspendTarget?.user?.phone}) ne pourra plus envoyer de demandes. Vous pourrez le réactiver ensuite.`)
++            : (suspendTarget?.user?.role === 'gerant'
++                ? `Ce gérant retrouvera le droit de recevoir et traiter des demandes, et réapparaîtra dans le choix des clients.`
++                : `${suspendTarget?.user?.name} (${suspendTarget?.user?.phone}) retrouvera le droit d'envoyer des demandes.`)}
+         </T>
+         <DialogButtons
+           cancel="Retour"
+diff --git a/src/screens/client/ClientGerants.jsx b/src/screens/client/ClientGerants.jsx
+index 06d7394..bd66d21 100644
+--- a/src/screens/client/ClientGerants.jsx
++++ b/src/screens/client/ClientGerants.jsx
+@@ -98,7 +98,11 @@ export default function ClientGerants() {
+             <View style={{ flex: 1 }}>
+               <View style={{ flexDirection: 'row', alignItems: 'center' }}>
+                 <T size={font.body} weight="800" color={colors.text}>{g.name}</T>
+-                <View style={{ width: 8, height: 8, borderRadius: 4, backgroundColor: g.online ? colors.success : colors.muted2, marginLeft: 8 }} />
++                {g.suspended ? (
++                  <View style={s.suspendBadge}><T size={font.xs} weight="800" color={colors.warn}>Suspendu</T></View>
++                ) : (
++                  <View style={{ width: 8, height: 8, borderRadius: 4, backgroundColor: g.online ? colors.success : colors.muted2, marginLeft: 8 }} />
++                )}
+               </View>
+               <View style={{ flexDirection: 'row', alignItems: 'center', marginTop: 5 }}>
+                 <Ionicons name="call-outline" size={14} color={colors.primary} />
+@@ -156,4 +160,5 @@ const s = StyleSheet.create({
+   payBtn: { flexDirection: 'row', alignItems: 'center', backgroundColor: colors.waveAccent, borderRadius: radius.pill, paddingHorizontal: 12, paddingVertical: 7, marginTop: 6, alignSelf: 'flex-start' },
+   suggestRow: { flexDirection: 'row', alignItems: 'center', paddingVertical: 10, borderTopWidth: 1, borderTopColor: colors.border },
+   suggestIcon: { width: 34, height: 34, borderRadius: 17, backgroundColor: '#fff', alignItems: 'center', justifyContent: 'center' },
++  suspendBadge: { backgroundColor: '#FDF0E0', borderRadius: radius.pill, paddingHorizontal: 8, paddingVertical: 2, marginLeft: 8 },
+ });
+diff --git a/src/screens/client/ClientHistory.jsx b/src/screens/client/ClientHistory.jsx
+index 1a57041..064127a 100644
+--- a/src/screens/client/ClientHistory.jsx
++++ b/src/screens/client/ClientHistory.jsx
+@@ -2,7 +2,7 @@ import React, { useEffect, useState } from 'react';
+ import { View, Text, TextInput, Pressable, StyleSheet } from 'react-native';
+ import { Ionicons } from '@expo/vector-icons';
+ import { colors, radius, space, font } from '../../theme';
+-import { T, Card, Pill, Btn } from '../../components/ui';
++import { T, Card, Pill, Btn, Chip } from '../../components/ui';
+ import { Page } from '../../components/Shell';
+ import { WavePaySheet, WavePayBox } from '../../components/WavePay';
+ import { Dialog, DialogButtons } from '../../components/modals';
+@@ -76,12 +76,30 @@ export default function ClientHistory() {
+   const [paying, setPaying] = useState(null);
+   const [canceling, setCanceling] = useState(null);
+   const [q, setQ] = useState('');
++  const [group, setGroup] = useState('all');
+   const now = useNow();
+   const demandes = state.demandes || [];
+   const sum = summarize(demandes);
+   const purchases = sum.counts.paid + sum.counts.completed;
+   const inProgress = sum.counts.pending + sum.counts.accepted;
+-  const visible = q ? demandes.filter((d) => matches(d, q)) : demandes;
++
++  // L'historique est trié par famille (En attente / À payer / Traitées /
++  // Refusées / Annulées) pour ne jamais mélanger les statuts.
++  const GROUPS = [
++    { value: 'all', label: `Toutes (${demandes.length})` },
++    { value: 'pending', label: `En attente (${sum.counts.pending})` },
++    { value: 'accepted', label: `À payer (${sum.counts.accepted})` },
++    { value: 'treated', label: `Traitées (${sum.counts.paid + sum.counts.completed})` },
++    { value: 'declined', label: `Refusées (${sum.counts.declined})` },
++    { value: 'canceled', label: `Annulées (${sum.counts.canceled})` },
++  ];
++  const inGroup = (d) => {
++    if (group === 'all') return true;
++    if (group === 'treated') return ['paid', 'completed'].includes(d.status);
++    return d.status === group;
++  };
++  const filtered = demandes.filter(inGroup);
++  const visible = q ? filtered.filter((d) => matches(d, q)) : filtered;
+ 
+   return (
+     <Page title="Historique">
+@@ -101,6 +119,13 @@ export default function ClientHistory() {
+         </View>
+       </Card>
+ 
++      {/* Filtre par statut (En attente / À payer / Traitées / Refusées / Annulées) */}
++      <View style={{ flexDirection: 'row', flexWrap: 'wrap', marginBottom: 6 }}>
++        {GROUPS.map((g) => (
++          <Chip key={g.value} label={g.label} active={group === g.value} onPress={() => setGroup(g.value)} />
++        ))}
++      </View>
++
+       {/* Recherche */}
+       {demandes.length > 0 && (
+         <Card style={s.searchCard}>
+diff --git a/src/screens/client/ClientHome.jsx b/src/screens/client/ClientHome.jsx
+index ff0032d..0bcb150 100644
+--- a/src/screens/client/ClientHome.jsx
++++ b/src/screens/client/ClientHome.jsx
+@@ -42,6 +42,9 @@ export default function ClientHome() {
+   // Gérants inscrits proposés = ceux que le client n'a pas encore ajoutés.
+   const addedIds = new Set((state.gerants || []).map((g) => g.userId));
+   const suggested = (state.availableGerants || []).filter((g) => !g.alreadyAdded && !addedIds.has(g.userId));
++  // On masque les gérants SUSPENDUS du choix : un gérant suspendu ne doit pas
++  // apparaître quand le client veut faire une demande.
++  const myGerants = (state.gerants || []).filter((g) => !g.suspended);
+ 
+   // Validation : on n'envoie jamais la demande tant qu'il manque une info.
+   const validate = () => {
+@@ -205,11 +208,11 @@ export default function ClientHome() {
+         </View>
+ 
+         {/* PRIORITÉ : les gérants déjà ajoutés par le client (il les connaît) */}
+-        {state.gerants.length > 0 && (
++        {myGerants.length > 0 && (
+           <>
+             <T size={font.sm} weight="800" color={colors.text} style={{ marginBottom: 4 }}>Vos gérants (priorité)</T>
+             <T size={font.xs} weight="600" color={colors.muted2} style={{ marginBottom: 8 }}>Ceux que vous avez déjà ajoutés — vous les connaissez, c\'est plus sûr.</T>
+-            {state.gerants.map((g) => {
++            {myGerants.map((g) => {
+               const on = sel?.id === g.id;
+               return (
+                 <Pressable key={g.id} onPress={() => { setSel({ id: g.id, userId: g.userId, name: g.name, phone: g.phone, waveNumber: g.waveNumber, payLink: g.payLink || '', online: g.online }); clearErr('gerant'); setShowGerants(false); }} style={[s.gerantRow, on && { opacity: 0.7 }]}>
+@@ -253,7 +256,7 @@ export default function ClientHome() {
+           </>
+         )}
+ 
+-        {suggested.length === 0 && state.gerants.length === 0 && (
++        {suggested.length === 0 && myGerants.length === 0 && (
+           <View style={{ alignItems: 'center', paddingVertical: 24 }}>
+             <Ionicons name="storefront-outline" size={36} color={colors.muted2} />
+             <T size={font.sm} weight="600" color={colors.muted} style={{ marginTop: 8, textAlign: 'center' }}>Aucun gérant disponible pour le moment.</T>
+diff --git a/src/screens/client/ClientProfile.jsx b/src/screens/client/ClientProfile.jsx
+index aa91b5d..b907617 100644
+--- a/src/screens/client/ClientProfile.jsx
++++ b/src/screens/client/ClientProfile.jsx
+@@ -5,6 +5,7 @@ import { colors, radius, space, font } from '../../theme';
+ import { T, Card, ListRow, Pill } from '../../components/ui';
+ import { Page } from '../../components/Shell';
+ import SubscribeSheet from '../../components/Subscribe';
++import PushSettings from '../../components/PushSettings';
+ import { useStore } from '../../store';
+ import { buildShareUrl } from '../../config';
+ import Help from '../Help';
+@@ -104,6 +105,8 @@ export default function ClientProfile({ onLogout }) {
+         />
+       </Card>
+ 
++      <PushSettings />
++
+       <Card style={{ marginTop: space.lg }}>
+         <ListRow icon="help-circle-outline" label="Aide & Support" onPress={() => setShowHelp(true)} />
+       </Card>
+diff --git a/src/screens/gerant/GerantDemandes.jsx b/src/screens/gerant/GerantDemandes.jsx
+index 562f1df..c7369f9 100644
+--- a/src/screens/gerant/GerantDemandes.jsx
++++ b/src/screens/gerant/GerantDemandes.jsx
+@@ -86,6 +86,9 @@ export default function GerantDemandes() {
+                     Le client a déjà payé {d.amount.toLocaleString('fr-FR').replace(/\u202f/g, ' ')} XOF via Wave.
+                   </T>
+                 </View>
++                <View style={s.actions}>
++                  <Btn title="Refuser" icon="close-circle" outline color={colors.danger} onPress={() => setConfirm({ id: d.id, action: 'decline' })} style={{ flex: 1 }} />
++                </View>
+                 <View style={s.actions}>
+                   <Btn title="Accepter" icon="checkmark" outline onPress={() => setConfirm({ id: d.id, action: 'accept' })} style={{ flex: 1, marginRight: 6 }} />
+                   <Btn title="J'ai servi" icon="checkmark-done" onPress={() => setConfirm({ id: d.id, action: 'complete' })} style={{ flex: 1 }} />
+@@ -111,7 +114,16 @@ export default function GerantDemandes() {
+           {confirm?.action === 'accept' ? 'Accepter la demande' : confirm?.action === 'decline' ? 'Refuser la demande' : 'Confirmer le service'}
+         </T>
+         <T size={font.sm} weight="600" color={colors.muted} style={{ textAlign: 'center', marginTop: 6, marginBottom: 6 }}>
+-          {confirm?.action === 'accept' ? 'Le client vous enverra le paiement via votre Wave marchand.' : confirm?.action === 'decline' ? 'La demande sera signalée comme refusée.' : 'Vous avez bien crédité le bénéficiaire ?'}
++          {(() => {
++            if (confirm?.action === 'accept') return 'Le client vous enverra le paiement via votre Wave.';
++            if (confirm?.action === 'decline') {
++              const wasPaid = (demandes.find((d) => d.id === confirm?.id) || {}).status === 'paid';
++              return wasPaid
++                ? 'Le client a déjà payé. Si vous refusez, le montant doit lui être remboursé (par Wave).'
++                : 'La demande sera signalée comme refusée.';
++            }
++            return 'Vous avez bien servi le client ?';
++          })()}
+         </T>
+         <DialogButtons cancel="Annuler" confirm="Confirmer" onCancel={() => setConfirm(null)} onConfirm={doAction} />
+       </Dialog>
+diff --git a/src/screens/gerant/GerantHistory.jsx b/src/screens/gerant/GerantHistory.jsx
+index 8ec21ba..14493c8 100644
+--- a/src/screens/gerant/GerantHistory.jsx
++++ b/src/screens/gerant/GerantHistory.jsx
+@@ -2,7 +2,7 @@ import React, { useState } from 'react';
+ import { View, Text, TextInput, Pressable, StyleSheet } from 'react-native';
+ import { Ionicons } from '@expo/vector-icons';
+ import { colors, radius, space, font } from '../../theme';
+-import { T, Card, Pill } from '../../components/ui';
++import { T, Card, Pill, Chip } from '../../components/ui';
+ import { Page } from '../../components/Shell';
+ import { useStore } from '../../store';
+ 
+@@ -49,11 +49,28 @@ function matches(d, q) {
+ export default function GerantHistory() {
+   const { state } = useStore();
+   const [q, setQ] = useState('');
++  const [group, setGroup] = useState('all');
+   const demandes = state.gerantDemandes || [];
+   const sum = summarize(demandes);
+   const served = sum.counts.completed;
+   const treated = sum.counts.completed + sum.counts.paid + sum.counts.accepted;
+-  const visible = q ? demandes.filter((d) => matches(d, q)) : demandes;
++
++  // L'historique est trié par famille (En attente / Traitées / Refusées / Annulées)
++  // pour ne jamais mélanger les statuts. La recherche s'applique ensuite.
++  const GROUPS = [
++    { value: 'all', label: `Toutes (${demandes.length})` },
++    { value: 'pending', label: `En attente (${sum.counts.pending})` },
++    { value: 'treated', label: `Traitées (${sum.counts.completed + sum.counts.paid + sum.counts.accepted})` },
++    { value: 'declined', label: `Refusées (${sum.counts.declined})` },
++    { value: 'canceled', label: `Annulées (${sum.counts.canceled})` },
++  ];
++  const inGroup = (d) => {
++    if (group === 'all') return true;
++    if (group === 'treated') return ['accepted', 'paid', 'completed'].includes(d.status);
++    return d.status === group;
++  };
++  const filtered = demandes.filter(inGroup);
++  const visible = q ? filtered.filter((d) => matches(d, q)) : filtered;
+ 
+   return (
+     <Page title="Historique">
+@@ -72,6 +89,13 @@ export default function GerantHistory() {
+         </View>
+       </Card>
+ 
++      {/* Filtre par statut (En attente / Traitées / Refusées / Annulées) */}
++      <View style={{ flexDirection: 'row', flexWrap: 'wrap', marginBottom: 6 }}>
++        {GROUPS.map((g) => (
++          <Chip key={g.value} label={g.label} active={group === g.value} onPress={() => setGroup(g.value)} />
++        ))}
++      </View>
++
+       {/* Recherche */}
+       {demandes.length > 0 && (
+         <Card style={s.searchCard}>
+diff --git a/src/screens/gerant/GerantProfile.jsx b/src/screens/gerant/GerantProfile.jsx
+index 959d782..8a7b7b1 100644
+--- a/src/screens/gerant/GerantProfile.jsx
++++ b/src/screens/gerant/GerantProfile.jsx
+@@ -5,6 +5,7 @@ import { colors, radius, space, font } from '../../theme';
+ import { T, Card, ListRow, Pill, Btn } from '../../components/ui';
+ import { Page } from '../../components/Shell';
+ import SubscribeSheet from '../../components/Subscribe';
++import PushSettings from '../../components/PushSettings';
+ import { useStore } from '../../store';
+ import { buildShareUrl } from '../../config';
+ import Help from '../Help';
+@@ -136,6 +137,8 @@ export default function GerantProfile({ onLogout }) {
+         />
+       </Card>
+ 
++      <PushSettings />
++
+       <Card style={{ marginTop: space.lg }}>
+         <ListRow icon="help-circle-outline" label="Aide & Support" onPress={() => setShowHelp(true)} />
+       </Card>
+diff --git a/src/store.jsx b/src/store.jsx
+index a8dd89f..7c116dc 100644
+--- a/src/store.jsx
++++ b/src/store.jsx
+@@ -193,46 +193,58 @@ export function StoreProvider({ children }) {
+   const logout = useCallback(() => { clearToken(); clearSession(); dispatch({ type: 'LOGOUT' }); }, []);
+ 
+   // ---- Restauration de session au démarrage (rester connecté) ----
++  // Si le compte a été SUPPRIMÉ pendant que l'utilisateur était connecté, le
++  // serveur répond 401 (utilisateur introuvable) : on force la déconnexion et
++  // on le renvoie à l'accueil pour qu'il ne puisse plus utiliser l'app.
+   const restore = useCallback(async () => {
+     if (!online) return;             // hors ligne : on garde la session locale
+     try {
+       const { user, subscription } = await api.me();
+       dispatch({ type: 'LOGIN', payload: { user, subscription } });
+       persistSession({ user, subscription });
+-    } catch { /* jeton invalide/expiré → on laisse la session locale (démo) */ }
++    } catch (e) {
++      if (e && e.status === 401) { clearToken(); clearSession(); dispatch({ type: 'LOGOUT' }); }
++      /* autre erreur (réseau…) : on garde la session locale */
++    }
+   }, [online]);
+   useEffect(() => { if (online && state.loggedIn && getToken()) restore(); }, [online]); // eslint-disable-line
+ 
+   // ---- Rafraîchit depuis le serveur ----
++  // `safe` déconnecte l'utilisateur et le renvoie à l'accueil si le serveur
++  // répond 401 (compte supprimé ou jeton invalidé), sinon renvoie null.
++  const safe = (e) => {
++    if (e && e.status === 401) { clearToken(); clearSession(); dispatch({ type: 'LOGOUT' }); }
++    return null;
++  };
+   const refresh = useCallback(async () => {
+     if (!online) return;
+     try {
+-      const sub = await (state.role === 'gerant' ? api.gerant.subscription() : api.client.subscription()).catch(() => null);
++      const sub = await (state.role === 'gerant' ? api.gerant.subscription() : api.client.subscription()).catch(safe);
+       if (sub) dispatch({ type: 'SET_SUBSCRIPTION', payload: sub.subscription });
+ 
+       // Parrainage : code, invités, taux et gains.
+-      const ref = await api.referral.my().catch(() => null);
++      const ref = await api.referral.my().catch(safe);
+       if (ref?.referral) dispatch({ type: 'SET_REFERRAL', payload: ref.referral });
+ 
+       if (state.role === 'client') {
+         const [g, av, d, n] = await Promise.all([
+-          api.client.gerants().catch(() => null),
+-          api.client.availableGerants().catch(() => null),
+-          api.client.myDemandes().catch(() => null),
+-          api.client.notifications().catch(() => null),
++          api.client.gerants().catch(safe),
++          api.client.availableGerants().catch(safe),
++          api.client.myDemandes().catch(safe),
++          api.client.notifications().catch(safe),
+         ]);
+         dispatch({ type: 'HYDRATE', payload: { gerants: g?.gerants, demandes: d?.demandes } });
+         if (av) dispatch({ type: 'SET_AVAILABLE_GERANTS', payload: av.gerants });
+         if (n) dispatch({ type: 'SET_CLIENT_NOTIFICATIONS', payload: n });
+       } else if (state.role === 'gerant') {
+         const [d, n] = await Promise.all([
+-          api.gerant.demandes().catch(() => null),
+-          api.gerant.notifications().catch(() => null),
++          api.gerant.demandes().catch(safe),
++          api.gerant.notifications().catch(safe),
+         ]);
+         if (d) dispatch({ type: 'SET_GERANT_DEMANDES', payload: d.demandes });
+         if (n) dispatch({ type: 'SET_NOTIFICATIONS', payload: n });
+       }
+-    } catch { /* silencieux */ }
++    } catch (e) { safe(e); }
+   }, [online, state.role, state.loggedIn]);
+ 
+   useEffect(() => { if (online && state.loggedIn) refresh(); }, [online, state.loggedIn]); // eslint-disable-line
+@@ -303,6 +315,13 @@ export function StoreProvider({ children }) {
+     if (online) { try { await api.gerant.complete(id); } catch {} }
+   }, [online]);
+ 
++  // Enregistre le jeton de notification push de l'appareil (app mobile uniquement)
++  // pour recevoir les alertes directement sur le téléphone.
++  const registerPushToken = useCallback(async (token) => {
++    if (!online || !token) return;
++    try { await api.pushToken(token); } catch { /* silencieux */ }
++  }, [online]);
++
+   // Mise à jour du profil gérant (numéro + lien Wave marchand)
+   const loadNotifications = useCallback(async () => {
+     if (!online) return;
+@@ -393,8 +412,8 @@ export function StoreProvider({ children }) {
+   }, [state.role]);
+ 
+   const value = useMemo(
+-    () => ({ state, dispatch, online, checking, recheck: probe, login, register, logout, refresh, addGerant, removeGerant, createDemande, markPaid, cancelDemande, acceptDemande, declineDemande, completeDemande, subscribe, updateGerantProfile, loadNotifications, markNotificationRead, markAllNotificationsRead, loadClientNotifications, markClientNotificationRead, markAllClientNotificationsRead, loadReferral, updateReferralCode }),
+-    [state, online, checking, probe, login, register, logout, refresh, addGerant, removeGerant, createDemande, markPaid, cancelDemande, acceptDemande, declineDemande, completeDemande, subscribe, updateGerantProfile, loadNotifications, markNotificationRead, markAllNotificationsRead, loadClientNotifications, markClientNotificationRead, markAllClientNotificationsRead, loadReferral, updateReferralCode],
++    () => ({ state, dispatch, online, checking, recheck: probe, login, register, logout, refresh, addGerant, removeGerant, createDemande, markPaid, cancelDemande, acceptDemande, declineDemande, completeDemande, subscribe, updateGerantProfile, registerPushToken, loadNotifications, markNotificationRead, markAllNotificationsRead, loadClientNotifications, markClientNotificationRead, markAllClientNotificationsRead, loadReferral, updateReferralCode }),
++    [state, online, checking, probe, login, register, logout, refresh, addGerant, removeGerant, createDemande, markPaid, cancelDemande, acceptDemande, declineDemande, completeDemande, subscribe, updateGerantProfile, registerPushToken, loadNotifications, markNotificationRead, markAllNotificationsRead, loadClientNotifications, markClientNotificationRead, markAllClientNotificationsRead, loadReferral, updateReferralCode],
+   );
+   return <Ctx.Provider value={value}>{children}</Ctx.Provider>;
+ }
+-- 
+2.47.3
+
+
+From c4a0ffb6ed66eabf74049cf69eb640cd95d11d76 Mon Sep 17 00:00:00 2001
+From: Cabine <dev@cabineenligne.local>
+Date: Wed, 9 Sep 2026 08:17:54 +0000
+Subject: [PATCH 2/2] =?UTF-8?q?Guide=20de=20mise=20=C3=A0=20jour=20du=20d?=
+ =?UTF-8?q?=C3=A9ploiement=20(DOMS/mise-a-jour-deploiement.md)?=
+MIME-Version: 1.0
+Content-Type: text/plain; charset=UTF-8
+Content-Transfer-Encoding: 8bit
+
+---
+ DOCS/mise-a-jour-deploiement.md | 91 +++++++++++++++++++++++++++++++++
+ 1 file changed, 91 insertions(+)
+ create mode 100644 DOCS/mise-a-jour-deploiement.md
+
+diff --git a/DOCS/mise-a-jour-deploiement.md b/DOCS/mise-a-jour-deploiement.md
+new file mode 100644
+index 0000000..cb969f7
+--- /dev/null
++++ b/DOCS/mise-a-jour-deploiement.md
+@@ -0,0 +1,91 @@
++# Mettre à jour `cabineenligne.com` — guide pas à pas
++
++> **Préparé à la main.** Tout le code des nouveautés est **commité** en local
++> (`main`, commit `30ce2f1`). Le déploiement réel se déclenche **depuis votre
++> compte Render** (le sandbox n'a ni clé d'API Render, ni dépôt GitHub connecté,
++> ni accès au dashboard).
++
++---
++
++## ✅ Ce qui a été ajouté dans ce lot (et vérifié)
++
++| Fonction | État |
++|---|---|
++| Gérant **suspendu** : ne reçoit plus de demandes, n'apparaît plus chez le client | ✅ testé (API 403, liste vide) |
++| Gérant **supprimé** : ne peut plus se connecter ; s'il était connecté → retour à l'accueil au 401 | ✅ testé (401) |
++| **Notifications push** sur téléphone (option dans le profil + serveur Expo) | ✅ câblé (voir limite §) |
++| **Historiques** triés en familles (En attente / Traitées / Refusées / Annulées) | ✅ testé (build OK) |
++
++**Compatibilité / non-disruption** :
++- `expo-notifications` + `expo-device` ajoutés au `package.json`. La build web
++  (PWA) les **ignore** (module séparé par plateforme `push.web.js`/`push.native.js`)
++  → le site web ne casse pas. Vérifié : la build web passe.
++- La collection `push_tokens` est **créée automatiquement** au démarrage (même sur
++  la base PostgreSQL existante via `normalize()`).
++- La logique est **rétro-compatible** : un gérant non suspendu et non supprimé se
++  comporte exactement comme avant.
++
++---
++
++## 🚀 Comment déclencher le déploiement (2 possibilités)
++
++### Option A — Push sur le dépôt GitHub connecté à Render (recommandé)
++Render sur est branché en **Blueprint** (`render.yaml`) et se redéploie à chaque
++push sur la branche `main`. Depuis une machine avec votre compte :
++```bash
++git remote add origin git@github.com:<vous>/<repo>.git   # si pas déjà fait
++git push -u origin main
++```
++Render détecte le push → **build automatique** → le nouveau bundle est en ligne.
++
++### Option B — Déploiement manuel depuis le dashboard Render
++1. **render.com** → votre service **cabine-en-ligne**.
++2. Onglet **Events / Deploys** → bouton **Manual Deploy** (ou **Sync** selon la source).
++3. Attendre la fin de la build (≈ quelques minutes) → le site sert alors la
++   nouvelle version (`index-<nouveauHash>`).
++4. Vérifier : `https://cabineenligne.com/health` → `{"status":"ok","mode":"mock"}`.
++
++Render exécute exactement :
++```bash
++npm install && cd server && npm install && cd .. && npm run build:web
++node server/src/combined.js
++```
++
++---
++
++## ⚙️ Variables d'environnement à vérifier dans Render (Service → Environment)
++
++| Variable | Valeur conseillée | Rôle |
++|---|---|---|
++| `WAVE_MODE` | `mock` | Reste simulé (mettre `live` + clés plus tard) |
++| `JWT_SECRET` | auto | ne pas toucher |
++| `PHONE_PREFIX` | `+225` | Côte d'Ivoire |
++| `ADMIN_KEY` | **votre clé** | Accès à l'espace propriétaire |
++| `PUSH_ENABLED` | `false` d'abord | Passez à `true` pour envoyer les push |
++| `EXPO_PUBLIC_EAS_PROJECT_ID` | vide / l'ID EAS | requis seulement pour les push sur build native |
++| `EXPO_PUBLIC_API_URL` | `""` | même origine (serveur proxyfie /api) |
++
++> `PUSH_ENABLED` et `EXPO_PUBLIC_EAS_PROJECT_ID` ont été ajoutés à `render.yaml`
++> pour figurer automatiquement si vous recréez le Blueprint. Sur un service déjà
++> existant, ajoutez-les à la main dans le dashboard.
++
++---
++
++## 📱 Notifications push — limites (honnêteté)
++- Les push **ne fonctionnent que sur l'app mobile** (Expo Go / build EAS), pas sur
++  le PWA web ni en mode `mock`.
++- Pour les activer : `PUSH_ENABLED=true` côté serveur + l'app buildée avec un
++  `EXPO_PUBLIC_EAS_PROJECT_ID` valide, et l'utilisateur **active l'option** dans
++  son profil (Permission activée + jeton enregistré).
++- Tant que ce n'est pas fait, les **notifications in-app** (cloche) continuent de
++  fonctionner normalement → rien n'est cassé.
++
++---
++
++## 🔍 Vérifier la mise à jour en ligne
++```bash
++curl -s https://cabineenligne.com/health
++curl -s https://cabineenligne.com/ | grep -oE 'index-[a-f0-9]+\.js' | head -1
++```
++Si le hash `index-...` change par rapport à `index-61e5c1a6…`, c'est que la
++nouvelle version est bien servie.
+-- 
+2.47.3
+

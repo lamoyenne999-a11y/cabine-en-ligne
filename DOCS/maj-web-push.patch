@@ -1,0 +1,664 @@
+diff --git a/public/sw.js b/public/sw.js
+index 3991fbe..91db07a 100644
+--- a/public/sw.js
++++ b/public/sw.js
+@@ -5,7 +5,7 @@
+    - on ne cache JAMAIS /api ni /health : l'app garde le mode
+      "connecté" basé sur la disponibilité de l'API.
+    ============================================================ */
+-const CACHE = 'cabine-en-ligne-v2';
++const CACHE = 'cabine-en-ligne-v3';
+ const SHELL = ['/', '/index.html', '/manifest.webmanifest'];
+ 
+ self.addEventListener('install', (event) => {
+@@ -57,3 +57,31 @@ self.addEventListener('fetch', (event) => {
+     }),
+   );
+ });
++
++// ---- Web Push : affiche la notification reçue (même app fermée) ----
++self.addEventListener('push', (event) => {
++  let data = { title: 'Cabine En Ligne', body: 'Vous avez une nouvelle notification.' };
++  try { data = event.data.json(); } catch (e) { /* payload non JSON */ }
++  event.waitUntil(
++    self.registration.showNotification(data.title || 'Cabine En Ligne', {
++      body: data.body || '',
++      icon: '/icons/icon-192.png',
++      badge: '/icons/icon-192.png',
++      data: { url: '/' },
++    }),
++  );
++});
++
++// ---- Clic sur la notification : ouvre / met au premier plan l'app ----
++self.addEventListener('notificationclick', (event) => {
++  event.notification.close();
++  const url = (event.notification.data && event.notification.data.url) || '/';
++  event.waitUntil(
++    self.clients.matchAll({ type: 'window', includeUncontrolled: true }).then((list) => {
++      for (const client of list) {
++        if ('focus' in client) { client.navigate(url); return client.focus(); }
++      }
++      return self.clients.openWindow(url);
++    }),
++  );
++});
+diff --git a/render.yaml b/render.yaml
+index 9105bad..53f5988 100644
+--- a/render.yaml
++++ b/render.yaml
+@@ -42,11 +42,11 @@ services:
+       # d'abonnement). À renseigner dans le dashboard Render.
+       - key: ADMIN_KEY
+         sync: false
+-      # Notifications push (Expo) : mettez à "true" pour envoyer les alertes
+-      # sur le téléphone des utilisateurs (sur l'app mobile). Laissez "false"
+-      # tant que vous voulez uniquement les notifications in-app (web/mock).
++      # Notifications push : "true" pour envoyer les alertes sur le téléphone
++      # via Web Push (PWA installée) et/ou Expo (app native). Laisser "false"
++      # pour n'avoir que les notifications in-app (cloche).
+       - key: PUSH_ENABLED
+-        value: "false"
++        value: "true"
+       # (facultatif) ID du projet EAS — nécessaire pour les push sur une build native.
+       - key: EXPO_PUBLIC_EAS_PROJECT_ID
+         sync: false
+diff --git a/server/package-lock.json b/server/package-lock.json
+index 2db3886..0a790ab 100644
+--- a/server/package-lock.json
++++ b/server/package-lock.json
+@@ -14,7 +14,8 @@
+         "express": "^5.2.1",
+         "jsonwebtoken": "^9.0.3",
+         "nanoid": "^5.1.16",
+-        "pg": "^8.23.0"
++        "pg": "^8.23.0",
++        "web-push": "^3.6.7"
+       }
+     },
+     "node_modules/accepts": {
+@@ -30,6 +31,27 @@
+         "node": ">= 0.6"
+       }
+     },
++    "node_modules/agent-base": {
++      "version": "7.1.4",
++      "resolved": "https://registry.npmjs.org/agent-base/-/agent-base-7.1.4.tgz",
++      "integrity": "sha512-MnA+YT8fwfJPgBx3m60MNqakm30XOkyIoH1y6huTQvC0PwZG7ki8NacLBcrPbNoo8vEZy7Jpuk7+jMO+CUovTQ==",
++      "license": "MIT",
++      "engines": {
++        "node": ">= 14"
++      }
++    },
++    "node_modules/asn1.js": {
++      "version": "5.4.1",
++      "resolved": "https://registry.npmjs.org/asn1.js/-/asn1.js-5.4.1.tgz",
++      "integrity": "sha512-+I//4cYPccV8LdmBLiX8CYvf9Sp3vQsrqu2QNXRcrbiWvcx/UdlFiqUJJzxRQxgsZmvhXhn4cSKeSmoFjVdupA==",
++      "license": "MIT",
++      "dependencies": {
++        "bn.js": "^4.0.0",
++        "inherits": "^2.0.1",
++        "minimalistic-assert": "^1.0.0",
++        "safer-buffer": "^2.1.0"
++      }
++    },
+     "node_modules/bcryptjs": {
+       "version": "3.0.3",
+       "resolved": "https://registry.npmjs.org/bcryptjs/-/bcryptjs-3.0.3.tgz",
+@@ -39,6 +61,12 @@
+         "bcrypt": "bin/bcrypt"
+       }
+     },
++    "node_modules/bn.js": {
++      "version": "4.12.5",
++      "resolved": "https://registry.npmjs.org/bn.js/-/bn.js-4.12.5.tgz",
++      "integrity": "sha512-3aRg6/JxfffFD+OlOjOFR3Vo79l39ooBTFucxx+MT3dhCtzn3EmiUPQo+6/OZuI2jbXi3YKgmiTFBgChQMwIRQ==",
++      "license": "MIT"
++    },
+     "node_modules/body-parser": {
+       "version": "2.3.0",
+       "resolved": "https://registry.npmjs.org/body-parser/-/body-parser-2.3.0.tgz",
+@@ -462,6 +490,15 @@
+         "node": ">= 0.4"
+       }
+     },
++    "node_modules/http_ece": {
++      "version": "1.2.0",
++      "resolved": "https://registry.npmjs.org/http_ece/-/http_ece-1.2.0.tgz",
++      "integrity": "sha512-JrF8SSLVmcvc5NducxgyOrKXe3EsyHMgBFgSaIUGmArKe+rwr0uphRkRXvwiom3I+fpIfoItveHrfudL8/rxuA==",
++      "license": "MIT",
++      "engines": {
++        "node": ">=16"
++      }
++    },
+     "node_modules/http-errors": {
+       "version": "2.0.1",
+       "resolved": "https://registry.npmjs.org/http-errors/-/http-errors-2.0.1.tgz",
+@@ -482,6 +519,19 @@
+         "url": "https://opencollective.com/express"
+       }
+     },
++    "node_modules/https-proxy-agent": {
++      "version": "7.0.6",
++      "resolved": "https://registry.npmjs.org/https-proxy-agent/-/https-proxy-agent-7.0.6.tgz",
++      "integrity": "sha512-vK9P5/iUfdl95AI+JVyUuIcVtd4ofvtrOr3HNtM2yxC9bnMbEdp3x01OhQNnjb8IJYi38VlTE3mBXwcfvywuSw==",
++      "license": "MIT",
++      "dependencies": {
++        "agent-base": "^7.1.2",
++        "debug": "4"
++      },
++      "engines": {
++        "node": ">= 14"
++      }
++    },
+     "node_modules/iconv-lite": {
+       "version": "0.7.3",
+       "resolved": "https://registry.npmjs.org/iconv-lite/-/iconv-lite-0.7.3.tgz",
+@@ -663,6 +713,21 @@
+         "url": "https://opencollective.com/express"
+       }
+     },
++    "node_modules/minimalistic-assert": {
++      "version": "1.0.1",
++      "resolved": "https://registry.npmjs.org/minimalistic-assert/-/minimalistic-assert-1.0.1.tgz",
++      "integrity": "sha512-UtJcAD4yEaGtjPezWuO9wC4nwUnVH/8/Im3yEHQP4b67cXlD/Qr9hdITCU1xDbSEXg2XKNaP8jsReV7vQd00/A==",
++      "license": "ISC"
++    },
++    "node_modules/minimist": {
++      "version": "1.2.8",
++      "resolved": "https://registry.npmjs.org/minimist/-/minimist-1.2.8.tgz",
++      "integrity": "sha512-2yyAR8qBkN3YuheJanUpWC5U3bb5osDywNB8RzDVlDwDHbocAJveqqj1u8+SVD7jkWT4yvsHCpWqqWqAxb0zCA==",
++      "license": "MIT",
++      "funding": {
++        "url": "https://github.com/sponsors/ljharb"
++      }
++    },
+     "node_modules/ms": {
+       "version": "2.1.3",
+       "resolved": "https://registry.npmjs.org/ms/-/ms-2.1.3.tgz",
+@@ -1215,6 +1280,25 @@
+         "node": ">= 0.8"
+       }
+     },
++    "node_modules/web-push": {
++      "version": "3.6.7",
++      "resolved": "https://registry.npmjs.org/web-push/-/web-push-3.6.7.tgz",
++      "integrity": "sha512-OpiIUe8cuGjrj3mMBFWY+e4MMIkW3SVT+7vEIjvD9kejGUypv8GPDf84JdPWskK8zMRIJ6xYGm+Kxr8YkPyA0A==",
++      "license": "MPL-2.0",
++      "dependencies": {
++        "asn1.js": "^5.3.0",
++        "http_ece": "1.2.0",
++        "https-proxy-agent": "^7.0.0",
++        "jws": "^4.0.0",
++        "minimist": "^1.2.5"
++      },
++      "bin": {
++        "web-push": "src/cli.js"
++      },
++      "engines": {
++        "node": ">= 16"
++      }
++    },
+     "node_modules/wrappy": {
+       "version": "1.0.2",
+       "resolved": "https://registry.npmjs.org/wrappy/-/wrappy-1.0.2.tgz",
+diff --git a/server/package.json b/server/package.json
+index 7509133..85b93d7 100644
+--- a/server/package.json
++++ b/server/package.json
+@@ -15,6 +15,7 @@
+     "express": "^5.2.1",
+     "jsonwebtoken": "^9.0.3",
+     "nanoid": "^5.1.16",
+-    "pg": "^8.23.0"
++    "pg": "^8.23.0",
++    "web-push": "^3.6.7"
+   }
+ }
+diff --git a/server/src/db.js b/server/src/db.js
+index 2b11709..1fc94ee 100644
+--- a/server/src/db.js
++++ b/server/src/db.js
+@@ -22,7 +22,7 @@ const __dirname = path.dirname(fileURLToPath(import.meta.url));
+ 
+ const DATA_FILE = process.env.DB_FILE || path.join(__dirname, '..', 'data', 'db.json');
+ const DATABASE_URL = process.env.DATABASE_URL || '';
+-const COLLECTIONS = ['users', 'gerants', 'demandes', 'notifications', 'subscriptions', 'referrals', 'events', 'push_tokens'];
++const COLLECTIONS = ['users', 'gerants', 'demandes', 'notifications', 'subscriptions', 'referrals', 'events', 'push_tokens', 'push_subscriptions'];
+ 
+ const now = Date.now();
+ const seed = () => ({
+@@ -191,6 +191,11 @@ export function remove(collection, pred) {
+   return d[collection];
+ }
+ 
++// Génériques pour des valeurs métier top-level (ex. clés VAPID pour le Web Push).
++// Elles sont persistées avec le reste de la base (fichier JSON ou PostgreSQL).
++export function getMeta(key) { return getDb()[key]; }
++export function setMeta(key, value) { const d = getDb(); d[key] = value; save(); return value; }
++
+ // Statistiques de la base (pour l'Espace propriétaire) : nombre de lignes par
+ // collection, total de lignes, et taille approximative de l'objet en mémoire.
+ // Utile au propriétaire pour savoir où il en est (proximité du plafond).
+diff --git a/server/src/routes/auth.js b/server/src/routes/auth.js
+index 811c8a1..3c7840b 100644
+--- a/server/src/routes/auth.js
++++ b/server/src/routes/auth.js
+@@ -2,6 +2,7 @@ import { Router } from 'express';
+ import { findOne, insert } from '../db.js';
+ import { signToken, hashPassword, verifyPassword, requireAuth } from '../middleware/auth.js';
+ import { subscriptionFor, applyReferral, referralInfoFor, recordEvent, registerPushToken } from '../services/flowService.js';
++import { registerWebPushSubscription } from '../services/pushService.js';
+ 
+ const router = Router();
+ 
+@@ -79,6 +80,17 @@ router.post('/push-token', requireAuth, (req, res) => {
+   }
+ });
+ 
++// POST /api/auth/push-subscription — enregistre l'abonnement Web Push du
++// navigateur (PWA installée). Le client le récupère via PushManager.subscribe.
++router.post('/push-subscription', requireAuth, (req, res) => {
++  try {
++    const sub = registerWebPushSubscription(req.user.id, req.body?.subscription);
++    res.status(201).json({ ok: true, subscription: sub });
++  } catch (e) {
++    res.status(e.status || 400).json({ error: e.message });
++  }
++});
++
+ function publicUser(u) {
+   return { id: u.id, role: u.role, name: u.name, phone: u.phone, email: u.email, waveNumber: u.waveNumber, payLink: u.payLink || '', referralCode: u.referralCode || '' };
+ }
+diff --git a/server/src/routes/public.js b/server/src/routes/public.js
+index 94afb7d..16a6675 100644
+--- a/server/src/routes/public.js
++++ b/server/src/routes/public.js
+@@ -1,5 +1,6 @@
+ import { Router } from 'express';
+ import { publicProfile } from '../services/flowService.js';
++import { getVapidPublicKey } from '../services/pushService.js';
+ 
+ const router = Router();
+ 
+@@ -11,4 +12,14 @@ router.get('/u/:id', (req, res) => {
+   res.json({ profile: p });
+ });
+ 
++// GET /api/public/push-key — clé publique VAPID pour l'abonnement Web Push
++// du navigateur (une PWA qui s'abonne a besoin de cette clé).
++router.get('/push-key', (req, res) => {
++  try {
++    res.json({ publicKey: getVapidPublicKey() });
++  } catch (e) {
++    res.status(500).json({ error: e.message });
++  }
++});
++
+ export default router;
+diff --git a/server/src/services/flowService.js b/server/src/services/flowService.js
+index 7f383d5..e448312 100644
+--- a/server/src/services/flowService.js
++++ b/server/src/services/flowService.js
+@@ -1,5 +1,6 @@
+ import { getDb, save, insert, findOne, find, update, remove } from '../db.js';
+ import { config } from '../config.js';
++import { sendWebPushToUser } from './pushService.js';
+ 
+ // ==================================================================
+ //  Logique métier (v2 — zéro argent stocké sur l'app)
+@@ -469,9 +470,12 @@ export async function sendPushToUser(userId, { title = 'Cabine En Ligne', body =
+   }
+ }
+ 
+-// Fire-and-forget : déclenche l'envoi push sans bloquer la création de la notif.
++// Fire-and-forget : déclenche l'envoi push (natif + web) sans bloquer la notif.
+ function notifyPush(userId, { type, text, demandeId }) {
++  // Push native (app mobile / Expo)
+   sendPushToUser(userId, { body: text, data: { type, demandeId } }).catch(() => {});
++  // Web Push (PWA installée dans le navigateur)
++  sendWebPushToUser(userId, { title: 'Cabine En Ligne', body: text }).catch(() => {});
+ }
+ 
+ // ---- Public profile (lien de partage) ----
+diff --git a/server/src/services/pushService.js b/server/src/services/pushService.js
+new file mode 100644
+index 0000000..ade0cc5
+--- /dev/null
++++ b/server/src/services/pushService.js
+@@ -0,0 +1,73 @@
++import webpush from 'web-push';
++import { getMeta, setMeta, find, findOne, insert, remove } from '../db.js';
++import { config } from '../config.js';
++
++// ==================================================================
++//  NOTIFICATIONS WEB PUSH — pour la PWA (navigateur) installée.
++//  Contrairement au push natif (Expo/APNs/FCM), ici on utilise l'API
++//  Web Push : le navigateur s'abonne (clé VAPID) et le serveur envoie
++//  via le service de push du navigateur. Fonctionne même app fermée
++//  (surtout sur Android Chrome, et sur iPhone avec iOS 16.4+).
++//  Les clés VAPID sont générées UNE fois puis persistées en base.
++// ==================================================================
++
++const VAPID_KEY = 'pushVapid';
++const VAPID_SUBJECT = 'mailto:admin@cabineenligne.com';
++
++function ensureVapid() {
++  let keys = getMeta(VAPID_KEY);
++  if (!keys || !keys.publicKey || !keys.privateKey) {
++    keys = webpush.generateVAPIDKeys();
++    setMeta(VAPID_KEY, keys);
++  }
++  webpush.setVapidDetails(VAPID_SUBJECT, keys.publicKey, keys.privateKey);
++  return keys;
++}
++
++// Clé publique servant à l'abonnement du navigateur (sans authentification).
++export function getVapidPublicKey() {
++  return ensureVapid().publicKey;
++}
++
++// Enregistre l'abonnement Web Push d'un utilisateur (endpoint + clés).
++export function registerWebPushSubscription(userId, subscription) {
++  const sub = subscription || {};
++  if (!sub.endpoint || !sub.keys || !sub.keys.p256dh || !sub.keys.auth) {
++    throw Object.assign(new Error('Abonnement push invalide'), { status: 400 });
++  }
++  const existing = findOne('push_subscriptions', (s) => s.userId === userId && s.endpoint === sub.endpoint);
++  if (existing) return existing;
++  return insert('push_subscriptions', {
++    userId,
++    endpoint: sub.endpoint,
++    keys: { p256dh: sub.keys.p256dh, auth: sub.keys.auth },
++    createdAt: Date.now(),
++  });
++}
++
++// Envoie une notification à tous les abonnements web d'un utilisateur.
++// Fire-and-forget (jamais bloquant) ; supprime les abonnements expirés.
++export async function sendWebPushToUser(userId, { title = 'Cabine En Ligne', body = '' }) {
++  if (!config.pushEnabled) return { skipped: 'disabled' };
++  const subs = find('push_subscriptions', (s) => s.userId === userId);
++  if (!subs.length) return { skipped: 'no_subs' };
++  try { ensureVapid(); } catch (e) { return { error: e.message }; }
++  const results = [];
++  for (const s of subs) {
++    try {
++      await webpush.sendNotification(
++        { endpoint: s.endpoint, keys: s.keys },
++        JSON.stringify({ title, body }),
++      );
++      results.push({ endpoint: s.endpoint, ok: true });
++    } catch (e) {
++      // 404/410 = abonnement expiré/retiré -> on le supprime.
++      if (e.statusCode === 404 || e.statusCode === 410) {
++        remove('push_subscriptions', (x) => x.id === s.id);
++      } else {
++        results.push({ endpoint: s.endpoint, ok: false, error: e.message });
++      }
++    }
++  }
++  return { sent: results.filter((r) => r.ok).length, results };
++}
+diff --git a/src/api.js b/src/api.js
+index df88c0d..c581558 100644
+--- a/src/api.js
++++ b/src/api.js
+@@ -37,10 +37,12 @@ export const api = {
+   login: (p) => request('POST', '/api/auth/login', p),
+   me: () => request('GET', '/api/auth/me'),
+   pushToken: (token) => request('POST', '/api/auth/push-token', { token }),
++  pushSubscription: (subscription) => request('POST', '/api/auth/push-subscription', { subscription }),
+ 
+   // ---- public (liens de partage) ----
+   public: {
+     profile: (id) => request('GET', `/api/public/u/${id}`),
++    pushKey: () => request('GET', '/api/public/push-key'),
+   },
+ 
+   // ---- client ----
+diff --git a/src/components/PushSettings.jsx b/src/components/PushSettings.jsx
+index 1b8fd11..69f9817 100644
+--- a/src/components/PushSettings.jsx
++++ b/src/components/PushSettings.jsx
+@@ -15,7 +15,7 @@ import { useStore } from '../store';
+ // ==================================================================
+ 
+ function usePushRegistration() {
+-  const { registerPushToken } = useStore();
++  const { registerPushToken, registerPushSubscription } = useStore();
+   const [enabled, setEnabled] = useState(typeof window !== 'undefined' && typeof window.__celPushEnabled === 'boolean' ? window.__celPushEnabled : false);
+   const [busy, setBusy] = useState(false);
+   const [msg, setMsg] = useState('');
+@@ -26,8 +26,11 @@ function usePushRegistration() {
+     if (!value) { setEnabled(false); setBusy(false); return; }
+     const res = await enableNotifications();
+     setBusy(false);
+-    if (res && res.ok && res.token) {
+-      await registerPushToken(res.token);
++    if (res && res.ok) {
++      // Web Push (PWA) : on enregistre l'abonnement du navigateur.
++      if (res.subscription) await registerPushSubscription(res.subscription);
++      // Push natif (app mobile) : on enregistre le jeton Expo.
++      if (res.token) await registerPushToken(res.token);
+       setEnabled(true);
+       try { if (typeof window !== 'undefined') window.__celPushEnabled = true; } catch { /* ignore */ }
+     } else {
+diff --git a/src/components/WavePay.jsx b/src/components/WavePay.jsx
+index 2d59929..95057ba 100644
+--- a/src/components/WavePay.jsx
++++ b/src/components/WavePay.jsx
+@@ -23,7 +23,7 @@ export function isValidPayLink(link) {
+   return !!link && /^https:\/\/[^\s]+\/m\//i.test(String(link).trim());
+ }
+ 
+-export function WavePayBox({ amount, merchant, merchantName, payLink, mode = 'number' }) {
++export function WavePayBox({ amount, merchant, merchantName, payLink, mode = 'number', compact }) {
+   const [copied, setCopied] = useState(false);
+   const [justOpened, setJustOpened] = useState(false);
+   const copy = () => {
+@@ -61,11 +61,11 @@ export function WavePayBox({ amount, merchant, merchantName, payLink, mode = 'nu
+   const btnLabel = amount ? `Payer ${amt} FCFA par Wave` : 'Payer par Wave';
+ 
+   return (
+-    <View style={s.infoBox}>
++    <View style={[s.infoBox, compact && s.infoBoxCompact]}>
+       {/* Bouton bleu "payer" : copie le numéro (transfert direct) ou ouvre le lien (abonnement). */}
+-      <Pressable onPress={pay} style={s.payLinkBtn}>
+-        <Ionicons name="water" size={20} color="#fff" style={{ marginRight: 8 }} />
+-        <T size={font.body} weight="800" color="#fff">{btnLabel}</T>
++      <Pressable onPress={pay} style={[s.payLinkBtn, compact && s.payLinkBtnCompact]}>
++        <Ionicons name="water" size={compact ? 18 : 20} color="#fff" style={{ marginRight: 8 }} />
++        <T size={compact ? font.sm : font.body} weight="800" color="#fff">{btnLabel}</T>
+       </Pressable>
+       {hasLink ? (
+         <T size={font.xs} weight="600" color={colors.muted} style={{ textAlign: 'center', marginTop: 6 }}>
+@@ -73,24 +73,28 @@ export function WavePayBox({ amount, merchant, merchantName, payLink, mode = 'nu
+         </T>
+       ) : (
+         <T size={font.xs} weight="600" color={colors.muted} style={{ textAlign: 'center', marginTop: 6 }}>
+-          Transférez {amount ? `${amt} F` : 'le montant'} au numéro ci-dessous depuis votre app Wave. Les frais Wave (1 %) sont prélevés sur votre compte — {merchantName} reçoit la totalité.
++          {compact
++            ? 'Frais Wave (1 %) côté client. Copiez le numéro et payez depuis votre app Wave.'
++            : `Transférez ${amount ? `${amt} F` : 'le montant'} au numéro ci-dessous depuis votre app Wave. Les frais Wave (1 %) sont prélevés sur votre compte — ${merchantName} reçoit la totalité.`}
+         </T>
+       )}
+ 
+       {/* Numéro du gérant (toujours visible, copiable) */}
+-      <View style={[s.merchant, { marginTop: 12 }]}>
+-        <Ionicons name="storefront" size={18} color={colors.primary} style={{ marginRight: 8 }} />
++      <View style={[s.merchant, { marginTop: compact ? 8 : 12 }]}>
++        <Ionicons name="storefront" size={compact ? 16 : 18} color={colors.primary} style={{ marginRight: 8 }} />
+         <Pressable onPress={copy} style={{ flex: 1 }}>
+           <T size={font.body} weight="800" color={colors.text}>{merchant}</T>
+           <T size={font.xs} weight="600" color={colors.muted}>{merchantName}</T>
+         </Pressable>
+-        <Pressable onPress={copy} hitSlop={8} style={s.copyBtn}>
++        <Pressable onPress={copy} hitSlop={8} style={[s.copyBtn, compact && { width: 34, height: 34 }]}>
+           <Ionicons name={copied ? 'checkmark' : 'copy-outline'} size={16} color={colors.primary} />
+         </Pressable>
+       </View>
+-      <T size={font.xs} weight="600" color={colors.muted} style={{ textAlign: 'center', marginTop: 6 }}>
+-        {copied ? 'Numéro copié ✓ — payez depuis votre app Wave.' : 'Appuyez sur le numéro pour le copier et payez depuis votre app Wave.'}
+-      </T>
++      {!compact && (
++        <T size={font.xs} weight="600" color={colors.muted} style={{ textAlign: 'center', marginTop: 6 }}>
++          {copied ? 'Numéro copié ✓ — payez depuis votre app Wave.' : 'Appuyez sur le numéro pour le copier et payez depuis votre app Wave.'}
++        </T>
++      )}
+     </View>
+   );
+ }
+@@ -132,7 +136,9 @@ export function WavePaySheet({ visible, onClose, onConfirm, title, amount, merch
+ const s = StyleSheet.create({
+   badge: { width: 56, height: 56, borderRadius: 28, backgroundColor: '#E7F0FE', alignItems: 'center', justifyContent: 'center' },
+   infoBox: { backgroundColor: colors.bg, borderRadius: radius.md, padding: 14, marginTop: 16 },
++  infoBoxCompact: { padding: 10, marginTop: 10 },
+   merchant: { flexDirection: 'row', alignItems: 'center', backgroundColor: '#fff', borderRadius: radius.sm, padding: 10, borderWidth: 1, borderColor: colors.border },
+   copyBtn: { width: 40, height: 40, borderRadius: radius.sm, backgroundColor: colors.primarySoft, alignItems: 'center', justifyContent: 'center', marginLeft: 8 },
+   payLinkBtn: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', backgroundColor: colors.waveAccent, borderRadius: radius.md, paddingVertical: 13, marginTop: 14 },
++  payLinkBtnCompact: { paddingVertical: 10, marginTop: 8 },
+ });
+diff --git a/src/push.web.js b/src/push.web.js
+index ef3effa..a14fdc8 100644
+--- a/src/push.web.js
++++ b/src/push.web.js
+@@ -1,14 +1,61 @@
+ // ==================================================================
+-//  Notifications push — version WEB (PWA).
+-//  Le web ne peut pas recevoir de push « native » via expo-notifications.
+-//  On affiche un message clair laissant entendre que cette option est
+-//  réservée à l'application mobile (Expo Go / build EAS).
++//  Notifications push — version WEB (PWA installée).
++//  Utilise l'API Web Push : le navigateur s'abonne avec la clé VAPID
++//  du serveur et enregistre l'abonnement. Les notifications arrivent
++//  même si l'app est fermée (surtout sur Android Chrome ; sur iPhone
++//  iOS 16.4+ pour une PWA installée sur l'écran d'accueil).
+ // ==================================================================
+ 
+ export function pushSupported() {
+-  return false;
++  return (
++    typeof window !== 'undefined' &&
++    typeof window.PushManager !== 'undefined' &&
++    typeof navigator !== 'undefined' &&
++    !!navigator.serviceWorker &&
++    window.isSecureContext
++  );
++}
++
++// Convertit la clé VAPID (base64url) en Uint8Array pour PushManager.subscribe.
++function urlBase64ToUint8Array(base64String) {
++  const padding = '='.repeat((4 - (base64String.length % 4)) % 4);
++  const base64 = (base64String + padding).replace(/-/g, '+').replace(/_/g, '/');
++  const rawData = window.atob(base64);
++  const outputArray = new Uint8Array(rawData.length);
++  for (let i = 0; i < rawData.length; ++i) outputArray[i] = rawData.charCodeAt(i);
++  return outputArray;
+ }
+ 
+ export async function enableNotifications() {
+-  return { ok: false, reason: 'Les notifications push sont réservées à l’application mobile (Expo Go / build EAS).' };
++  try {
++    if (!pushSupported()) {
++      return { ok: false, reason: 'Ce navigateur ne prend pas en charge les notifications. Essayez Chrome/Edge, ou installez l’app sur l’écran d’accueil.' };
++    }
++    if (!('Notification' in window)) {
++      return { ok: false, reason: 'Les notifications ne sont pas disponibles sur ce navigateur.' };
++    }
++    const perm = await window.Notification.requestPermission();
++    if (perm !== 'granted') {
++      return { ok: false, reason: 'Autorisation refusée. Activez les notifications pour ce site dans les réglages.' };
++    }
++
++    // Enregistre le service worker (déjà déployé sur /sw.js) et attend qu'il soit actif.
++    const reg = await navigator.serviceWorker.register('/sw.js');
++    await navigator.serviceWorker.ready;
++
++    // Récupère la clé publique VAPID du serveur.
++    const res = await fetch('/api/public/push-key');
++    const { publicKey } = await res.json();
++    if (!publicKey) return { ok: false, reason: 'Le serveur push n’est pas configuré.' };
++
++    const existing = await reg.pushManager.getSubscription();
++    const subscription = existing || (await reg.pushManager.subscribe({
++      userVisibleOnly: true,
++      applicationServerKey: urlBase64ToUint8Array(publicKey),
++    }));
++
++    return { ok: true, subscription: subscription.toJSON() };
++  } catch (e) {
++    return { ok: false, reason: e && e.message ? e.message : 'Impossible d’activer les notifications.' };
++  }
+ }
+diff --git a/src/screens/client/ClientHome.jsx b/src/screens/client/ClientHome.jsx
+index 0bcb150..c6ee7d9 100644
+--- a/src/screens/client/ClientHome.jsx
++++ b/src/screens/client/ClientHome.jsx
+@@ -157,25 +157,9 @@ export default function ClientHome() {
+           </Pressable>
+           {errors.gerant && <T size={font.sm} weight="600" color={colors.danger} style={s.errText}>{errors.gerant}</T>}
+ 
+-          {/* Lien Wave marchand du gérant, visible dès sa sélection */}
+-          {gerant && (
+-            <View style={s.waveInfo}>
+-              <View style={s.waveTitle}>
+-                <Ionicons name="water" size={16} color={colors.wave} />
+-                <T size={font.sm} weight="800" color={colors.wave} style={{ marginLeft: 6 }}>PAIEMENT WAVE DIRECT</T>
+-              </View>
+-              <WavePayBox
+-                amount={amountNum || undefined}
+-                merchant={gerant.waveNumber}
+-                merchantName={gerant.name}
+-                payLink={gerant.payLink || ''}
+-              />
+-              <T size={font.xs} weight="600" color={colors.muted2} style={{ marginTop: 10 }}>
+-                Copiez le numéro ci-dessus et transférez le montant depuis votre app Wave. Les frais Wave (1 %) sont prélevés sur votre compte — {gerant.name} reçoit la totalité. Vous pouvez aussi envoyer la demande d'abord et payer après acceptation.
+-              </T>
+-            </View>
+-          )}
+-
++          {/* Le paiement Wave est proposé APRÈS l'envoi de la demande (dialogue de
++              confirmation puis historique « À payer »), pour ne jamais repousser
++              le bouton « Envoyer la demande ». */}
+           {Object.keys(errors).length > 0 && (
+             <View style={s.errBox}>
+               <Ionicons name="alert-circle" size={18} color={colors.danger} style={{ marginRight: 8 }} />
+@@ -338,8 +322,6 @@ const s = StyleSheet.create({
+   onlineChip: { flexDirection: 'row', alignItems: 'center', backgroundColor: colors.bg, borderRadius: radius.pill, paddingHorizontal: 10, paddingVertical: 5 },
+   availIcon: { width: 34, height: 34, borderRadius: 17, backgroundColor: colors.primarySoft, alignItems: 'center', justifyContent: 'center' },
+   certBadge: { flexDirection: 'row', alignItems: 'center', backgroundColor: colors.primary, borderRadius: radius.pill, paddingHorizontal: 8, paddingVertical: 2, marginLeft: 8 },
+-  waveInfo: { backgroundColor: '#E7F0FE', borderRadius: radius.md, padding: 14, marginTop: space.lg },
+-  waveTitle: { flexDirection: 'row', alignItems: 'center', marginBottom: 12 },
+   summary: { backgroundColor: colors.bg, borderRadius: radius.md, padding: 14, marginTop: space.md },
+   summaryRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingVertical: 6 },
+ });
+diff --git a/src/store.jsx b/src/store.jsx
+index 7c116dc..61be610 100644
+--- a/src/store.jsx
++++ b/src/store.jsx
+@@ -322,6 +322,13 @@ export function StoreProvider({ children }) {
+     try { await api.pushToken(token); } catch { /* silencieux */ }
+   }, [online]);
+ 
++  // Enregistre l'abonnement Web Push du navigateur (PWA installée) pour recevoir
++  // les alertes même quand l'app est fermée.
++  const registerPushSubscription = useCallback(async (subscription) => {
++    if (!online || !subscription?.endpoint) return;
++    try { await api.pushSubscription(subscription); } catch { /* silencieux */ }
++  }, [online]);
++
+   // Mise à jour du profil gérant (numéro + lien Wave marchand)
+   const loadNotifications = useCallback(async () => {
+     if (!online) return;
+@@ -412,8 +419,8 @@ export function StoreProvider({ children }) {
+   }, [state.role]);
+ 
+   const value = useMemo(
+-    () => ({ state, dispatch, online, checking, recheck: probe, login, register, logout, refresh, addGerant, removeGerant, createDemande, markPaid, cancelDemande, acceptDemande, declineDemande, completeDemande, subscribe, updateGerantProfile, registerPushToken, loadNotifications, markNotificationRead, markAllNotificationsRead, loadClientNotifications, markClientNotificationRead, markAllClientNotificationsRead, loadReferral, updateReferralCode }),
+-    [state, online, checking, probe, login, register, logout, refresh, addGerant, removeGerant, createDemande, markPaid, cancelDemande, acceptDemande, declineDemande, completeDemande, subscribe, updateGerantProfile, registerPushToken, loadNotifications, markNotificationRead, markAllNotificationsRead, loadClientNotifications, markClientNotificationRead, markAllClientNotificationsRead, loadReferral, updateReferralCode],
++    () => ({ state, dispatch, online, checking, recheck: probe, login, register, logout, refresh, addGerant, removeGerant, createDemande, markPaid, cancelDemande, acceptDemande, declineDemande, completeDemande, subscribe, updateGerantProfile, registerPushToken, registerPushSubscription, loadNotifications, markNotificationRead, markAllNotificationsRead, loadClientNotifications, markClientNotificationRead, markAllClientNotificationsRead, loadReferral, updateReferralCode }),
++    [state, online, checking, probe, login, register, logout, refresh, addGerant, removeGerant, createDemande, markPaid, cancelDemande, acceptDemande, declineDemande, completeDemande, subscribe, updateGerantProfile, registerPushToken, registerPushSubscription, loadNotifications, markNotificationRead, markAllNotificationsRead, loadClientNotifications, markClientNotificationRead, markAllClientNotificationsRead, loadReferral, updateReferralCode],
+   );
+   return <Ctx.Provider value={value}>{children}</Ctx.Provider>;
+ }

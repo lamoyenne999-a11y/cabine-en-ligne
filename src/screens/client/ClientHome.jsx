@@ -157,25 +157,9 @@ export default function ClientHome() {
           </Pressable>
           {errors.gerant && <T size={font.sm} weight="600" color={colors.danger} style={s.errText}>{errors.gerant}</T>}
 
-          {/* Lien Wave marchand du gérant, visible dès sa sélection */}
-          {gerant && (
-            <View style={s.waveInfo}>
-              <View style={s.waveTitle}>
-                <Ionicons name="water" size={16} color={colors.wave} />
-                <T size={font.sm} weight="800" color={colors.wave} style={{ marginLeft: 6 }}>PAIEMENT WAVE DIRECT</T>
-              </View>
-              <WavePayBox
-                amount={amountNum || undefined}
-                merchant={gerant.waveNumber}
-                merchantName={gerant.name}
-                payLink={gerant.payLink || ''}
-              />
-              <T size={font.xs} weight="600" color={colors.muted2} style={{ marginTop: 10 }}>
-                Copiez le numéro ci-dessus et transférez le montant depuis votre app Wave. Les frais Wave (1 %) sont prélevés sur votre compte — {gerant.name} reçoit la totalité. Vous pouvez aussi envoyer la demande d'abord et payer après acceptation.
-              </T>
-            </View>
-          )}
-
+          {/* Le paiement Wave est proposé APRÈS l'envoi de la demande (dialogue de
+              confirmation puis historique « À payer »), pour ne jamais repousser
+              le bouton « Envoyer la demande ». */}
           {Object.keys(errors).length > 0 && (
             <View style={s.errBox}>
               <Ionicons name="alert-circle" size={18} color={colors.danger} style={{ marginRight: 8 }} />
@@ -338,8 +322,6 @@ const s = StyleSheet.create({
   onlineChip: { flexDirection: 'row', alignItems: 'center', backgroundColor: colors.bg, borderRadius: radius.pill, paddingHorizontal: 10, paddingVertical: 5 },
   availIcon: { width: 34, height: 34, borderRadius: 17, backgroundColor: colors.primarySoft, alignItems: 'center', justifyContent: 'center' },
   certBadge: { flexDirection: 'row', alignItems: 'center', backgroundColor: colors.primary, borderRadius: radius.pill, paddingHorizontal: 8, paddingVertical: 2, marginLeft: 8 },
-  waveInfo: { backgroundColor: '#E7F0FE', borderRadius: radius.md, padding: 14, marginTop: space.lg },
-  waveTitle: { flexDirection: 'row', alignItems: 'center', marginBottom: 12 },
   summary: { backgroundColor: colors.bg, borderRadius: radius.md, padding: 14, marginTop: space.md },
   summaryRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingVertical: 6 },
 });

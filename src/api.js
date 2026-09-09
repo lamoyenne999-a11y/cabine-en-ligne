@@ -37,10 +37,12 @@ export const api = {
   login: (p) => request('POST', '/api/auth/login', p),
   me: () => request('GET', '/api/auth/me'),
   pushToken: (token) => request('POST', '/api/auth/push-token', { token }),
+  pushSubscription: (subscription) => request('POST', '/api/auth/push-subscription', { subscription }),
 
   // ---- public (liens de partage) ----
   public: {
     profile: (id) => request('GET', `/api/public/u/${id}`),
+    pushKey: () => request('GET', '/api/public/push-key'),
   },
 
   // ---- client ----

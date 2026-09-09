@@ -1,5 +1,6 @@
 import { getDb, save, insert, findOne, find, update, remove } from '../db.js';
 import { config } from '../config.js';
+import { sendWebPushToUser } from './pushService.js';
 
 // ==================================================================
 //  Logique métier (v2 — zéro argent stocké sur l'app)
@@ -469,9 +470,12 @@ export async function sendPushToUser(userId, { title = 'Cabine En Ligne', body =
   }
 }
 
-// Fire-and-forget : déclenche l'envoi push sans bloquer la création de la notif.
+// Fire-and-forget : déclenche l'envoi push (natif + web) sans bloquer la notif.
 function notifyPush(userId, { type, text, demandeId }) {
+  // Push native (app mobile / Expo)
   sendPushToUser(userId, { body: text, data: { type, demandeId } }).catch(() => {});
+  // Web Push (PWA installée dans le navigateur)
+  sendWebPushToUser(userId, { title: 'Cabine En Ligne', body: text }).catch(() => {});
 }
 
 // ---- Public profile (lien de partage) ----

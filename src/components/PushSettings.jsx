@@ -15,7 +15,7 @@ import { useStore } from '../store';
 // ==================================================================
 
 function usePushRegistration() {
-  const { registerPushToken } = useStore();
+  const { registerPushToken, registerPushSubscription } = useStore();
   const [enabled, setEnabled] = useState(typeof window !== 'undefined' && typeof window.__celPushEnabled === 'boolean' ? window.__celPushEnabled : false);
   const [busy, setBusy] = useState(false);
   const [msg, setMsg] = useState('');
@@ -26,8 +26,11 @@ function usePushRegistration() {
     if (!value) { setEnabled(false); setBusy(false); return; }
     const res = await enableNotifications();
     setBusy(false);
-    if (res && res.ok && res.token) {
-      await registerPushToken(res.token);
+    if (res && res.ok) {
+      // Web Push (PWA) : on enregistre l'abonnement du navigateur.
+      if (res.subscription) await registerPushSubscription(res.subscription);
+      // Push natif (app mobile) : on enregistre le jeton Expo.
+      if (res.token) await registerPushToken(res.token);
       setEnabled(true);
       try { if (typeof window !== 'undefined') window.__celPushEnabled = true; } catch { /* ignore */ }
     } else {

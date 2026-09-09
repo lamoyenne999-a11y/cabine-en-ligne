@@ -23,7 +23,7 @@ export function isValidPayLink(link) {
   return !!link && /^https:\/\/[^\s]+\/m\//i.test(String(link).trim());
 }
 
-export function WavePayBox({ amount, merchant, merchantName, payLink, mode = 'number' }) {
+export function WavePayBox({ amount, merchant, merchantName, payLink, mode = 'number', compact }) {
   const [copied, setCopied] = useState(false);
   const [justOpened, setJustOpened] = useState(false);
   const copy = () => {
@@ -61,11 +61,11 @@ export function WavePayBox({ amount, merchant, merchantName, payLink, mode = 'nu
   const btnLabel = amount ? `Payer ${amt} FCFA par Wave` : 'Payer par Wave';
 
   return (
-    <View style={s.infoBox}>
+    <View style={[s.infoBox, compact && s.infoBoxCompact]}>
       {/* Bouton bleu "payer" : copie le numéro (transfert direct) ou ouvre le lien (abonnement). */}
-      <Pressable onPress={pay} style={s.payLinkBtn}>
-        <Ionicons name="water" size={20} color="#fff" style={{ marginRight: 8 }} />
-        <T size={font.body} weight="800" color="#fff">{btnLabel}</T>
+      <Pressable onPress={pay} style={[s.payLinkBtn, compact && s.payLinkBtnCompact]}>
+        <Ionicons name="water" size={compact ? 18 : 20} color="#fff" style={{ marginRight: 8 }} />
+        <T size={compact ? font.sm : font.body} weight="800" color="#fff">{btnLabel}</T>
       </Pressable>
       {hasLink ? (
         <T size={font.xs} weight="600" color={colors.muted} style={{ textAlign: 'center', marginTop: 6 }}>
@@ -73,24 +73,28 @@ export function WavePayBox({ amount, merchant, merchantName, payLink, mode = 'nu
         </T>
       ) : (
         <T size={font.xs} weight="600" color={colors.muted} style={{ textAlign: 'center', marginTop: 6 }}>
-          Transférez {amount ? `${amt} F` : 'le montant'} au numéro ci-dessous depuis votre app Wave. Les frais Wave (1 %) sont prélevés sur votre compte — {merchantName} reçoit la totalité.
+          {compact
+            ? 'Frais Wave (1 %) côté client. Copiez le numéro et payez depuis votre app Wave.'
+            : `Transférez ${amount ? `${amt} F` : 'le montant'} au numéro ci-dessous depuis votre app Wave. Les frais Wave (1 %) sont prélevés sur votre compte — ${merchantName} reçoit la totalité.`}
         </T>
       )}
 
       {/* Numéro du gérant (toujours visible, copiable) */}
-      <View style={[s.merchant, { marginTop: 12 }]}>
-        <Ionicons name="storefront" size={18} color={colors.primary} style={{ marginRight: 8 }} />
+      <View style={[s.merchant, { marginTop: compact ? 8 : 12 }]}>
+        <Ionicons name="storefront" size={compact ? 16 : 18} color={colors.primary} style={{ marginRight: 8 }} />
         <Pressable onPress={copy} style={{ flex: 1 }}>
           <T size={font.body} weight="800" color={colors.text}>{merchant}</T>
           <T size={font.xs} weight="600" color={colors.muted}>{merchantName}</T>
         </Pressable>
-        <Pressable onPress={copy} hitSlop={8} style={s.copyBtn}>
+        <Pressable onPress={copy} hitSlop={8} style={[s.copyBtn, compact && { width: 34, height: 34 }]}>
           <Ionicons name={copied ? 'checkmark' : 'copy-outline'} size={16} color={colors.primary} />
         </Pressable>
       </View>
-      <T size={font.xs} weight="600" color={colors.muted} style={{ textAlign: 'center', marginTop: 6 }}>
-        {copied ? 'Numéro copié ✓ — payez depuis votre app Wave.' : 'Appuyez sur le numéro pour le copier et payez depuis votre app Wave.'}
-      </T>
+      {!compact && (
+        <T size={font.xs} weight="600" color={colors.muted} style={{ textAlign: 'center', marginTop: 6 }}>
+          {copied ? 'Numéro copié ✓ — payez depuis votre app Wave.' : 'Appuyez sur le numéro pour le copier et payez depuis votre app Wave.'}
+        </T>
+      )}
     </View>
   );
 }
@@ -132,7 +136,9 @@ export function WavePaySheet({ visible, onClose, onConfirm, title, amount, merch
 const s = StyleSheet.create({
   badge: { width: 56, height: 56, borderRadius: 28, backgroundColor: '#E7F0FE', alignItems: 'center', justifyContent: 'center' },
   infoBox: { backgroundColor: colors.bg, borderRadius: radius.md, padding: 14, marginTop: 16 },
+  infoBoxCompact: { padding: 10, marginTop: 10 },
   merchant: { flexDirection: 'row', alignItems: 'center', backgroundColor: '#fff', borderRadius: radius.sm, padding: 10, borderWidth: 1, borderColor: colors.border },
   copyBtn: { width: 40, height: 40, borderRadius: radius.sm, backgroundColor: colors.primarySoft, alignItems: 'center', justifyContent: 'center', marginLeft: 8 },
   payLinkBtn: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', backgroundColor: colors.waveAccent, borderRadius: radius.md, paddingVertical: 13, marginTop: 14 },
+  payLinkBtnCompact: { paddingVertical: 10, marginTop: 8 },
 });

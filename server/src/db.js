@@ -22,7 +22,7 @@ const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
 const DATA_FILE = process.env.DB_FILE || path.join(__dirname, '..', 'data', 'db.json');
 const DATABASE_URL = process.env.DATABASE_URL || '';
-const COLLECTIONS = ['users', 'gerants', 'demandes', 'notifications', 'subscriptions', 'referrals', 'events', 'push_tokens'];
+const COLLECTIONS = ['users', 'gerants', 'demandes', 'notifications', 'subscriptions', 'referrals', 'events', 'push_tokens', 'push_subscriptions'];
 
 const now = Date.now();
 const seed = () => ({
@@ -190,6 +190,11 @@ export function remove(collection, pred) {
   save();
   return d[collection];
 }
+
+// Génériques pour des valeurs métier top-level (ex. clés VAPID pour le Web Push).
+// Elles sont persistées avec le reste de la base (fichier JSON ou PostgreSQL).
+export function getMeta(key) { return getDb()[key]; }
+export function setMeta(key, value) { const d = getDb(); d[key] = value; save(); return value; }
 
 // Statistiques de la base (pour l'Espace propriétaire) : nombre de lignes par
 // collection, total de lignes, et taille approximative de l'objet en mémoire.
