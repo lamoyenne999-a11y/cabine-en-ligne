@@ -1,6 +1,6 @@
 import React, { useEffect, useRef } from 'react';
 import {
-  Modal, View, Text, Pressable, Animated, Easing,
+  Modal, View, Text, Pressable, Animated, Easing, ScrollView, Dimensions,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { colors, space, font } from '../theme';
@@ -8,6 +8,10 @@ import { T } from './ui';
 
 // ============================================================
 //  Bottom sheet
+//  - Le contenu est scrollable et borné en hauteur (~80 % de l'écran)
+//    pour qu'un long contenu (liste de notifications…) ne recouvre
+//    jamais tout l'écran : on peut toujours toucher le voile sombre
+//    pour fermer, en plus du bouton de fermeture éventuel.
 // ============================================================
 export function BottomSheet({ visible, onClose, children }) {
   const slide = useRef(new Animated.Value(0)).current;
@@ -19,8 +23,10 @@ export function BottomSheet({ visible, onClose, children }) {
     }
   }, [visible]);
 
+  const maxH = Math.round(Dimensions.get('window').height * 0.8);
+
   return (
-    <Modal visible={visible} transparent animationType="none" statusBarTranslucent>
+    <Modal visible={visible} transparent animationType="none" statusBarTranslucent onRequestClose={onClose}>
       <Pressable style={overlay.overlay} onPress={onClose}>
         <Animated.View
           style={[
@@ -33,7 +39,9 @@ export function BottomSheet({ visible, onClose, children }) {
           ]}
         >
           <Pressable onPress={() => {}}>
-            {children}
+            <ScrollView style={{ maxHeight: maxH }} showsVerticalScrollIndicator={false}>
+              {children}
+            </ScrollView>
           </Pressable>
         </Animated.View>
       </Pressable>

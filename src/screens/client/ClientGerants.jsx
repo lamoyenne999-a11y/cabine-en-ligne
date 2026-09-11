@@ -36,6 +36,18 @@ export default function ClientGerants() {
     }
   };
 
+  // Ajout en 1 clic d'un gérant déjà inscrit (sans rien taper).
+  const quickAdd = async (g) => {
+    setErr('');
+    try {
+      const r = await addGerant({ phone: g.phone, name: g.name });
+      if (!r || !r.id) { setErr('Ce gérant n\'a pas pu être ajouté.'); return; }
+      setName(''); setPhone(''); setShow(false);
+    } catch (e) {
+      setErr(e && e.message ? e.message : 'Impossible d\'ajouter ce gérant. Réessayez.');
+    }
+  };
+
   const copy = () => {
     if (typeof navigator !== 'undefined' && navigator.clipboard) {
       navigator.clipboard.writeText(shareUrl).then(() => { setCopied(true); setTimeout(() => setCopied(false), 2000); });
@@ -137,12 +149,36 @@ export default function ClientGerants() {
 
       <BottomSheet visible={show} onClose={() => setShow(false)}>
         <View style={s.sheetHandle} />
-        <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: space.lg }}>
+        <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: space.md }}>
           <T size={font.h3} weight="800" color={colors.text}>Ajouter un gérant</T>
           <Pressable onPress={() => setShow(false)}><Ionicons name="close" size={24} color={colors.muted} /></Pressable>
         </View>
+
+        {/* Ajout rapide : les gérants déjà inscrits, en 1 clic, sans taper. */}
+        {suggested.length > 0 && (
+          <>
+            <T size={font.sm} weight="800" color={colors.primary} style={{ marginBottom: 4 }}>Gérants inscrits — ajouter en 1 clic</T>
+            <T size={font.xs} weight="600" color={colors.muted2} style={{ marginBottom: 8 }}>Touchez « Ajouter » sur le gérant de votre choix, sans rien taper.</T>
+            {suggested.map((g) => (
+              <View key={g.userId} style={s.suggestRow}>
+                <View style={s.suggestIcon}><Ionicons name="storefront-outline" size={18} color={colors.primary} /></View>
+                <View style={{ flex: 1, marginLeft: 10 }}>
+                  <T size={font.body} weight="800" color={colors.text}>{g.name}</T>
+                  <T size={font.sm} weight="600" color={colors.muted} style={{ marginTop: 1 }}>{g.phone}</T>
+                </View>
+                <Btn title="Ajouter" icon="add" size="sm" onPress={() => quickAdd(g)} />
+              </View>
+            ))}
+            <View style={s.divider} />
+            <T size={font.xs} weight="700" color={colors.muted} style={{ textAlign: 'center', marginTop: 4, marginBottom: 8 }}>— ou ajouter manuellement —</T>
+          </>
+        )}
+
         <Field label="Nom de la cabine" placeholder="Ex : Nom Cabine" value={name} onChangeText={setName} icon="storefront-outline" />
         <Field label="Numéro de téléphone" placeholder="Ex : 07 07 07 07 07" value={phone} onChangeText={(t) => setPhone(t.replace(/[^0-9]/g, ''))} icon="call-outline" keyboardType="phone-pad" />
+        <T size={font.xs} weight="600" color={colors.muted2} style={{ marginTop: 4, marginBottom: space.sm }}>
+          Le numéro doit appartenir à un gérant déjà inscrit sur Cabine En Ligne.
+        </T>
         {err ? <T size={font.sm} weight="600" color={colors.danger} style={{ marginBottom: space.md }}>{err}</T> : null}
         <Btn title="Ajouter" icon="add" onPress={add} />
       </BottomSheet>
@@ -160,5 +196,6 @@ const s = StyleSheet.create({
   payBtn: { flexDirection: 'row', alignItems: 'center', backgroundColor: colors.waveAccent, borderRadius: radius.pill, paddingHorizontal: 12, paddingVertical: 7, marginTop: 6, alignSelf: 'flex-start' },
   suggestRow: { flexDirection: 'row', alignItems: 'center', paddingVertical: 10, borderTopWidth: 1, borderTopColor: colors.border },
   suggestIcon: { width: 34, height: 34, borderRadius: 17, backgroundColor: '#fff', alignItems: 'center', justifyContent: 'center' },
+  divider: { height: 1, backgroundColor: colors.border, marginVertical: 12 },
   suspendBadge: { backgroundColor: '#FDF0E0', borderRadius: radius.pill, paddingHorizontal: 8, paddingVertical: 2, marginLeft: 8 },
 });

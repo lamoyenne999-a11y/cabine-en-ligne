@@ -49,9 +49,14 @@ export default function NotificationCenter({ visible, onOpen, onClose, list, unr
         <View style={s.handle} />
         <View style={s.header}>
           <T size={font.h3} weight="800" color={colors.text}>Notifications</T>
-          {count > 0 ? (
-            <Pressable onPress={onMarkAllRead}><T size={font.sm} weight="700" color={colors.primary}>Tout marquer lu</T></Pressable>
-          ) : null}
+          <View style={{ flexDirection: 'row', alignItems: 'center' }}>
+            {count > 0 ? (
+              <Pressable onPress={onMarkAllRead}><T size={font.sm} weight="700" color={colors.primary}>Tout marquer lu</T></Pressable>
+            ) : null}
+            <Pressable onPress={onClose} hitSlop={10} style={s.closeBtn}>
+              <Ionicons name="close" size={18} color={colors.muted} />
+            </Pressable>
+          </View>
         </View>
 
         {items.length === 0 ? (
@@ -86,6 +91,7 @@ const s = StyleSheet.create({
   badge: { position: 'absolute', top: -4, right: -4, minWidth: 18, height: 18, borderRadius: 9, backgroundColor: colors.danger, alignItems: 'center', justifyContent: 'center', paddingHorizontal: 4 },
   handle: { width: 44, height: 5, borderRadius: 3, backgroundColor: colors.muted2, alignSelf: 'center', marginBottom: 16 },
   header: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: space.md },
+  closeBtn: { width: 30, height: 30, borderRadius: 15, backgroundColor: colors.bg, alignItems: 'center', justifyContent: 'center', marginLeft: 14 },
   empty: { alignItems: 'center', paddingVertical: 28 },
   row: { flexDirection: 'row', alignItems: 'center', paddingVertical: 12, borderBottomWidth: 1, borderBottomColor: colors.border },
   rowIcon: { width: 40, height: 40, borderRadius: 20, alignItems: 'center', justifyContent: 'center' },

@@ -152,7 +152,13 @@ export default function ClientHome() {
             <View style={s.gerantPick}>
               <Ionicons name="storefront-outline" size={20} color={errors.gerant ? colors.danger : colors.primary} style={{ marginRight: 10 }} />
               <Text style={[s.inputText, gerant ? { color: colors.text, fontWeight: '700' } : null]} numberOfLines={1}>{gerant ? gerant.name : 'Sélectionner un gérant'}</Text>
-              <Ionicons name="chevron-down" size={18} color={errors.gerant ? colors.danger : colors.muted2} />
+              {gerant ? (
+                <Pressable onPress={() => { setSel(null); clearErr('gerant'); }} hitSlop={10} style={{ paddingLeft: 8 }}>
+                  <Ionicons name="close-circle" size={20} color={colors.muted} />
+                </Pressable>
+              ) : (
+                <Ionicons name="chevron-down" size={18} color={errors.gerant ? colors.danger : colors.muted2} />
+              )}
             </View>
           </Pressable>
           {errors.gerant && <T size={font.sm} weight="600" color={colors.danger} style={s.errText}>{errors.gerant}</T>}
