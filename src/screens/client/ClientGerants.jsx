@@ -86,22 +86,38 @@ export default function ClientGerants() {
         <Btn title="Ajouter" icon="add" size="sm" onPress={() => setShow(true)} />
       </View>
 
-      {/* Gérants déjà inscrits, proposés sans avoir à les ajouter */}
+      {/* Gérants à ajouter : inscrits sur l'app mais pas encore dans les
+          contacts. Chaque ligne a un bouton « Ajouter » à l'endroit même où
+          les gérants déjà ajoutés ont la poubelle (supprimer). */}
       {suggested.length > 0 && (
-        <Card style={{ marginBottom: space.lg, backgroundColor: colors.primarySoft }}>
-          <T size={font.sm} weight="800" color={colors.primary} style={{ marginBottom: 2 }}>Gérants disponibles (déjà inscrits)</T>
-          <T size={font.xs} weight="600" color={colors.muted} style={{ marginBottom: 8 }}>Ajoutez-les en un clic, ou envoyez-leur directement une demande depuis l'accueil.</T>
+        <>
+          <T size={font.sm} weight="800" color={colors.primary} style={{ marginBottom: 6 }}>À ajouter (déjà inscrits sur l'app)</T>
           {suggested.map((g) => (
-            <View key={g.userId} style={s.suggestRow}>
-              <View style={s.suggestIcon}><Ionicons name="storefront-outline" size={18} color={colors.primary} /></View>
-              <View style={{ flex: 1, marginLeft: 10 }}>
-                <T size={font.body} weight="800" color={colors.text}>{g.name}</T>
-                <T size={font.sm} weight="600" color={colors.muted} style={{ marginTop: 1 }}>{g.phone}</T>
+            <Card key={g.userId} style={{ marginBottom: space.sm, borderWidth: 1.5, borderColor: colors.primary }}>
+              <View style={{ flexDirection: 'row', alignItems: 'flex-start', justifyContent: 'space-between' }}>
+                <View style={{ flex: 1, paddingRight: 10 }}>
+                  <View style={{ flexDirection: 'row', alignItems: 'center', flexWrap: 'wrap' }}>
+                    <T size={font.body} weight="800" color={colors.text}>{g.name}</T>
+                    {g.certified ? (
+                      <View style={s.certBadge}>
+                        <Ionicons name="shield-checkmark" size={12} color="#fff" />
+                        <T size={font.xs} weight="800" color="#fff" style={{ marginLeft: 3 }}>Certifié</T>
+                      </View>
+                    ) : null}
+                  </View>
+                  <View style={{ flexDirection: 'row', alignItems: 'center', marginTop: 5 }}>
+                    <Ionicons name="call-outline" size={14} color={colors.primary} />
+                    <T size={font.sm} weight="600" color={colors.muted} style={{ marginLeft: 6 }}>{g.phone}</T>
+                  </View>
+                </View>
+                <Pressable onPress={() => quickAdd(g)} style={s.addBtn}>
+                  <Ionicons name="add" size={16} color="#fff" />
+                  <T size={font.xs} weight="800" color="#fff" style={{ marginLeft: 4 }}>Ajouter</T>
+                </Pressable>
               </View>
-              <Btn title="Ajouter" icon="add" size="sm" onPress={() => addGerant({ phone: g.phone, name: g.name })} />
-            </View>
+            </Card>
           ))}
-        </Card>
+        </>
       )}
 
       {gerants.map((g) => (
@@ -148,7 +164,6 @@ export default function ClientGerants() {
       ))}
 
       <BottomSheet visible={show} onClose={() => setShow(false)}>
-        <View style={s.sheetHandle} />
         <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: space.md }}>
           <T size={font.h3} weight="800" color={colors.text}>Ajouter un gérant</T>
           <Pressable onPress={() => setShow(false)}><Ionicons name="close" size={24} color={colors.muted} /></Pressable>
@@ -189,7 +204,6 @@ export default function ClientGerants() {
 const s = StyleSheet.create({
   search: { flexDirection: 'row', alignItems: 'center', backgroundColor: '#fff', borderRadius: radius.md, paddingHorizontal: 14, height: 50, marginBottom: space.lg },
   searchText: { flex: 1, marginLeft: 10, fontSize: font.body, color: colors.text, outlineStyle: 'none' },
-  sheetHandle: { width: 44, height: 5, borderRadius: 3, backgroundColor: colors.muted2, alignSelf: 'center', marginBottom: 16 },
   linkRow: { flexDirection: 'row', alignItems: 'center', backgroundColor: colors.bg, borderRadius: radius.md, padding: 8 },
   linkText: { flex: 1, fontSize: font.xs, color: colors.primary, marginRight: 8 },
   copyBtn: { width: 40, height: 40, borderRadius: radius.sm, backgroundColor: colors.primary, alignItems: 'center', justifyContent: 'center' },
@@ -198,4 +212,6 @@ const s = StyleSheet.create({
   suggestIcon: { width: 34, height: 34, borderRadius: 17, backgroundColor: '#fff', alignItems: 'center', justifyContent: 'center' },
   divider: { height: 1, backgroundColor: colors.border, marginVertical: 12 },
   suspendBadge: { backgroundColor: '#FDF0E0', borderRadius: radius.pill, paddingHorizontal: 8, paddingVertical: 2, marginLeft: 8 },
+  addBtn: { flexDirection: 'row', alignItems: 'center', backgroundColor: colors.success, borderRadius: radius.pill, paddingHorizontal: 12, paddingVertical: 7, marginLeft: 8 },
+  certBadge: { flexDirection: 'row', alignItems: 'center', backgroundColor: colors.primary, borderRadius: radius.pill, paddingHorizontal: 8, paddingVertical: 2, marginLeft: 8 },
 });

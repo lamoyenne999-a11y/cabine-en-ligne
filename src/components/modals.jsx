@@ -1,6 +1,6 @@
 import React, { useEffect, useRef } from 'react';
 import {
-  Modal, View, Text, Pressable, Animated, Easing, ScrollView, Dimensions,
+  Modal, View, Text, Pressable, Animated, Easing, ScrollView, Dimensions, PanResponder,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { colors, space, font } from '../theme';
@@ -12,33 +12,59 @@ import { T } from './ui';
 //    pour qu'un long contenu (liste de notifications…) ne recouvre
 //    jamais tout l'écran : on peut toujours toucher le voile sombre
 //    pour fermer, en plus du bouton de fermeture éventuel.
+//  - La poignée (le petit trait) est draggable : on la tire vers le
+//    bas pour fermer le panneau, en plus de la croix et du voile.
 // ============================================================
 export function BottomSheet({ visible, onClose, children }) {
   const slide = useRef(new Animated.Value(0)).current;
+  const drag = useRef(new Animated.Value(0)).current;
+  const onCloseRef = useRef(onClose);
+  onCloseRef.current = onClose;
+
   useEffect(() => {
     if (visible) {
-      Animated.timing(slide, { toValue: 1, duration: 220, useNativeDriver: true, easing: Easing.out(Easing.cubic) }).start();
+      drag.setValue(0);
+      Animated.timing(slide, { toValue: 1, duration: 220, useNativeDriver: false, easing: Easing.out(Easing.cubic) }).start();
     } else {
       slide.setValue(0);
+      drag.setValue(0);
     }
   }, [visible]);
+
+  const pan = useRef(
+    PanResponder.create({
+      onStartShouldSetPanResponder: () => true,
+      onMoveShouldSetPanResponder: (e, g) => g.dy > 4 && Math.abs(g.dy) > Math.abs(g.dx),
+      onPanResponderMove: (e, g) => { if (g.dy > 0) drag.setValue(g.dy); },
+      onPanResponderRelease: (e, g) => {
+        if (g.dy > 110 || g.vy > 0.9) {
+          drag.setValue(0);
+          onCloseRef.current();
+        } else {
+          Animated.spring(drag, { toValue: 0, useNativeDriver: false, bounciness: 6 }).start();
+        }
+      },
+      onPanResponderTerminate: () => {
+        Animated.spring(drag, { toValue: 0, useNativeDriver: false, bounciness: 6 }).start();
+      },
+    })
+  ).current;
+
+  const translateY = Animated.add(
+    slide.interpolate({ inputRange: [0, 1], outputRange: [420, 0] }),
+    drag
+  );
 
   const maxH = Math.round(Dimensions.get('window').height * 0.8);
 
   return (
     <Modal visible={visible} transparent animationType="none" statusBarTranslucent onRequestClose={onClose}>
       <Pressable style={overlay.overlay} onPress={onClose}>
-        <Animated.View
-          style={[
-            overlay.sheet,
-            {
-              transform: [{
-                translateY: slide.interpolate({ inputRange: [0, 1], outputRange: [420, 0] }),
-              }],
-            },
-          ]}
-        >
+        <Animated.View style={[overlay.sheet, { transform: [{ translateY }] }]}>
           <Pressable onPress={() => {}}>
+            <View style={overlay.handleZone} {...pan.panHandlers}>
+              <View style={overlay.handle} />
+            </View>
             <ScrollView style={{ maxHeight: maxH }} showsVerticalScrollIndicator={false}>
               {children}
             </ScrollView>
@@ -94,7 +120,7 @@ const overlay = {
     backgroundColor: colors.card,
     borderTopLeftRadius: 28,
     borderTopRightRadius: 28,
-    padding: 22,
+    paddingHorizontal: 22,
     paddingBottom: 36,
     shadowColor: '#000',
     shadowOffset: { width: 0, height: -6 },
@@ -102,6 +128,8 @@ const overlay = {
     shadowRadius: 20,
     elevation: 20,
   },
+  handleZone: { paddingVertical: 12, alignItems: 'center' },
+  handle: { width: 44, height: 5, borderRadius: 3, backgroundColor: colors.muted2 },
   centerOverlay: {
     flex: 1,
     backgroundColor: 'rgba(20,8,30,0.55)',

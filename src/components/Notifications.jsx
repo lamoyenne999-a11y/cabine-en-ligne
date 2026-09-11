@@ -46,7 +46,6 @@ export default function NotificationCenter({ visible, onOpen, onClose, list, unr
       </Pressable>
 
       <BottomSheet visible={visible} onClose={onClose}>
-        <View style={s.handle} />
         <View style={s.header}>
           <T size={font.h3} weight="800" color={colors.text}>Notifications</T>
           <View style={{ flexDirection: 'row', alignItems: 'center' }}>
@@ -89,7 +88,6 @@ export default function NotificationCenter({ visible, onOpen, onClose, list, unr
 const s = StyleSheet.create({
   bell: { width: 42, height: 42, borderRadius: 21, backgroundColor: 'rgba(255,255,255,0.18)', alignItems: 'center', justifyContent: 'center' },
   badge: { position: 'absolute', top: -4, right: -4, minWidth: 18, height: 18, borderRadius: 9, backgroundColor: colors.danger, alignItems: 'center', justifyContent: 'center', paddingHorizontal: 4 },
-  handle: { width: 44, height: 5, borderRadius: 3, backgroundColor: colors.muted2, alignSelf: 'center', marginBottom: 16 },
   header: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: space.md },
   closeBtn: { width: 30, height: 30, borderRadius: 15, backgroundColor: colors.bg, alignItems: 'center', justifyContent: 'center', marginLeft: 14 },
   empty: { alignItems: 'center', paddingVertical: 28 },

@@ -67,7 +67,6 @@ export default function SubscribeSheet({ visible, onClose, onSubscribe, subtitle
   return (
     <>
       <BottomSheet visible={visible} onClose={onClose}>
-        <View style={s.handle} />
         <T size={font.h3} weight="800" color={colors.text}>Votre abonnement</T>
         <T size={font.sm} weight="600" color={colors.muted} style={{ marginTop: 4 }}>
           {subtitle || 'Accédez à toutes les fonctionnalités. Paiement direct via Wave.'}
@@ -153,7 +152,6 @@ export default function SubscribeSheet({ visible, onClose, onSubscribe, subtitle
 }
 
 const s = StyleSheet.create({
-  handle: { width: 44, height: 5, borderRadius: 3, backgroundColor: colors.muted2, alignSelf: 'center', marginBottom: 16 },
   plan: { flexDirection: 'row', alignItems: 'center', backgroundColor: colors.bg, borderRadius: radius.md, borderWidth: 1.6, borderColor: colors.border, padding: 14, marginBottom: space.sm },
   planOn: { borderColor: colors.primary, backgroundColor: colors.primarySoft },
   radio: { width: 22, height: 22, borderRadius: 11, borderWidth: 2, borderColor: colors.muted2, alignItems: 'center', justifyContent: 'center' },

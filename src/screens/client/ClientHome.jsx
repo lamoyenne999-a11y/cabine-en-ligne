@@ -191,7 +191,6 @@ export default function ClientHome() {
 
       {/* Gérant picker */}
       <BottomSheet visible={showGerants} onClose={() => setShowGerants(false)}>
-        <View style={s.sheetHandle} />
         <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: space.md }}>
           <T size={font.h3} weight="800" color={colors.text}>Choisir un gérant</T>
           <Pressable onPress={() => setShowGerants(false)}><Ionicons name="close" size={24} color={colors.muted} /></Pressable>
@@ -322,7 +321,6 @@ const s = StyleSheet.create({
   err: { borderWidth: 1.5, borderColor: colors.danger, backgroundColor: colors.dangerBg },
   errText: { marginTop: 6 },
   errBox: { flexDirection: 'row', alignItems: 'flex-start', backgroundColor: colors.dangerBg, borderRadius: radius.md, padding: 12, marginTop: space.lg },
-  sheetHandle: { width: 44, height: 5, borderRadius: 3, backgroundColor: colors.muted2, alignSelf: 'center', marginBottom: 16 },
   gerantRow: { flexDirection: 'row', alignItems: 'center', paddingVertical: 14, borderBottomWidth: 1, borderBottomColor: colors.border },
   gerantPick: { flexDirection: 'row', alignItems: 'center', flex: 1 },
   onlineChip: { flexDirection: 'row', alignItems: 'center', backgroundColor: colors.bg, borderRadius: radius.pill, paddingHorizontal: 10, paddingVertical: 5 },
