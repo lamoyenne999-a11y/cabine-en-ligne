@@ -25,7 +25,7 @@ async function request(method, path, body, extraHeaders) {
   const text = await res.text();
   let json;
   try { json = JSON.parse(text); } catch { json = { raw: text }; }
-  if (!res.ok) throw Object.assign(new Error(json.error || `Erreur ${res.status}`), { status: res.status });
+  if (!res.ok) throw Object.assign(new Error(json.error || `Erreur ${res.status}`), { status: res.status, code: json.code || null });
   return json;
 }
 
@@ -43,6 +43,8 @@ export const api = {
   public: {
     profile: (id) => request('GET', `/api/public/u/${id}`),
     pushKey: () => request('GET', '/api/public/push-key'),
+    // Demande de déblocage déposée par un utilisateur bloqué (sans connexion).
+    submitUnblockRequest: (phone, message) => request('POST', '/api/public/unblock-request', { phone, message }),
   },
 
   // ---- client ----
@@ -92,5 +94,9 @@ export const api = {
     users: (key) => request('GET', '/api/admin/users', null, { 'x-admin-key': key }),
     setFrozen: (key, phone, frozen) => request('POST', '/api/admin/set-frozen', { phone, frozen }, { 'x-admin-key': key }),
     deleteAccount: (key, phone) => request('POST', '/api/admin/delete-account', { phone }, { 'x-admin-key': key }),
+    blockAccount: (key, phone, reason) => request('POST', '/api/admin/block-account', { phone, reason }, { 'x-admin-key': key }),
+    unblockAccount: (key, phone) => request('POST', '/api/admin/unblock-account', { phone }, { 'x-admin-key': key }),
+    unblockRequests: (key) => request('GET', '/api/admin/unblock-requests', null, { 'x-admin-key': key }),
+    resolveUnblockRequest: (key, id, decision) => request('POST', '/api/admin/resolve-unblock-request', { id, decision }, { 'x-admin-key': key }),
   },
 };

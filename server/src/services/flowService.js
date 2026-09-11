@@ -323,14 +323,105 @@ export function setUserFrozen(phone, frozen) {
 }
 
 // ------------------------------------------------------------------
+//  BLOCAGE (sanction) — liste noire de numéros de téléphone.
+//  Un numéro bloqué ne peut plus se connecter ni se réinscrire, même
+//  après suppression du compte. Seul le propriétaire peut débloquer.
+// ------------------------------------------------------------------
+export function isPhoneBlocked(phone) {
+  const p = String(phone || '').trim();
+  return !!findOne('blocked', (b) => b.phone === p);
+}
+
+export function blockUser({ phone, reason = '' }) {
+  const p = String(phone || '').trim();
+  if (!p) return { ok: false, error: 'Numéro requis' };
+  if (isPhoneBlocked(p)) return { ok: false, error: 'Ce numéro est déjà bloqué' };
+  const u = findOne('users', (x) => x.phone === p);
+  insert('blocked', {
+    phone: p,
+    name: u?.name || '',
+    role: u?.role || '',
+    reason: String(reason || '').slice(0, 300),
+    blockedAt: Date.now(),
+  });
+  // On suspend aussi les activités du compte s'il existe.
+  if (u) update('users', (x) => x.id === u.id, { frozen: true });
+  recordEvent({ type: 'user_blocked', name: u?.name || '', phone: p, role: u?.role || '' });
+  return { ok: true, phone: p, name: u?.name || '', role: u?.role || '' };
+}
+
+export function unblockUser({ phone }) {
+  const p = String(phone || '').trim();
+  const b = findOne('blocked', (x) => x.phone === p);
+  if (!b) return { ok: false, error: 'Ce numéro n\'est pas bloqué' };
+  remove('blocked', (x) => x.phone === p);
+  // On réactive le compte s'il existe encore.
+  const u = findOne('users', (x) => x.phone === p);
+  if (u) update('users', (x) => x.id === u.id, { frozen: false });
+  recordEvent({ type: 'user_unblocked', name: b.name || u?.name || '', phone: p, role: b.role || u?.role || '' });
+  return { ok: true, phone: p };
+}
+
+export function blockedList() {
+  return find('blocked', () => true).sort((a, b) => b.blockedAt - a.blockedAt);
+}
+
+// Un utilisateur bloqué (non connecté) dépose une demande de déblocage.
+// Un seul en attente par numéro : les doublons sont ignorés.
+export function createUnblockRequest({ phone, message = '' }) {
+  const p = String(phone || '').trim();
+  if (!p) return { ok: false, error: 'Numéro requis' };
+  if (!isPhoneBlocked(p)) return { ok: false, error: 'Ce numéro n\'est pas bloqué.' };
+  const b = findOne('blocked', (x) => x.phone === p);
+  const existing = findOne('unblock_requests', (r) => r.phone === p && r.status === 'pending');
+  if (existing) return { ok: true, request: existing, duplicate: true };
+  const request = insert('unblock_requests', {
+    phone: p,
+    name: b?.name || '',
+    role: b?.role || '',
+    message: String(message || '').slice(0, 600),
+    status: 'pending',
+    createdAt: Date.now(),
+  });
+  recordEvent({ type: 'unblock_request', name: b?.name || '', phone: p, role: b?.role || '' });
+  return { ok: true, request };
+}
+
+export function unblockRequestsPending() {
+  return find('unblock_requests', (r) => r.status === 'pending').sort((a, b) => b.createdAt - a.createdAt);
+}
+
+// Décision du propriétaire sur une demande de déblocage :
+//  - 'unblock' : retire le numéro de la liste noire (le compte redevient utilisable).
+//  - 'delete'  : supprime définitivement le compte MAIS garde le numéro bloqué
+//               (il ne pourra plus jamais se réinscrire).
+export function resolveUnblockRequest(id, decision) {
+  const r = findOne('unblock_requests', (x) => x.id === id);
+  if (!r) return { ok: false, error: 'Demande introuvable' };
+  update('unblock_requests', (x) => x.id === id, {
+    status: decision === 'unblock' ? 'approved' : 'rejected',
+    resolvedAt: Date.now(),
+  });
+  if (decision === 'unblock') {
+    unblockUser({ phone: r.phone });
+  } else if (decision === 'delete') {
+    // Suppression définitive : la blacklist reste (on n'appelle PAS unblockUser).
+    deleteAccountAll(r.phone);
+  } else {
+    return { ok: false, error: 'Décision invalide (unblock ou delete)' };
+  }
+  return { ok: true, id, decision };
+}
+
+// ------------------------------------------------------------------
 //  JOURNAL D'ACTIVITÉ (entrées / sorties) pour l'Espace propriétaire.
 //  Chaque événement clé est enregistré : inscription, paiement,
-//  expiration, suppression. Le propriétaire suit ainsi les entrées et
-//  sorties d'utilisateurs en direct.
+//  expiration, suppression, blocage. Le propriétaire suit ainsi les
+//  entrées et sorties d'utilisateurs en direct.
 // ------------------------------------------------------------------
 export function recordEvent({ type, name = '', phone = '', role = '', amount = 0, plan = '', reference = '' }) {
   return insert('events', {
-    type,                 // user_registered | user_deleted | subscription_paid | subscription_expired
+    type,                 // user_registered | user_deleted | subscription_paid | subscription_expired | user_blocked | user_unblocked | unblock_request
     name, phone, role,
     amount, plan, reference,
     createdAt: Date.now(),
@@ -343,7 +434,7 @@ export function eventsForAdmin(limit = 100) {
 export function eventsCounters() {
   const rows = find('events', () => true);
   const c = { total: rows.length };
-  for (const type of ['user_registered', 'user_deleted', 'subscription_paid', 'subscription_expired']) {
+  for (const type of ['user_registered', 'user_deleted', 'subscription_paid', 'subscription_expired', 'user_blocked', 'user_unblocked', 'unblock_request']) {
     c[type] = rows.filter((r) => r.type === type).length;
   }
   return c;

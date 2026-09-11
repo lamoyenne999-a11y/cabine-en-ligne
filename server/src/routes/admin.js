@@ -1,6 +1,6 @@
 import express from 'express';
 import { config } from '../config.js';
-import { subscriptionPayments, subscriptionTotals, subscriptionFor, referralSummary, referredUsersCount, referralPaymentCount, referralRateFor, deleteAccountAll, setUserFrozen, eventsForAdmin, eventsCounters, referralCodeStats, expiredUsers, reconcileExpiredEvents } from '../services/flowService.js';
+import { subscriptionPayments, subscriptionTotals, subscriptionFor, referralSummary, referredUsersCount, referralPaymentCount, referralRateFor, deleteAccountAll, setUserFrozen, eventsForAdmin, eventsCounters, referralCodeStats, expiredUsers, reconcileExpiredEvents, isPhoneBlocked, blockUser, unblockUser, blockedList, unblockRequestsPending, resolveUnblockRequest } from '../services/flowService.js';
 import { find, findOne, update, dbStats } from '../db.js';
 
 const router = express.Router();
@@ -43,6 +43,8 @@ router.get('/summary', requireAdmin, (req, res) => {
     eventCounters: eventsCounters(),
     expired: expiredUsers(),
     dbStats: dbStats(),
+    unblockRequests: unblockRequestsPending(),
+    blocked: blockedList(),
   });
 });
 
@@ -65,6 +67,7 @@ router.get('/users', requireAdmin, (req, res) => {
       rate: referralRateFor(referredUsersCount(u.id)),
       subscription: subscriptionFor(u),
       frozen: !!u.frozen,
+      blocked: isPhoneBlocked(u.phone),
     }));
   res.json({ users });
 });
@@ -91,6 +94,59 @@ router.post('/set-frozen', requireAdmin, (req, res) => {
   try {
     const out = setUserFrozen(phone, !!req.body?.frozen);
     if (!out.ok) return res.status(404).json(out);
+    res.json(out);
+  } catch (e) {
+    res.status(e.status || 500).json({ error: e.message });
+  }
+});
+
+// Bloque un numéro (liste noire) : il ne peut plus se connecter ni se réinscrire.
+// Body : { phone, reason }.
+router.post('/block-account', requireAdmin, (req, res) => {
+  const phone = String(req.body?.phone || '').trim();
+  if (!phone) return res.status(400).json({ error: 'Téléphone requis' });
+  try {
+    const out = blockUser({ phone, reason: req.body?.reason });
+    if (!out.ok) return res.status(400).json(out);
+    res.json(out);
+  } catch (e) {
+    res.status(e.status || 500).json({ error: e.message });
+  }
+});
+
+// Débloque un numéro (le retire de la liste noire et réactive le compte).
+// Body : { phone }.
+router.post('/unblock-account', requireAdmin, (req, res) => {
+  const phone = String(req.body?.phone || '').trim();
+  if (!phone) return res.status(400).json({ error: 'Téléphone requis' });
+  try {
+    const out = unblockUser({ phone });
+    if (!out.ok) return res.status(400).json(out);
+    res.json(out);
+  } catch (e) {
+    res.status(e.status || 500).json({ error: e.message });
+  }
+});
+
+// Liste des numéros bloqués.
+router.get('/blocked', requireAdmin, (req, res) => {
+  res.json({ blocked: blockedList() });
+});
+
+// Demandes de déblocage en attente (envoyées par les utilisateurs bloqués).
+router.get('/unblock-requests', requireAdmin, (req, res) => {
+  res.json({ requests: unblockRequestsPending() });
+});
+
+// Décision du propriétaire : débloquer ou supprimer définitivement.
+// Body : { id, decision: 'unblock' | 'delete' }.
+router.post('/resolve-unblock-request', requireAdmin, (req, res) => {
+  const id = String(req.body?.id || '');
+  const decision = String(req.body?.decision || '');
+  if (!id) return res.status(400).json({ error: 'Identifiant de demande requis' });
+  try {
+    const out = resolveUnblockRequest(id, decision);
+    if (!out.ok) return res.status(400).json(out);
     res.json(out);
   } catch (e) {
     res.status(e.status || 500).json({ error: e.message });

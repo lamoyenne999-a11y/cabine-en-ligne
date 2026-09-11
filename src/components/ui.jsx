@@ -79,12 +79,12 @@ export function Btn({
   );
 }
 
-export function Field({ label, placeholder, value, onChangeText, keyboardType = 'default', icon, onFocus, onBlur, style, secure }) {
+export function Field({ label, placeholder, value, onChangeText, keyboardType = 'default', icon, onFocus, onBlur, style, secure, multiline }) {
   return (
-    <View style={{ marginBottom: space.lg, width: '100%' }}>
+    <View style={[{ marginBottom: space.lg, width: '100%' }, style]}>
       {label ? <T size={font.sm} weight="700" color={colors.textSoft} style={{ marginBottom: 7 }}>{label}</T> : null}
-      <View style={base.field}>
-        {icon ? <Ionicons name={icon} size={18} color={colors.primary} style={{ marginRight: 10 }} /> : null}
+      <View style={[base.field, multiline && { height: 'auto', minHeight: 88, alignItems: 'flex-start', paddingTop: 12 }]}>
+        {icon ? <Ionicons name={icon} size={18} color={colors.primary} style={{ marginRight: 10, marginTop: multiline ? 2 : 0 }} /> : null}
         <TextInput
           value={value}
           onChangeText={onChangeText}
@@ -92,9 +92,10 @@ export function Field({ label, placeholder, value, onChangeText, keyboardType = 
           placeholderTextColor={colors.muted2}
           keyboardType={keyboardType}
           secureTextEntry={secure}
+          multiline={multiline}
           onFocus={onFocus}
           onBlur={onBlur}
-          style={[base.input, { paddingLeft: icon ? 0 : 14 }]}
+          style={[base.input, { paddingLeft: icon ? 0 : 14 }, multiline && { height: 'auto', minHeight: 64, textAlignVertical: 'top' }]}
         />
       </View>
     </View>

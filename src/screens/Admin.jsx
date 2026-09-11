@@ -29,6 +29,9 @@ export default function Admin({ onBack }) {
   const [busy, setBusy] = useState(null); // phone de l'utilisateur en cours d'action
   const [suspendTarget, setSuspendTarget] = useState(null); // {user, frozen}
   const [deleteTarget, setDeleteTarget] = useState(null); // user
+  const [blockTarget, setBlockTarget] = useState(null); // user à bloquer
+  const [unblockTarget, setUnblockTarget] = useState(null); // user à débloquer
+  const [resolveTarget, setResolveTarget] = useState(null); // {request, decision}
 
   // Liste utilisateurs : recherche + filtre + pagination (compacte).
   const [uSearch, setUSearch] = useState('');
@@ -103,7 +106,14 @@ export default function Admin({ onBack }) {
     subscription_paid: { label: 'Abonnement payé', icon: 'cash-outline', color: colors.success, bg: colors.successBg },
     subscription_expired: { label: 'Abonnement expiré', icon: 'alert-circle-outline', color: colors.danger, bg: colors.dangerBg },
     user_deleted: { label: 'Compte supprimé', icon: 'trash-outline', color: colors.warn, bg: '#FDF0E0' },
+    user_blocked: { label: 'Compte bloqué', icon: 'ban-outline', color: colors.danger, bg: colors.dangerBg },
+    user_unblocked: { label: 'Compte débloqué', icon: 'checkmark-circle-outline', color: colors.success, bg: colors.successBg },
+    unblock_request: { label: 'Demande de déblocage', icon: 'mail-unread-outline', color: colors.primary, bg: colors.primarySoft },
   };
+
+  // Demandes de déblocage en attente + numéros bloqués (fournis par le résumé).
+  const unblockRequests = data?.unblockRequests || [];
+  const blockedPhones = data?.blocked || [];
 
   const SUB_STATUS = {
     active: { label: 'Actif', color: colors.success, bg: colors.successBg },
@@ -121,6 +131,13 @@ export default function Admin({ onBack }) {
     finally { setBusy(null); }
   };
 
+  // Recharge les données (résumé + utilisateurs) après une action.
+  const reload = async () => {
+    const summary = await api.admin.summary(key);
+    setData(summary);
+    try { const u = await api.admin.users(key); setUsers(u.users || []); } catch { setUsers([]); }
+  };
+
   // Supprime définitivement un compte + toutes ses données.
   const doDelete = async (user) => {
     setBusy(user.phone); setDeleteTarget(null);
@@ -129,13 +146,44 @@ export default function Admin({ onBack }) {
       // et réapparaissait dans la liste au prochain chargement.
       const out = await api.admin.deleteAccount(key, user.phone);
       if (out && out.removed) {
-        setUsers((prev) => prev.filter((u) => u.phone !== user.phone));
-        const summary = await api.admin.summary(key);
-        setData(summary);
+        await reload();
       } else {
         setErr(out?.error || 'Suppression impossible (compte introuvable).');
       }
     } catch (e) { setErr(e?.message || 'Erreur de suppression.'); }
+    finally { setBusy(null); }
+  };
+
+  // Bloque un numéro (liste noire) : il ne peut plus se connecter ni se réinscrire.
+  const doBlock = async (user) => {
+    setBusy(user.phone); setBlockTarget(null);
+    try {
+      const out = await api.admin.blockAccount(key, user.phone);
+      if (out && out.ok) await reload();
+      else setErr(out?.error || 'Blocage impossible.');
+    } catch (e) { setErr(e?.message || 'Erreur de blocage.'); }
+    finally { setBusy(null); }
+  };
+
+  // Débloque un numéro (le retire de la liste noire et réactive le compte).
+  const doUnblock = async (user) => {
+    setBusy(user.phone); setUnblockTarget(null);
+    try {
+      const out = await api.admin.unblockAccount(key, user.phone);
+      if (out && out.ok) await reload();
+      else setErr(out?.error || 'Déblocage impossible.');
+    } catch (e) { setErr(e?.message || 'Erreur de déblocage.'); }
+    finally { setBusy(null); }
+  };
+
+  // Décision sur une demande de déblocage : débloquer ou supprimer définitivement.
+  const doResolveUnblock = async (req, decision) => {
+    setBusy(req.id); setResolveTarget(null);
+    try {
+      const out = await api.admin.resolveUnblockRequest(key, req.id, decision);
+      if (out && out.ok) await reload();
+      else setErr(out?.error || 'Action impossible.');
+    } catch (e) { setErr(e?.message || 'Erreur.'); }
     finally { setBusy(null); }
   };
 
@@ -206,6 +254,7 @@ export default function Admin({ onBack }) {
   const ADMIN_TABS = [
     { key: 'apercu', label: 'Aperçu', icon: 'grid-outline', filled: 'grid' },
     { key: 'utilisateurs', label: 'Utilisateurs', icon: 'people-outline', filled: 'people', badge: users.length },
+    { key: 'deblocages', label: 'Déblocages', icon: 'lock-open-outline', filled: 'lock-open', badge: unblockRequests.length },
     { key: 'activite', label: 'Activité', icon: 'pulse-outline', filled: 'pulse', badge: events.length },
     { key: 'parrainage', label: 'Parrainage', icon: 'gift-outline', filled: 'gift', badge: referral.referrers.length },
     { key: 'paiements', label: 'Paiements', icon: 'cash-outline', filled: 'cash', badge: payments.length },
@@ -345,7 +394,9 @@ export default function Admin({ onBack }) {
                       <View style={{ flex: 1, marginLeft: 10 }}>
                         <View style={{ flexDirection: 'row', alignItems: 'center', flexWrap: 'wrap' }}>
                           <T size={font.body} weight="800" color={colors.text} numberOfLines={1}>{u.name || '—'}</T>
-                          {u.frozen ? <View style={s.frozenBadge}><T size={font.xs} weight="800" color={colors.warn}>Suspendu</T></View> : null}
+                          {u.blocked ? (
+                            <View style={s.blockedBadge}><T size={font.xs} weight="800" color="#fff">Bloqué</T></View>
+                          ) : (u.frozen ? <View style={s.frozenBadge}><T size={font.xs} weight="800" color={colors.warn}>Suspendu</T></View> : null)}
                         </View>
                         <T size={font.sm} weight="600" color={colors.muted} style={{ marginTop: 1 }}>
                           {u.phone} · {u.role === 'gerant' ? 'Gérant' : 'Client'}
@@ -358,13 +409,15 @@ export default function Admin({ onBack }) {
                     {open && (
                       <View style={s.uActions}>
                         <T size={font.xs} weight="600" color={colors.muted2} style={{ marginBottom: 10 }}>
-                          {u.subscription?.subscribedUntil
-                            ? (u.subscription.status === 'active'
-                                ? `Abonnement actif jusqu'au ${fmtDate(u.subscription.subscribedUntil)}.`
-                                : `Abonnement expiré le ${fmtDate(u.subscription.subscribedUntil)}.`)
-                            : 'Aucun abonnement payé.'}
+                          {u.blocked
+                            ? 'Numéro bloqué : ne peut plus se connecter ni se réinscrire.'
+                            : (u.subscription?.subscribedUntil
+                                ? (u.subscription.status === 'active'
+                                    ? `Abonnement actif jusqu'au ${fmtDate(u.subscription.subscribedUntil)}.`
+                                    : `Abonnement expiré le ${fmtDate(u.subscription.subscribedUntil)}.`)
+                                : 'Aucun abonnement payé.')}
                         </T>
-                        <View style={{ flexDirection: 'row' }}>
+                        <View style={{ flexDirection: 'row', marginBottom: 8 }}>
                           <Btn
                             title={u.frozen ? 'Réactiver' : 'Suspendre'}
                             icon={u.frozen ? 'checkmark-circle-outline' : 'pause-circle-outline'}
@@ -376,16 +429,26 @@ export default function Admin({ onBack }) {
                             style={{ flex: 1, marginRight: 8 }}
                           />
                           <Btn
-                            title="Supprimer"
-                            icon="trash-outline"
+                            title={u.blocked ? 'Débloquer' : 'Bloquer'}
+                            icon={u.blocked ? 'lock-open-outline' : 'ban-outline'}
                             outline
-                            color={colors.danger}
+                            color={u.blocked ? colors.success : colors.danger}
                             size="sm"
-                            onPress={() => setDeleteTarget(u)}
+                            onPress={() => (u.blocked ? setUnblockTarget(u) : setBlockTarget(u))}
                             loading={busy === u.phone}
                             style={{ flex: 1 }}
                           />
                         </View>
+                        <Btn
+                          title="Supprimer"
+                          icon="trash-outline"
+                          outline
+                          color={colors.danger}
+                          size="sm"
+                          onPress={() => setDeleteTarget(u)}
+                          loading={busy === u.phone}
+                          style={{ width: '100%' }}
+                        />
                       </View>
                     )}
                   </View>
@@ -397,6 +460,80 @@ export default function Admin({ onBack }) {
                 </Pressable>
               )}
             </Card>
+          )}
+        </>
+      )}
+
+      {/* ===== Déblocages (demandes + numéros bloqués) ===== */}
+      {adminTab === 'deblocages' && (
+        <>
+          <T size={font.h3} weight="800" color={colors.text} style={{ marginBottom: space.sm }}>Demandes de déblocage</T>
+          {unblockRequests.length === 0 ? (
+            <Card style={{ alignItems: 'center', paddingVertical: 22 }}>
+              <Ionicons name="lock-open-outline" size={32} color={colors.muted2} />
+              <T size={font.sm} weight="600" color={colors.muted} style={{ marginTop: 8, textAlign: 'center' }}>
+                Aucune demande de déblocage en attente. Quand un utilisateur bloqué demandera à revenir, sa demande apparaîtra ici.
+              </T>
+            </Card>
+          ) : (
+            unblockRequests.map((r) => (
+              <Card key={r.id} style={{ marginBottom: space.sm }}>
+                <View style={{ flexDirection: 'row', alignItems: 'flex-start' }}>
+                  <View style={s.uIconSm}><Ionicons name="person-outline" size={16} color={colors.primary} /></View>
+                  <View style={{ flex: 1, marginLeft: 10 }}>
+                    <T size={font.body} weight="800" color={colors.text}>{r.name || '—'}</T>
+                    <T size={font.sm} weight="600" color={colors.muted} style={{ marginTop: 2 }}>
+                      {r.phone} · {r.role === 'gerant' ? 'Gérant' : 'Client'} · demande du {fmtDate(r.createdAt)}
+                    </T>
+                    {r.message ? (
+                      <View style={s.msgBox}>
+                        <T size={font.sm} weight="600" color={colors.text} style={{ fontStyle: 'italic' }}>« {r.message} »</T>
+                      </View>
+                    ) : null}
+                    <View style={{ flexDirection: 'row', marginTop: 10 }}>
+                      <Btn
+                        title="Débloquer"
+                        icon="lock-open-outline"
+                        size="sm"
+                        color={colors.success}
+                        onPress={() => setResolveTarget({ request: r, decision: 'unblock' })}
+                        loading={busy === r.id}
+                        style={{ flex: 1, marginRight: 8 }}
+                      />
+                      <Btn
+                        title="Supprimer définitivement"
+                        icon="trash-outline"
+                        size="sm"
+                        outline
+                        color={colors.danger}
+                        onPress={() => setResolveTarget({ request: r, decision: 'delete' })}
+                        loading={busy === r.id}
+                        style={{ flex: 1 }}
+                      />
+                    </View>
+                  </View>
+                </View>
+              </Card>
+            ))
+          )}
+
+          <T size={font.h3} weight="800" color={colors.text} style={{ marginTop: space.lg, marginBottom: space.sm }}>Numéros bloqués</T>
+          {blockedPhones.length === 0 ? (
+            <Card style={{ alignItems: 'center', paddingVertical: 18 }}>
+              <T size={font.sm} weight="600" color={colors.muted}>Aucun numéro bloqué pour le moment.</T>
+            </Card>
+          ) : (
+            blockedPhones.map((b) => (
+              <Card key={b.id || b.phone} style={{ marginBottom: space.sm }}>
+                <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' }}>
+                  <View style={{ flex: 1 }}>
+                    <T size={font.body} weight="800" color={colors.text}>{b.name || '—'}</T>
+                    <T size={font.sm} weight="600" color={colors.muted} style={{ marginTop: 2 }}>{b.phone} · bloqué le {fmtDate(b.blockedAt)}</T>
+                  </View>
+                  <Btn title="Débloquer" icon="lock-open-outline" size="sm" outline color={colors.success} onPress={() => setUnblockTarget({ phone: b.phone, name: b.name })} loading={busy === b.phone} />
+                </View>
+              </Card>
+            ))
           )}
         </>
       )}
@@ -595,6 +732,52 @@ export default function Admin({ onBack }) {
           onConfirm={() => doDelete(deleteTarget)}
         />
       </Dialog>
+
+      {/* Confirmation : bloquer */}
+      <Dialog visible={!!blockTarget}>
+        <T size={font.h3} weight="800" color={colors.danger} style={{ textAlign: 'center' }}>Bloquer ce compte ?</T>
+        <T size={font.sm} weight="600" color={colors.muted} style={{ textAlign: 'center', marginTop: 6, marginBottom: 6 }}>
+          Le numéro {blockTarget?.phone} ({blockTarget?.name}) sera ajouté à la liste noire. Cette personne ne pourra plus se connecter ni créer de compte avec ce numéro. Elle pourra faire une demande de déblocage, que vous recevrez ici.
+        </T>
+        <DialogButtons
+          cancel="Annuler"
+          confirm="Bloquer"
+          onCancel={() => setBlockTarget(null)}
+          onConfirm={() => doBlock(blockTarget)}
+        />
+      </Dialog>
+
+      {/* Confirmation : débloquer */}
+      <Dialog visible={!!unblockTarget}>
+        <T size={font.h3} weight="800" color={colors.success} style={{ textAlign: 'center' }}>Débloquer ce numéro ?</T>
+        <T size={font.sm} weight="600" color={colors.muted} style={{ textAlign: 'center', marginTop: 6, marginBottom: 6 }}>
+          Le numéro {unblockTarget?.phone} ({unblockTarget?.name || '—'}) sera retiré de la liste noire et pourra de nouveau se connecter à l'application.
+        </T>
+        <DialogButtons
+          cancel="Annuler"
+          confirm="Débloquer"
+          onCancel={() => setUnblockTarget(null)}
+          onConfirm={() => doUnblock(unblockTarget)}
+        />
+      </Dialog>
+
+      {/* Confirmation : décision sur une demande de déblocage */}
+      <Dialog visible={!!resolveTarget}>
+        <T size={font.h3} weight="800" color={resolveTarget?.decision === 'delete' ? colors.danger : colors.success} style={{ textAlign: 'center' }}>
+          {resolveTarget?.decision === 'delete' ? 'Supprimer définitivement ?' : 'Débloquer ce compte ?'}
+        </T>
+        <T size={font.sm} weight="600" color={colors.muted} style={{ textAlign: 'center', marginTop: 6, marginBottom: 6 }}>
+          {resolveTarget?.decision === 'delete'
+            ? `${resolveTarget?.request?.name || '—'} (${resolveTarget?.request?.phone}) sera supprimé définitivement et son numéro restera bloqué : il ne pourra plus jamais se réinscrire.`
+            : `${resolveTarget?.request?.name || '—'} (${resolveTarget?.request?.phone}) sera débloqué et pourra de nouveau utiliser l'application.`}
+        </T>
+        <DialogButtons
+          cancel="Annuler"
+          confirm={resolveTarget?.decision === 'delete' ? 'Supprimer' : 'Débloquer'}
+          onCancel={() => setResolveTarget(null)}
+          onConfirm={() => doResolveUnblock(resolveTarget.request, resolveTarget.decision)}
+        />
+      </Dialog>
     </Page>
   );
 }
@@ -619,6 +802,8 @@ const s = StyleSheet.create({
   uIconSm: { width: 32, height: 32, borderRadius: 16, backgroundColor: colors.primarySoft, alignItems: 'center', justifyContent: 'center' },
   uActions: { marginTop: 12, paddingTop: 12, borderTopWidth: 1, borderTopColor: colors.border },
   frozenBadge: { backgroundColor: '#FDF0E0', borderRadius: radius.pill, paddingHorizontal: 8, paddingVertical: 2, marginLeft: 8 },
+  blockedBadge: { backgroundColor: colors.danger, borderRadius: radius.pill, paddingHorizontal: 8, paddingVertical: 2, marginLeft: 8 },
+  msgBox: { backgroundColor: colors.bg, borderRadius: radius.sm, padding: 10, marginTop: 8 },
   planChip: { backgroundColor: '#fff', borderRadius: radius.pill, paddingHorizontal: 12, paddingVertical: 6, marginRight: 8 },
   codeChip: { backgroundColor: colors.primarySoft, borderRadius: radius.pill, paddingHorizontal: 12, paddingVertical: 6, marginRight: 8 },
   row: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginTop: 8 },

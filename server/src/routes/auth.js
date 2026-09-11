@@ -1,7 +1,7 @@
 import { Router } from 'express';
 import { findOne, insert } from '../db.js';
 import { signToken, hashPassword, verifyPassword, requireAuth } from '../middleware/auth.js';
-import { subscriptionFor, applyReferral, referralInfoFor, recordEvent, registerPushToken } from '../services/flowService.js';
+import { subscriptionFor, applyReferral, referralInfoFor, recordEvent, registerPushToken, isPhoneBlocked } from '../services/flowService.js';
 import { registerWebPushSubscription } from '../services/pushService.js';
 
 const router = Router();
@@ -13,6 +13,8 @@ router.post('/register', async (req, res, next) => {
     if (role !== 'client' && role !== 'gerant') return res.status(400).json({ error: 'Rôle invalide' });
     if (!name?.trim() || !phone?.trim()) return res.status(400).json({ error: 'Nom et numéro requis' });
     if (!password || password.length < 4) return res.status(400).json({ error: 'Mot de passe trop court (min. 4)' });
+    // Numéro bloqué : ce téléphone ne peut plus créer de compte.
+    if (isPhoneBlocked(phone)) return res.status(403).json({ error: 'Ce numéro a été bloqué. Vous ne pouvez plus créer de compte avec ce numéro.', code: 'BLOCKED' });
     if (findOne('users', (u) => u.phone === phone)) return res.status(409).json({ error: 'Ce numéro est déjà utilisé' });
 
     const user = insert('users', {
@@ -46,7 +48,13 @@ router.post('/register', async (req, res, next) => {
 router.post('/login', async (req, res, next) => {
   try {
     const { phone, password, role } = req.body || {};
-    const user = findOne('users', (u) => u.phone === String(phone || '').trim());
+    const phoneTrim = String(phone || '').trim();
+    // Numéro bloqué : connexion refusée, l'utilisateur est invité à demander
+    // le déblocage (endpoint public /api/public/unblock-request).
+    if (isPhoneBlocked(phoneTrim)) {
+      return res.status(403).json({ error: 'Votre compte a été bloqué par le propriétaire. Vous pouvez faire une demande de déblocage.', code: 'BLOCKED' });
+    }
+    const user = findOne('users', (u) => u.phone === phoneTrim);
     if (!user) return res.status(401).json({ error: 'Numéro ou mot de passe incorrect' });
     const ok = await verifyPassword(password || '', user.passwordHash);
     if (!ok) return res.status(401).json({ error: 'Numéro ou mot de passe incorrect' });

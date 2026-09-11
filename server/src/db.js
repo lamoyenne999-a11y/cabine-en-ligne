@@ -22,7 +22,7 @@ const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
 const DATA_FILE = process.env.DB_FILE || path.join(__dirname, '..', 'data', 'db.json');
 const DATABASE_URL = process.env.DATABASE_URL || '';
-const COLLECTIONS = ['users', 'gerants', 'demandes', 'notifications', 'subscriptions', 'referrals', 'events', 'push_tokens', 'push_subscriptions'];
+const COLLECTIONS = ['users', 'gerants', 'demandes', 'notifications', 'subscriptions', 'referrals', 'events', 'push_tokens', 'push_subscriptions', 'blocked', 'unblock_requests'];
 
 const now = Date.now();
 const seed = () => ({
@@ -46,6 +46,16 @@ const seed = () => ({
   //   user_registered | user_deleted | subscription_paid | subscription_expired
   // C'est ce qui permet au propriétaire de suivre les utilisateurs en direct.
   events: [],
+
+  // Liste noire : numéros de téléphone BLOQUÉS (sanction des malveillants).
+  // Un numéro bloqué ne peut plus se connecter ni se réinscrire, même après
+  // suppression du compte. Entrée : { id, phone, name, role, reason, blockedAt }.
+  blocked: [],
+
+  // Demandes de déblocage envoyées par les utilisateurs bloqués (pas besoin
+  // d'être connecté). Le propriétaire les analyse puis débloque ou supprime
+  // définitivement. Entrée : { id, phone, name, role, message, status, createdAt }.
+  unblock_requests: [],
 });
 
 // S'assure que toutes les collections existent (utile pour une base Postgres

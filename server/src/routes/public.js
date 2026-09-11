@@ -1,5 +1,5 @@
 import { Router } from 'express';
-import { publicProfile } from '../services/flowService.js';
+import { publicProfile, createUnblockRequest } from '../services/flowService.js';
 import { getVapidPublicKey } from '../services/pushService.js';
 
 const router = Router();
@@ -19,6 +19,20 @@ router.get('/push-key', (req, res) => {
     res.json({ publicKey: getVapidPublicKey() });
   } catch (e) {
     res.status(500).json({ error: e.message });
+  }
+});
+
+// POST /api/public/unblock-request — un utilisateur BLOQUÉ (non connecté)
+// dépose une demande de déblocage. Le propriétaire la reçoit dans l'Espace
+// propriétaire et décide : débloquer ou supprimer définitivement.
+router.post('/unblock-request', (req, res) => {
+  try {
+    const { phone, message } = req.body || {};
+    const out = createUnblockRequest({ phone, message });
+    if (!out.ok) return res.status(out.error === 'Ce numéro n\'est pas bloqué.' ? 400 : 400).json({ error: out.error });
+    res.status(out.duplicate ? 200 : 201).json(out);
+  } catch (e) {
+    res.status(400).json({ error: e.message });
   }
 });
 
