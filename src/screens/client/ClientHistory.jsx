@@ -66,7 +66,7 @@ function matches(d, q) {
   const hay = [
     TYPE_LABEL[d.type] || 'Demande',
     STATUS[d.status]?.label || '',
-    d.gerantName, d.benefName, d.benefPhone, d.detail,
+    d.gerantName, d.benefName, d.benefPhone,
     when(d.createdAt), money(d.amount), d.id,
   ].map(norm).join(' ');
   return hay.includes(nq);
@@ -188,9 +188,6 @@ export default function ClientHistory() {
                 <T size={font.xs} weight="600" color={colors.muted} style={{ marginTop: 2 }}>
                   {d.gerantName || 'Gérant'} · pour {d.benefName === d.benefPhone ? d.benefPhone : d.benefName}
                 </T>
-                {d.detail ? (
-                  <T size={font.xs} weight="700" color={colors.textSoft} style={{ marginTop: 4 }}>{d.detail}</T>
-                ) : null}
               </View>
               <View style={{ alignItems: 'flex-end' }}>
                 <T size={font.body} weight="800" color={colors.text}>{money(d.amount)}</T>
@@ -240,7 +237,7 @@ export default function ClientHistory() {
             )}
             {d.status === 'paid' && (
               <T size={font.sm} weight="600" color={colors.muted} style={{ marginTop: 12, textAlign: 'center' }}>
-                {d.gerantName} est en train de vous créditer {CREDIT_LABEL[d.type] || 'votre numéro'}{d.detail ? ` (${d.detail})` : ''}.
+                {d.gerantName} est en train de vous créditer {CREDIT_LABEL[d.type] || 'votre numéro'}.
               </T>
             )}
             {d.status === 'canceled' && (

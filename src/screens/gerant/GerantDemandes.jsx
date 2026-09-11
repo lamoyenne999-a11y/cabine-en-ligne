@@ -63,9 +63,6 @@ export default function GerantDemandes() {
               <View style={{ flex: 1, marginLeft: 12 }}>
                 <T size={font.h3} weight="800" color={colors.text}>{TYPE_LABEL[d.type] || 'Demande'}</T>
                 <T size={font.xs} weight="600" color={colors.muted} style={{ marginTop: 2 }}>Client : {d.clientName} · pour {d.benefName === d.benefPhone ? d.benefPhone : d.benefName}</T>
-                {d.detail ? (
-                  <T size={font.xs} weight="700" color={colors.textSoft} style={{ marginTop: 4 }}>{d.detail}</T>
-                ) : null}
               </View>
               <View style={{ alignItems: 'flex-end' }}>
                 <T size={font.h3} weight="800" color={colors.primary}>{d.amount.toLocaleString('fr-FR').replace(/\u202f/g, ' ')} XOF</T>
