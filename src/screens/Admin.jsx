@@ -121,6 +121,30 @@ export default function Admin({ onBack }) {
     expired: { label: 'Expiré', color: colors.danger, bg: colors.dangerBg },
   };
 
+  // Libellé + couleur de la validité du compte, affichés DIRECTEMENT dans la
+  // liste pour que le propriétaire décide en un coup d'œil : laisser continuer,
+  // suspendre ou bloquer.
+  const validityLabel = (u) => {
+    if (u.blocked) return 'Bloqué — accès révoqué';
+    const s = u.subscription || {};
+    if (s.status === 'active' && s.subscribedUntil) return `Valable jusqu'au ${fmtDate(s.subscribedUntil)}`;
+    if (s.status === 'trial' && s.trialEndsAt) return `Essai jusqu'au ${fmtDate(s.trialEndsAt)}`;
+    if (s.status === 'expired') {
+      if (s.subscribedUntil) return `Expiré le ${fmtDate(s.subscribedUntil)}`;
+      if (s.trialEndsAt) return `Essai expiré le ${fmtDate(s.trialEndsAt)}`;
+      return 'Expiré';
+    }
+    return '';
+  };
+  const validityColor = (u) => {
+    if (u.blocked) return colors.danger;
+    const st = u.subscription?.status;
+    if (st === 'active') return colors.success;
+    if (st === 'trial') return colors.primary;
+    if (st === 'expired') return colors.danger;
+    return colors.muted;
+  };
+
   // Suspend / réactive un compte (bloque les activités sans supprimer les données).
   const doSetFrozen = async (user, frozen) => {
     setBusy(user.phone); setSuspendTarget(null);
@@ -189,15 +213,24 @@ export default function Admin({ onBack }) {
 
   // Export CSV de la liste des utilisateurs (respecte recherche + filtres + tri).
   const exportCsv = () => {
-    const header = ['Nom', 'Téléphone', 'Rôle', 'Statut', 'Abonnement jusqu\'au', 'Suspendu'];
+    const header = ['Nom', 'Téléphone', 'Rôle', 'Statut', 'Validité', 'Bloqué', 'Suspendu'];
     const roleLabel = (r) => (r === 'gerant' ? 'Gérant' : 'Client');
     const statusLabel = (u) => (SUB_STATUS[u.subscription?.status] || SUB_STATUS.trial).label;
+    const validityCsv = (u) => {
+      const s = u.subscription || {};
+      if (u.blocked) return 'Bloqué';
+      if (s.status === 'active' && s.subscribedUntil) return `Valable jusqu'au ${fmtDate(s.subscribedUntil)}`;
+      if (s.status === 'trial' && s.trialEndsAt) return `Essai jusqu'au ${fmtDate(s.trialEndsAt)}`;
+      if (s.status === 'expired') return s.subscribedUntil ? `Expiré le ${fmtDate(s.subscribedUntil)}` : (s.trialEndsAt ? `Essai expiré le ${fmtDate(s.trialEndsAt)}` : 'Expiré');
+      return '';
+    };
     const rows = filteredUsers.map((u) => [
       u.name || '',
       u.phone || '',
       roleLabel(u.role),
       statusLabel(u),
-      u.subscription?.subscribedUntil ? fmtDate(u.subscription.subscribedUntil) : '',
+      validityCsv(u),
+      u.blocked ? 'Oui' : '',
       u.frozen ? 'Oui' : '',
     ]);
     const escape = (v) => {
@@ -401,6 +434,12 @@ export default function Admin({ onBack }) {
                         <T size={font.sm} weight="600" color={colors.muted} style={{ marginTop: 1 }}>
                           {u.phone} · {u.role === 'gerant' ? 'Gérant' : 'Client'}
                         </T>
+                        {validityLabel(u) ? (
+                          <View style={{ flexDirection: 'row', alignItems: 'center', marginTop: 3 }}>
+                            <Ionicons name="calendar-outline" size={12} color={validityColor(u)} />
+                            <T size={font.xs} weight="700" color={validityColor(u)} style={{ marginLeft: 4 }}>{validityLabel(u)}</T>
+                          </View>
+                        ) : null}
                       </View>
                       <Pill icon={st.icon} color={st.color} bg={st.bg} style={{ marginLeft: 8 }}>{st.label}</Pill>
                       <Ionicons name={open ? 'chevron-up' : 'chevron-down'} size={16} color={colors.muted2} style={{ marginLeft: 6 }} />
