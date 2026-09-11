@@ -97,7 +97,7 @@ export default function GerantDemandes() {
             )}
             {d.status === 'accepted' && (
               <T size={font.sm} weight="600" color={colors.muted} style={{ marginTop: 12, textAlign: 'center' }}>
-                En attente du paiement Wave du client ({d.gerantWave ? 'marchand ' + d.gerantWave : ''}).
+                En attente du paiement Wave du client ({d.gerantWave ? 'numéro ' + d.gerantWave : ''}).
               </T>
             )}
             {d.status === 'canceled' && (

@@ -20,8 +20,8 @@ const TYPE_LABEL = { unites: 'Unités', minutes: 'Minutes', internet: 'Internet'
 
 export default function ClientHome() {
   const { state, createDemande, markPaid, cancelDemande, refresh } = useStore();
-  // Recharge les gérants dès l'ouverture de l'écran pour afficher le lien
-  // Wave marchand ajouté par un gérant (même s'il l'a ajouté après connexion).
+  // Recharge les gérants dès l'ouverture de l'écran pour afficher le numéro
+  // Wave du gérant à jour (même s'il l'a modifié après connexion).
   useEffect(() => { refresh(); }, []); // eslint-disable-line
   const [type, setType] = useState('unites');
   const [amount, setAmount] = useState('');
@@ -271,15 +271,14 @@ export default function ClientHome() {
           <View style={s.summaryRow}><T size={font.sm} weight="600" color={colors.muted}>Gérant</T><T size={font.sm} weight="800" color={colors.text}>{lastDemande?.gerantName || gerant?.name}</T></View>
         </View>
 
-        {/* Proposition de paiement immédiat via lien Wave */}
+        {/* Proposition de paiement immédiat par transfert au numéro Wave du gérant */}
         <T size={font.sm} weight="700" color={colors.wave} style={{ marginTop: space.md, marginBottom: 8 }}>
-          PAYEZ MAINTENANT EN CLAIR VIA WAVE
+          PAYEZ PAR TRANSFERT AU NUMÉRO WAVE DU GÉRANT
         </T>
         <WavePayBox
           amount={lastDemande?.amount || amountNum}
           merchant={lastDemande?.gerantWave || gerant?.waveNumber}
           merchantName={lastDemande?.gerantName || gerant?.name}
-          payLink={lastDemande?.gerantPayLink || gerant?.payLink || ''}
         />
 
         <View style={{ flexDirection: 'row', marginTop: 16 }}>
@@ -303,7 +302,6 @@ export default function ClientHome() {
         amount={paying?.amount}
         merchant={paying?.gerantWave}
         merchantName={paying?.gerantName}
-        payLink={paying?.gerantPayLink || ''}
       />
     </View>
   );

@@ -1,31 +1,26 @@
 import React, { useState } from 'react';
-import { View, Text, Pressable, StyleSheet, Linking } from 'react-native';
+import { View, Pressable, StyleSheet } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { colors, radius, space, font } from '../theme';
 import { T } from './ui';
 import { Dialog, DialogButtons } from './modals';
 
-// Adresse Wave marchand de la plateforme (pour les abonnements).
+// Numéro Wave de la plateforme (pour payer l'abonnement).
 export const PLATFORM_WAVE = '0788281933';
 export const PLATFORM_NAME = 'Cabine En Ligne';
-// Lien du compte marchand Wave sur lequel on peut payer l'abonnement.
-export const PLATFORM_PAY_LINK = 'https://pay.wave.com/m/M_ci_jUXE1N_gWG8_/c/ci/';
 
 // ============================================================
-//  Boîte d'information « paiement Wave » réutilisable.
-//  Affiche le numéro Wave marchand (copiable) + le lien de
-//  paiement cliquable si le gérant en a fourni un. Utilisée dans
-//  la confirmation de demande, l'historique et les profils.
+//  Boîte « paiement Wave » réutilisable.
+//  IMPORTANT (règle produit) : AUCUN lien de paiement Wave.
+//  - Le client TRANSFÈRE directement le montant au numéro Wave
+//    PERSONNEL du gérant depuis sa propre app Wave.
+//  - Les frais Wave (1 % sur les transferts) sont à la charge du
+//    CLIENT : le gérant reçoit la TOTALITÉ du montant demandé.
+//  - Pas de lien marchand : un compte Wave Business facturerait 1 %
+//    au gérant et risquerait d'être bloqué — néfaste pour lui et l'app.
 // ============================================================
-// Un lien marchand Wave valide commence par https:// et contient un "m/" (URL d'une
-// page de paiement Wave). S'il est absent/invalide, on fait un repli fiable (copie du numéro).
-export function isValidPayLink(link) {
-  return !!link && /^https:\/\/[^\s]+\/m\//i.test(String(link).trim());
-}
-
-export function WavePayBox({ amount, merchant, merchantName, payLink, mode = 'number', compact }) {
+export function WavePayBox({ amount, merchant, merchantName, compact }) {
   const [copied, setCopied] = useState(false);
-  const [justOpened, setJustOpened] = useState(false);
   const copy = () => {
     if (merchant && typeof navigator !== 'undefined' && navigator.clipboard) {
       navigator.clipboard.writeText(merchant).catch(() => {});
@@ -33,51 +28,21 @@ export function WavePayBox({ amount, merchant, merchantName, payLink, mode = 'nu
     setCopied(true);
     setTimeout(() => setCopied(false), 1800);
   };
-  // mode 'number' (défaut) : paiement des DEMANDES par numéro. Le client copie le
-  // numéro Wave du gérant et lui transfère le montant depuis son app Wave. Les
-  // frais Wave (1 %) sont prélevés sur LE compte du client ; le gérant reçoit la
-  // TOTALITÉ du montant (contrairement au lien marchand, qui prélève 1 % sur le gérant).
-  // mode 'link' : ouverture du lien de paiement marchand (utilisé pour l'abonnement).
-  const pay = () => {
-    if (mode === 'link') {
-      const link = String(payLink || '').trim();
-      if (isValidPayLink(link)) {
-        if (typeof window !== 'undefined' && window.open) {
-          window.open(link, '_blank', 'noopener');
-        } else if (typeof Linking !== 'undefined') {
-          Linking.openURL(link).catch(() => {});
-        }
-        setJustOpened(true);
-        setTimeout(() => setJustOpened(false), 2500);
-        return;
-      }
-    }
-    // Par défaut (et repli) : copier le numéro pour un transfert direct.
-    copy();
-  };
   if (!merchant) return null;
-  const hasLink = mode === 'link' && isValidPayLink(payLink);
   const amt = (amount || 0).toLocaleString('fr-FR').replace(/\u202f/g, ' ');
-  const btnLabel = amount ? `Payer ${amt} FCFA par Wave` : 'Payer par Wave';
 
   return (
     <View style={[s.infoBox, compact && s.infoBoxCompact]}>
-      {/* Bouton bleu "payer" : copie le numéro (transfert direct) ou ouvre le lien (abonnement). */}
-      <Pressable onPress={pay} style={[s.payLinkBtn, compact && s.payLinkBtnCompact]}>
+      {/* Bouton « payer » : copie le numéro Wave pour un transfert direct. */}
+      <Pressable onPress={copy} style={[s.payBtn, compact && s.payBtnCompact]}>
         <Ionicons name="water" size={compact ? 18 : 20} color="#fff" style={{ marginRight: 8 }} />
-        <T size={compact ? font.sm : font.body} weight="800" color="#fff">{btnLabel}</T>
+        <T size={compact ? font.sm : font.body} weight="800" color="#fff">{amount ? `Copier le numéro pour payer ${amt} F` : 'Copier le numéro Wave'}</T>
       </Pressable>
-      {hasLink ? (
-        <T size={font.xs} weight="600" color={colors.muted} style={{ textAlign: 'center', marginTop: 6 }}>
-          Ouvre le lien de paiement Wave. Aucun argent ne passe par l'app.
-        </T>
-      ) : (
-        <T size={font.xs} weight="600" color={colors.muted} style={{ textAlign: 'center', marginTop: 6 }}>
-          {compact
-            ? 'Frais Wave (1 %) côté client. Copiez le numéro et payez depuis votre app Wave.'
-            : `Transférez ${amount ? `${amt} F` : 'le montant'} au numéro ci-dessous depuis votre app Wave. Les frais Wave (1 %) sont prélevés sur votre compte — ${merchantName} reçoit la totalité.`}
-        </T>
-      )}
+      <T size={font.xs} weight="600" color={colors.muted} style={{ textAlign: 'center', marginTop: 6 }}>
+        {compact
+          ? 'Frais Wave (1 %) à votre charge. Transférez le montant depuis votre app Wave.'
+          : `Transférez ${amount ? `${amt} F` : 'le montant'} au numéro ci-dessous depuis votre app Wave. Les frais Wave (1 %) sont prélevés sur votre compte — ${merchantName} reçoit la totalité.`}
+      </T>
 
       {/* Numéro du gérant (toujours visible, copiable) */}
       <View style={[s.merchant, { marginTop: compact ? 8 : 12 }]}>
@@ -101,12 +66,11 @@ export function WavePayBox({ amount, merchant, merchantName, payLink, mode = 'nu
 
 // ============================================================
 //  Paiement direct via Wave — l'argent ne passe PAS par l'app.
-//  On affiche simplement le numéro Wave (marchand) auquel le
-//  client doit envoyer l'argent depuis sa propre app Wave.
-//  Si un lien de paiement Wave est fourni (payLink), on propose
-//  aussi d'ouvrir le compte marchand directement.
+//  On affiche le numéro Wave PERSONNEL du gérant : le client lui
+//  transfère le montant depuis sa propre app Wave (frais 1 % côté
+//  client, le gérant reçoit la totalité).
 // ============================================================
-export function WavePaySheet({ visible, onClose, onConfirm, title, amount, merchant, merchantName, subtitle, payLink, mode = 'number' }) {
+export function WavePaySheet({ visible, onClose, onConfirm, title, amount, merchant, merchantName, subtitle }) {
   if (!visible) return null;
   const amt = `${(amount || 0).toLocaleString('fr-FR').replace(/\u202f/g, ' ')} XOF`;
 
@@ -121,7 +85,7 @@ export function WavePaySheet({ visible, onClose, onConfirm, title, amount, merch
         {subtitle ? <T size={font.sm} weight="600" color={colors.muted} style={{ marginTop: 4, textAlign: 'center' }}>{subtitle}</T> : null}
       </View>
 
-      <WavePayBox amount={amount} merchant={merchant} merchantName={merchantName} payLink={payLink} mode={mode} />
+      <WavePayBox amount={amount} merchant={merchant} merchantName={merchantName} />
 
       <DialogButtons
         cancel="Annuler"
@@ -139,6 +103,6 @@ const s = StyleSheet.create({
   infoBoxCompact: { padding: 10, marginTop: 10 },
   merchant: { flexDirection: 'row', alignItems: 'center', backgroundColor: '#fff', borderRadius: radius.sm, padding: 10, borderWidth: 1, borderColor: colors.border },
   copyBtn: { width: 40, height: 40, borderRadius: radius.sm, backgroundColor: colors.primarySoft, alignItems: 'center', justifyContent: 'center', marginLeft: 8 },
-  payLinkBtn: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', backgroundColor: colors.waveAccent, borderRadius: radius.md, paddingVertical: 13, marginTop: 14 },
-  payLinkBtnCompact: { paddingVertical: 10, marginTop: 8 },
+  payBtn: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', backgroundColor: colors.waveAccent, borderRadius: radius.md, paddingVertical: 13, marginTop: 14 },
+  payBtnCompact: { paddingVertical: 10, marginTop: 8 },
 });

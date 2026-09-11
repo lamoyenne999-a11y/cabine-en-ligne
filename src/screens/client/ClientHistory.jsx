@@ -200,7 +200,6 @@ export default function ClientHistory() {
                   amount={d.amount}
                   merchant={d.gerantWave}
                   merchantName={d.gerantName}
-                  payLink={d.gerantPayLink || ''}
                 />
                 <Btn title="J'ai payé (Wave)" icon="checkmark" onPress={() => setPaying(d)} style={{ marginTop: space.md }} />
               </>
@@ -257,7 +256,6 @@ export default function ClientHistory() {
         amount={paying?.amount}
         merchant={paying?.gerantWave}
         merchantName={paying?.gerantName}
-        payLink={paying?.gerantPayLink || ''}
       />
 
       {/* Confirmation d'annulation */}

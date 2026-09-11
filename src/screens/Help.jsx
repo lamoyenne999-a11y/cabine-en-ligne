@@ -1,24 +1,31 @@
-import React from 'react';
+import React, { useState } from 'react';
 import { View, Text, Pressable, StyleSheet, Linking } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { colors, radius, space, font } from '../theme';
 import { T, Card, Btn } from '../components/ui';
 import { Page } from '../components/Shell';
-import { PLATFORM_WAVE, PLATFORM_NAME, PLATFORM_PAY_LINK } from '../components/WavePay';
+import { PLATFORM_WAVE, PLATFORM_NAME } from '../components/WavePay';
 import { useStore } from '../store';
 
 const STEPS = [
   { icon: 'create-outline', title: '1. Faites une demande', text: "Choisissez Unités, Minutes ou Internet, le montant et le gérant de votre choix." },
-  { icon: 'water-outline', title: '2. Payez le gérant en direct', text: 'Le gérant accepte votre demande. Vous payez directement via votre app Wave (son numéro marchand). Aucun argent ne passe par l\'app.' },
+  { icon: 'water-outline', title: '2. Payez le gérant en direct', text: 'Le gérant accepte votre demande. Vous transférez le montant directement à son numéro Wave depuis votre app Wave. Les frais (1 %) sont sur votre compte : le gérant reçoit la totalité. Aucun argent ne passe par l\'app.' },
   { icon: 'checkmark-done-outline', title: '3. Le gérant vous sert', text: 'Une fois payé, le gérant crédite le numéro indiqué. Vous suivez tout dans votre Historique.' },
 ];
 
 export default function Help({ onBack }) {
   const { state } = useStore();
+  const [copied, setCopied] = useState(false);
   const subOffer = state.role === 'gerant'
     ? '200 FCFA / mois (ou 2000 FCFA / an) après 1 mois d\'essai gratuit'
     : '100 FCFA / mois (ou 1000 FCFA / an) après 1 mois d\'essai gratuit';
-  const openPay = () => { if (PLATFORM_PAY_LINK) Linking.openURL(PLATFORM_PAY_LINK).catch(() => {}); };
+  const copyNum = () => {
+    if (PLATFORM_WAVE && typeof navigator !== 'undefined' && navigator.clipboard) {
+      navigator.clipboard.writeText(PLATFORM_WAVE).catch(() => {});
+    }
+    setCopied(true);
+    setTimeout(() => setCopied(false), 2000);
+  };
   const call = () => { if (PLATFORM_WAVE) Linking.openURL(`tel:${PLATFORM_WAVE}`).catch(() => {}); };
 
   return (
@@ -41,16 +48,16 @@ export default function Help({ onBack }) {
       <Card style={{ marginTop: space.lg }}>
         <T size={font.h3} weight="800" color={colors.text} style={{ marginBottom: 4 }}>Abonnement</T>
         <T size={font.sm} weight="600" color={colors.muted}>
-          {subOffer}. Payez via votre app Wave au numéro ci-dessous, ou en ligne via le lien du compte marchand.
+          {subOffer}. Payez par transfert depuis votre app Wave au numéro ci-dessous (les frais Wave sont sur votre compte).
         </T>
         <View style={s.payRow}>
           <View style={s.payIcon}><Ionicons name="water" size={20} color={colors.wave} /></View>
           <View style={{ flex: 1 }}>
-            <T size={font.xs} weight="600" color={colors.muted}>Wave marchand {PLATFORM_NAME}</T>
+            <T size={font.xs} weight="600" color={colors.muted}>Numéro Wave {PLATFORM_NAME}</T>
             <T size={font.h3} weight="800" color={colors.wave}>{PLATFORM_WAVE}</T>
           </View>
-          <Pressable onPress={openPay} style={s.openBtn}>
-            <T size={font.xs} weight="800" color="#fff">Payer</T>
+          <Pressable onPress={copyNum} style={s.openBtn}>
+            <T size={font.xs} weight="800" color="#fff">{copied ? 'Copié ✓' : 'Copier'}</T>
           </Pressable>
         </View>
       </Card>

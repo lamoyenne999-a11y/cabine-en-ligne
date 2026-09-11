@@ -168,7 +168,7 @@ export default function GerantHistory() {
                   pending: 'En attente de votre réponse — le client peut encore annuler.',
                   accepted: 'Demande acceptée. Le client paiera via Wave.',
                   paid: `Le client a payé ${money(d.amount)} via Wave — créditez-le.`,
-                  completed: `Montant reçu sur votre Wave marchand : ${money(d.amount)}`,
+                  completed: `Montant reçu sur votre numéro Wave : ${money(d.amount)}`,
                   declined: 'Vous avez refusé cette demande.',
                   canceled: 'Le client a annulé cette demande.',
                 }[d.status] || 'Payé en direct via Wave.'

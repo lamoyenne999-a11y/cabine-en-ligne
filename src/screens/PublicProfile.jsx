@@ -83,7 +83,7 @@ export default function PublicProfile({ userId }) {
               {isGerant && (
                 <View style={s.waveRow}>
                   <Ionicons name="water" size={16} color={colors.wave} />
-                  <T size={font.sm} weight="700" color={colors.wave} style={{ marginLeft: 8 }}>Wave marchand : {profile.waveNumber}</T>
+                  <T size={font.sm} weight="700" color={colors.wave} style={{ marginLeft: 8 }}>Numéro Wave : {profile.waveNumber}</T>
                 </View>
               )}
               {isGerant && (

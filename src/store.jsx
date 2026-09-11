@@ -251,8 +251,8 @@ export function StoreProvider({ children }) {
 
   // Rafraîchit périodiquement les données du rôle connecté :
   // pour le gérant -> demandes + notifications en direct ;
-  // pour le client -> gérants + demandes, afin que le lien Wave
-  // marchand ajouté par un gérant apparaisse sans devoir se reconnecter.
+  // pour le client -> gérants + demandes, afin que le numéro Wave
+  // d'un gérant apparaisse à jour sans devoir se reconnecter.
   useEffect(() => {
     if (!online || !state.loggedIn) return;
     const t = setInterval(() => refresh(), 10000);
@@ -329,7 +329,7 @@ export function StoreProvider({ children }) {
     try { await api.pushSubscription(subscription); } catch { /* silencieux */ }
   }, [online]);
 
-  // Mise à jour du profil gérant (numéro + lien Wave marchand)
+  // Mise à jour du profil gérant (numéro Wave personnel)
   const loadNotifications = useCallback(async () => {
     if (!online) return;
     try {

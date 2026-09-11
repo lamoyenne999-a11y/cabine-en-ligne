@@ -32,11 +32,19 @@
 ## Rappels techniques (pour les prochaines mises à jour)
 - **Déployer** : pousser sur `lamoyenne999-a11y/cabine-en-ligne` (main), puis
   Render → service `cabine-en-ligne` → **Manual Deploy → Deploy latest commit**.
-- **Repo public** : ne pas mettre de secret dans le code (tout est déjà en
-  variables d'environnement Render : WAVE_API_KEY, JWT_SECRET, ADMIN_KEY…).
 - **Ancien compte flaggé** : ticket GitHub **#4743084** toujours ouvert (réponse
   envoyée à Sophia). Si GitHub lève le flag, l'ancien compte redevient
   utilisable ; sinon le nouveau compte suffit.
 - **UptimeRobot** : monitor `cabineenligne.com` (Up 100 %). Si le monitor
   utilisait l'OAuth GitHub de l'ancien compte, le rebrancher via email/mot de
   passe ou nouveau compte.
+
+## Décision produit — paiement Wave (à ne PAS remettre en question)
+- **Le paiement par lien Wave a été retiré volontairement.** Raison : avec
+  Wave Business, le gérant se fait facturer 1 % sur ses services ; le client ne
+  peut pas compenser ces frais (Wave juge ça illogique), et le compte Wave
+  Business du gérant risque d'être **bloqué**. Ce serait néfaste pour le gérant
+  ET pour l'app.
+- **Règle en vigueur** : le client paie le gérant **directement** (numéro Wave
+  du gérant affiché, frais à la charge du client), hors app. Ne jamais
+  réintroduire un paiement par lien ni un passage automatique d'argent.

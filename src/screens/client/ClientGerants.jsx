@@ -142,7 +142,7 @@ export default function ClientGerants() {
               </View>
               <View style={{ flexDirection: 'row', alignItems: 'center', marginTop: 5 }}>
                 <Ionicons name="water" size={14} color={colors.wave} />
-                <T size={font.sm} weight="700" color={colors.wave} style={{ marginLeft: 6 }}>Wave marchand : {g.waveNumber}</T>
+                <T size={font.sm} weight="700" color={colors.wave} style={{ marginLeft: 6 }}>Numéro Wave : {g.waveNumber}</T>
               </View>
               <Pressable
                 onPress={() => {
