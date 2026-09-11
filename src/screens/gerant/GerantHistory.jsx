@@ -15,8 +15,8 @@ const STATUS = {
   canceled: { label: 'Annulée', color: colors.muted, bg: colors.gray, icon: 'close-circle-outline' },
 };
 
-const TYPE_ICON = { unites: 'phone-portrait-outline', minutes: 'call-outline', internet: 'wifi-outline' };
-const TYPE_LABEL = { unites: 'Unités', minutes: 'Minutes', internet: 'Internet' };
+const TYPE_ICON = { unites: 'phone-portrait-outline', minutes: 'call-outline', internet: 'wifi-outline', forfait: 'layers-outline' };
+const TYPE_LABEL = { unites: 'Unités', minutes: 'Minutes', internet: 'Internet', forfait: 'Forfait' };
 
 function summarize(demandes) {
   const counts = { pending: 0, accepted: 0, declined: 0, paid: 0, completed: 0, canceled: 0 };
@@ -40,7 +40,7 @@ function matches(d, q) {
   const hay = [
     TYPE_LABEL[d.type] || 'Demande',
     STATUS[d.status]?.label || '',
-    d.clientName, d.benefName, d.benefPhone,
+    d.clientName, d.benefName, d.benefPhone, d.detail,
     when(d.createdAt), money(d.amount), d.id,
   ].map(norm).join(' ');
   return hay.includes(nq);
@@ -156,6 +156,9 @@ export default function GerantHistory() {
                 <T size={font.xs} weight="600" color={colors.muted} style={{ marginTop: 2 }}>
                   Client : {d.clientName} · pour {d.benefName === d.benefPhone ? d.benefPhone : d.benefName}
                 </T>
+                {d.detail ? (
+                  <T size={font.xs} weight="700" color={colors.textSoft} style={{ marginTop: 4 }}>{d.detail}</T>
+                ) : null}
               </View>
               <View style={{ alignItems: 'flex-end' }}>
                 <T size={font.body} weight="800" color={colors.text}>{money(d.amount)}</T>

@@ -35,7 +35,7 @@ export function plansFor(role) {
 }
 
 // Libellé des types de service
-export const TYPE_LABEL = { unites: 'Unités', minutes: 'Minutes', internet: 'Internet' };
+export const TYPE_LABEL = { unites: 'Unités', minutes: 'Minutes', internet: 'Internet', forfait: 'Forfait' };
 
 // ---- Abonnement (prix selon le rôle) ----
 export function subscriptionFor(user) {
@@ -675,7 +675,7 @@ export function removeGerant({ clientId, gerantId }) {
 }
 
 // ---- Demandes ----
-export function createDemande({ client, gerantId, gerantUserId, type, amount, benefName, benefPhone }) {
+export function createDemande({ client, gerantId, gerantUserId, type, amount, benefName, benefPhone, detail }) {
   // Compte suspendu par l'administrateur (non-paiement, fraude…) => on bloque les activités.
   if (client.frozen) {
     throw Object.assign(new Error('Votre compte a été suspendu. Contactez l\'administration pour le réactiver.'), { status: 403 });
@@ -707,8 +707,11 @@ export function createDemande({ client, gerantId, gerantUserId, type, amount, be
       throw Object.assign(new Error(`${g.name} est actuellement suspendu. Choisissez un autre gérant.`), { status: 403 });
     }
   }
-  if (!['unites', 'minutes', 'internet'].includes(type)) throw Object.assign(new Error('Type invalide'), { status: 400 });
+  if (!['unites', 'minutes', 'internet', 'forfait'].includes(type)) throw Object.assign(new Error('Type invalide'), { status: 400 });
   if (!(parseInt(amount, 10) > 0)) throw Object.assign(new Error('Montant invalide'), { status: 400 });
+  // Un forfait combine Appel + Internet : le client doit décrire ce qu'il veut
+  // (ex : « 50 min + 100 Mo, valable 3 jours ») pour que le gérant crédite juste.
+  if (type === 'forfait' && !String(detail || '').trim()) throw Object.assign(new Error('Précisez le contenu du forfait (ex : 50 min + 100 Mo).'), { status: 400 });
 
   // Récupère TOUJOURS le lien Wave marchand À JOUR du gérant (pas un instantané figé).
   // Si le gérant a ajouté/modifié son lien après la création du contact, on le reprend.
@@ -734,6 +737,7 @@ export function createDemande({ client, gerantId, gerantUserId, type, amount, be
     gerantWave: liveWave,
     gerantPayLink: livePayLink,
     type,
+    detail: String(detail || '').trim(),
     amount: parseInt(amount, 10),
     benefName: benefName || client.name,
     benefPhone: benefPhone || client.phone,
@@ -745,7 +749,7 @@ export function createDemande({ client, gerantId, gerantUserId, type, amount, be
     canceledAt: 0,
   });
   // Notifie le gérant qu'une nouvelle demande est arrivée
-  if (g.userId) createNotification({ userId: g.userId, type: 'new_demande', text: `Nouvelle demande de ${client.name} — ${TYPE_LABEL[type] || type}  ${d.amount} F`, demandeId: d.id });
+  if (g.userId) createNotification({ userId: g.userId, type: 'new_demande', text: `Nouvelle demande de ${client.name} — ${TYPE_LABEL[type] || type}  ${d.amount} F${d.detail ? ` (${d.detail})` : ''}`, demandeId: d.id });
   return d;
 }
 

@@ -27,8 +27,8 @@ router.delete('/gerants/:id', (req, res) => {
 // ---- Demandes (services) ----
 router.post('/demandes', (req, res) => {
   try {
-    const { gerantId, gerantUserId, type, amount, benefName, benefPhone } = req.body || {};
-    const d = createDemande({ client: req.user, gerantId, gerantUserId, type, amount, benefName, benefPhone });
+    const { gerantId, gerantUserId, type, amount, benefName, benefPhone, detail } = req.body || {};
+    const d = createDemande({ client: req.user, gerantId, gerantUserId, type, amount, benefName, benefPhone, detail });
     res.status(201).json({ demande: d });
   } catch (e) { res.status(e.status || 400).json({ error: e.message }); }
 });

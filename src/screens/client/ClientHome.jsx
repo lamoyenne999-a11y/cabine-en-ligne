@@ -14,9 +14,10 @@ const TYPES = [
   { key: 'unites', label: 'Unités', icon: 'phone-portrait-outline' },
   { key: 'minutes', label: 'Minutes', icon: 'call-outline' },
   { key: 'internet', label: 'Internet', icon: 'wifi-outline' },
+  { key: 'forfait', label: 'Forfait', icon: 'layers-outline' },
 ];
 
-const TYPE_LABEL = { unites: 'Unités', minutes: 'Minutes', internet: 'Internet' };
+const TYPE_LABEL = { unites: 'Unités', minutes: 'Minutes', internet: 'Internet', forfait: 'Forfait' };
 
 export default function ClientHome() {
   const { state, createDemande, markPaid, cancelDemande, refresh } = useStore();
@@ -25,6 +26,8 @@ export default function ClientHome() {
   useEffect(() => { refresh(); }, []); // eslint-disable-line
   const [type, setType] = useState('unites');
   const [amount, setAmount] = useState('');
+  // Détail du forfait (Appel + Internet) : décrit le contenu, ex « 50 min + 100 Mo ».
+  const [detail, setDetail] = useState('');
   const [who, setWho] = useState('moi');
   const [benefPhone, setBenefPhone] = useState('');
   // Gérant sélectionné : soit un contact déjà ajouté (id = contact), soit un
@@ -50,6 +53,7 @@ export default function ClientHome() {
   const validate = () => {
     const e = {};
     if (amountNum <= 0) e.amount = 'Indiquez le montant à recharger.';
+    if (type === 'forfait' && !detail.trim()) e.detail = 'Décrivez le forfait (ex : 50 min + 100 Mo).';
     if (!sel) e.gerant = 'Sélectionnez un gérant.';
     if (who === 'autre') {
       if (!benefPhone.trim()) e.benefPhone = 'Indiquez le numéro de la personne à créditer.';
@@ -73,6 +77,7 @@ export default function ClientHome() {
       gerantWave: sel.waveNumber,
       gerantPayLink: sel.payLink || '',
       type,
+      detail: type === 'forfait' ? detail.trim() : '',
       amount: amountNum,
       // Pour quelqu'un : on n'identifie le bénéficiaire que par son numéro (pas de nom).
       benefName: who === 'autre' ? benefPhone : (state.user?.name || 'Moi'),
@@ -84,7 +89,7 @@ export default function ClientHome() {
       if (created && created.id) setLastDemande(created);
       setSent(true);
       // Réinitialise tout le formulaire pour qu'une nouvelle demande soit facile.
-      setAmount(''); setWho('moi'); setBenefPhone(''); setType('unites'); setSel(null);
+      setAmount(''); setWho('moi'); setBenefPhone(''); setType('unites'); setSel(null); setDetail('');
       // Rafraîchit le client (demandes + gérants) pour voir la demande créée.
       refresh();
     } catch (err) {
@@ -119,6 +124,11 @@ export default function ClientHome() {
             );
           })}
         </View>
+        {type === 'forfait' && (
+          <T size={font.xs} weight="600" color={colors.primary} style={{ marginTop: 8 }}>
+            Un forfait combine Appel + Internet (ex : 50 min + 100 Mo, valable 3 jours). Décrivez ce que vous voulez.
+          </T>
+        )}
 
         {/* Form */}
         <Card style={{ marginTop: space.lg }}>
@@ -127,6 +137,17 @@ export default function ClientHome() {
             <TextInput value={amount} onChangeText={(t) => { setAmount(t.replace(/[^0-9]/g, '')); clearErr('amount'); }} placeholder="Ex : 2000" placeholderTextColor={colors.muted2} keyboardType="number-pad" style={s.inputText} />
           </View>
           {errors.amount && <T size={font.sm} weight="600" color={colors.danger} style={s.errText}>{errors.amount}</T>}
+
+          {type === 'forfait' && (
+            <>
+              <T size={font.sm} weight="700" color={colors.textSoft} style={{ marginTop: space.lg, marginBottom: 7 }}>Détail du forfait (Appel + Internet) <T color={colors.danger}>*</T></T>
+              <View style={[s.input, errors.detail && s.err]}>
+                <Ionicons name="layers-outline" size={18} color={errors.detail ? colors.danger : colors.primary} style={{ marginRight: 10 }} />
+                <TextInput value={detail} onChangeText={(t) => { setDetail(t); clearErr('detail'); }} placeholder="Ex : 50 min + 100 Mo, valable 3 jours" placeholderTextColor={colors.muted2} style={s.inputText} />
+              </View>
+              {errors.detail && <T size={font.sm} weight="600" color={colors.danger} style={s.errText}>{errors.detail}</T>}
+            </>
+          )}
 
           <T size={font.sm} weight="700" color={colors.textSoft} style={{ marginTop: space.lg, marginBottom: 10 }}>Bénéficiaire</T>
           <Segmented value={who} onChange={(v) => { setWho(v); setErrors((prev) => ({ ...prev, benefPhone: undefined })); }} options={[{ value: 'moi', label: 'Pour moi' }, { value: 'autre', label: 'Pour quelqu\'un' }]} />
@@ -267,6 +288,9 @@ export default function ClientHome() {
         {/* Récapitulatif de la demande */}
         <View style={s.summary}>
           <View style={s.summaryRow}><T size={font.sm} weight="600" color={colors.muted}>Service</T><T size={font.sm} weight="800" color={colors.text}>{TYPE_LABEL[lastDemande?.type] || TYPES.find((t) => t.key === type)?.label || 'Demande'}</T></View>
+          {lastDemande?.detail ? (
+            <View style={s.summaryRow}><T size={font.sm} weight="600" color={colors.muted}>Forfait</T><T size={font.sm} weight="800" color={colors.text}>{lastDemande.detail}</T></View>
+          ) : null}
           <View style={s.summaryRow}><T size={font.sm} weight="600" color={colors.muted}>Montant</T><T size={font.sm} weight="800" color={colors.text}>{money(lastDemande?.amount || amountNum)}</T></View>
           <View style={s.summaryRow}><T size={font.sm} weight="600" color={colors.muted}>Gérant</T><T size={font.sm} weight="800" color={colors.text}>{lastDemande?.gerantName || gerant?.name}</T></View>
         </View>

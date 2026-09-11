@@ -18,6 +18,9 @@ const STATUS = {
   canceled: { label: 'Annulée', color: colors.muted, bg: colors.gray, icon: 'close-circle-outline' },
 };
 
+const TYPE_ICON = { unites: 'phone-portrait-outline', minutes: 'call-outline', internet: 'wifi-outline', forfait: 'layers-outline' };
+const TYPE_LABEL = { unites: 'Unités', minutes: 'Minutes', internet: 'Internet', forfait: 'Forfait' };
+
 export default function GerantDemandes() {
   const { state, acceptDemande, declineDemande, completeDemande, subscribe } = useStore();
   const [confirm, setConfirm] = useState(null); // { id, action }
@@ -55,11 +58,14 @@ export default function GerantDemandes() {
           <Card key={d.id} style={{ marginBottom: space.sm }}>
             <View style={{ flexDirection: 'row', alignItems: 'center' }}>
               <View style={[s.icon, { backgroundColor: colors.primarySoft }]}>
-                <Ionicons name={d.type === 'internet' ? 'wifi-outline' : d.type === 'minutes' ? 'call-outline' : 'phone-portrait-outline'} size={22} color={colors.primary} />
+                <Ionicons name={TYPE_ICON[d.type] || 'phone-portrait-outline'} size={22} color={colors.primary} />
               </View>
               <View style={{ flex: 1, marginLeft: 12 }}>
-                <T size={font.h3} weight="800" color={colors.text}>{d.type === 'unites' ? 'Unités' : d.type === 'minutes' ? 'Minutes' : 'Internet'}</T>
+                <T size={font.h3} weight="800" color={colors.text}>{TYPE_LABEL[d.type] || 'Demande'}</T>
                 <T size={font.xs} weight="600" color={colors.muted} style={{ marginTop: 2 }}>Client : {d.clientName} · pour {d.benefName === d.benefPhone ? d.benefPhone : d.benefName}</T>
+                {d.detail ? (
+                  <T size={font.xs} weight="700" color={colors.textSoft} style={{ marginTop: 4 }}>{d.detail}</T>
+                ) : null}
               </View>
               <View style={{ alignItems: 'flex-end' }}>
                 <T size={font.h3} weight="800" color={colors.primary}>{d.amount.toLocaleString('fr-FR').replace(/\u202f/g, ' ')} XOF</T>
