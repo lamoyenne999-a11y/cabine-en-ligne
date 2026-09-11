@@ -14,10 +14,10 @@ const TYPES = [
   { key: 'unites', label: 'Unités', icon: 'phone-portrait-outline' },
   { key: 'minutes', label: 'Minutes', icon: 'call-outline' },
   { key: 'internet', label: 'Internet', icon: 'wifi-outline' },
-  { key: 'forfait', label: 'Forfait', icon: 'layers-outline' },
+  { key: 'forfait', label: 'Appel + Internet', icon: 'layers-outline' },
 ];
 
-const TYPE_LABEL = { unites: 'Unités', minutes: 'Minutes', internet: 'Internet', forfait: 'Forfait' };
+const TYPE_LABEL = { unites: 'Unités', minutes: 'Minutes', internet: 'Internet', forfait: 'Appel + Internet' };
 
 export default function ClientHome() {
   const { state, createDemande, markPaid, cancelDemande, refresh } = useStore();
@@ -115,14 +115,14 @@ export default function ClientHome() {
                 <View style={[s.typeIcon, on && { backgroundColor: 'rgba(255,255,255,0.2)' }]}>
                   <Ionicons name={t.icon} size={24} color={on ? '#fff' : colors.primary} />
                 </View>
-                <T size={font.sm} weight="700" color={on ? '#fff' : colors.text}>{t.label}</T>
+                <T size={font.sm} weight="700" color={on ? '#fff' : colors.text} numberOfLines={2} style={{ textAlign: 'center' }}>{t.label}</T>
               </Pressable>
             );
           })}
         </View>
         {type === 'forfait' && (
           <T size={font.xs} weight="600" color={colors.primary} style={{ marginTop: 8 }}>
-            Appel + Internet en un seul forfait — indiquez simplement le montant.
+            Appel + Internet — indiquez simplement le montant.
           </T>
         )}
 
@@ -317,7 +317,7 @@ const s = StyleSheet.create({
   content: { paddingHorizontal: space.lg, paddingBottom: 120, paddingTop: space.md },
   payBtn: { backgroundColor: colors.primary, paddingHorizontal: 16, paddingVertical: 9, borderRadius: radius.pill, marginLeft: 8 },
   typeRow: { flexDirection: 'row', justifyContent: 'space-between' },
-  typeCard: { flex: 1, alignItems: 'center', backgroundColor: '#fff', borderRadius: radius.md, paddingVertical: 18, marginHorizontal: 4, borderWidth: 1.6, borderColor: colors.border },
+  typeCard: { flex: 1, alignItems: 'center', justifyContent: 'center', backgroundColor: '#fff', borderRadius: radius.md, paddingVertical: 18, minHeight: 88, marginHorizontal: 4, borderWidth: 1.6, borderColor: colors.border },
   typeCardOn: { backgroundColor: colors.primary, borderColor: colors.primary },
   typeIcon: { marginBottom: 8 },
   input: { flexDirection: 'row', alignItems: 'center', backgroundColor: colors.bg, borderRadius: radius.md, paddingHorizontal: 14, height: 52 },

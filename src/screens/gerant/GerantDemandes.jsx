@@ -19,7 +19,7 @@ const STATUS = {
 };
 
 const TYPE_ICON = { unites: 'phone-portrait-outline', minutes: 'call-outline', internet: 'wifi-outline', forfait: 'layers-outline' };
-const TYPE_LABEL = { unites: 'Unités', minutes: 'Minutes', internet: 'Internet', forfait: 'Forfait' };
+const TYPE_LABEL = { unites: 'Unités', minutes: 'Minutes', internet: 'Internet', forfait: 'Appel + Internet' };
 
 export default function GerantDemandes() {
   const { state, acceptDemande, declineDemande, completeDemande, subscribe } = useStore();

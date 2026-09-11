@@ -35,7 +35,7 @@ export function plansFor(role) {
 }
 
 // Libellé des types de service
-export const TYPE_LABEL = { unites: 'Unités', minutes: 'Minutes', internet: 'Internet', forfait: 'Forfait' };
+export const TYPE_LABEL = { unites: 'Unités', minutes: 'Minutes', internet: 'Internet', forfait: 'Appel + Internet' };
 
 // ---- Abonnement (prix selon le rôle) ----
 export function subscriptionFor(user) {

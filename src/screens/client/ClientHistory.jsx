@@ -38,8 +38,8 @@ const STATUS = {
 };
 
 const TYPE_ICON = { unites: 'phone-portrait-outline', minutes: 'call-outline', internet: 'wifi-outline', forfait: 'layers-outline' };
-const TYPE_LABEL = { unites: 'Unités', minutes: 'Minutes', internet: 'Internet', forfait: 'Forfait' };
-const CREDIT_LABEL = { unites: 'vos unités', minutes: 'vos minutes', internet: 'vos données internet', forfait: 'votre forfait' };
+const TYPE_LABEL = { unites: 'Unités', minutes: 'Minutes', internet: 'Internet', forfait: 'Appel + Internet' };
+const CREDIT_LABEL = { unites: 'vos unités', minutes: 'vos minutes', internet: 'vos données internet', forfait: 'votre rechargement Appel + Internet' };
 
 function summarize(demandes) {
   const counts = { pending: 0, accepted: 0, declined: 0, paid: 0, completed: 0, canceled: 0 };
