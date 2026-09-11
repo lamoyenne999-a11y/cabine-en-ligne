@@ -128,8 +128,14 @@ const overlay = {
     shadowRadius: 20,
     elevation: 20,
   },
-  handleZone: { paddingVertical: 12, alignItems: 'center' },
-  handle: { width: 44, height: 5, borderRadius: 3, backgroundColor: colors.muted2 },
+  handleZone: {
+    paddingVertical: 14,
+    alignItems: 'center',
+    // Empêche le navigateur de scroller/zoomer pendant le glissement
+    // de la poignée (compat web / iOS Safari).
+    touchAction: 'none',
+  },
+  handle: { width: 64, height: 5, borderRadius: 3, backgroundColor: colors.muted2 },
   centerOverlay: {
     flex: 1,
     backgroundColor: 'rgba(20,8,30,0.55)',
