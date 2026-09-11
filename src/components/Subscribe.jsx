@@ -5,7 +5,7 @@ import { colors, radius, space, font } from '../theme';
 import { T, Btn } from './ui';
 import { BottomSheet, Dialog } from './modals';
 import { WavePaySheet } from './WavePay';
-import { PLATFORM_WAVE, PLATFORM_NAME } from './WavePay';
+import { PLATFORM_WAVE, PLATFORM_NAME, PLATFORM_PAY_LINK } from './WavePay';
 import { useStore } from '../store';
 
 // ============================================================
@@ -104,10 +104,7 @@ export default function SubscribeSheet({ visible, onClose, onSubscribe, subtitle
         </T>
       </BottomSheet>
 
-      {/* Paiement via Wave : transfert direct au numéro de la plateforme.
-          Les frais (1 %) sont à la charge de l'abonné ; la plateforme reçoit
-          la totalité. Aucun lien de paiement (un lien prélèverait 1 % sur le
-          compte Wave Business et risquerait son blocage). */}
+      {/* Paiement via Wave */}
       <WavePaySheet
         visible={paying}
         onClose={() => setPaying(false)}
@@ -116,7 +113,8 @@ export default function SubscribeSheet({ visible, onClose, onSubscribe, subtitle
         amount={current.price}
         merchant={PLATFORM_WAVE}
         merchantName={PLATFORM_NAME}
-        mode="number"
+        payLink={PLATFORM_PAY_LINK}
+        mode="link"
         subtitle={current.priceLabel}
       />
 

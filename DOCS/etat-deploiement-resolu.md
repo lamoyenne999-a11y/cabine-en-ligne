@@ -40,16 +40,23 @@
   passe ou nouveau compte.
 
 ## Décision produit — paiement Wave (à ne PAS remettre en question)
-- **Le paiement par lien Wave a été retiré volontairement et définitivement.**
-  Raison : avec Wave Business, le gérant se fait facturer 1 % sur ses services ;
-  le client ne peut pas compenser ces frais (Wave juge ça illogique), et le
-  compte Wave Business du gérant risque d'être **bloqué**. Ce serait néfaste
-  pour le gérant ET pour l'app.
-- **Modèle de paiement en vigueur (unique)** : le client **transfère
-  directement** le montant de sa demande au **numéro Wave PERSONNEL du gérant**
-  depuis sa propre app Wave. Les **frais Wave (1 % sur les transferts) sont à
-  la charge du CLIENT** ; le gérant reçoit ainsi **le montant exact** de la
-  demande sur son compte Wave personnel.
-- **Interdits** : réintroduire un lien de paiement marchand, un passage
-  automatique d'argent, ou toute solution où le gérant paierait des frais.
-- Terminologie : dire « Numéro Wave » (jamais « Wave marchand »).
+Deux flux distincts, à ne pas confondre :
+
+### 1. Paiement des DEMANDES (client → gérant) — par TRANSFERT DIRECT, jamais par lien
+- Le client **transfère directement** le montant de sa demande au **numéro Wave
+  PERSONNEL du gérant** depuis sa propre app Wave. Les **frais Wave (1 % sur
+  les transferts) sont à la charge du CLIENT** ; le gérant reçoit ainsi le
+  **montant exact** sur son compte Wave personnel.
+- **Pourquoi aucun lien marchand ici** : un lien Wave Business facturerait 1 %
+  au gérant sur ses services ; le client ne peut pas compenser ces frais (Wave
+  juge ça illogique) et le compte Wave Business du gérant risquerait d'être
+  **bloqué**. Néfaste pour le gérant ET pour l'app.
+- Terminologie : « Numéro Wave » (jamais « Wave marchand » pour le gérant).
+
+### 2. Paiement de l'ABONNEMENT (abonné → plateforme) — via le LIEN MARCHAND de l'app
+- L'abonnement (mensuel/annuel) se paie via le **lien Wave marchand de
+  l'application** (`PLATFORM_PAY_LINK`). C'est le lien de la plateforme, il
+  permet aux utilisateurs de payer leur abonnement : **il doit RESTER et ne
+  jamais être retiré**.
+- Le retrait du lien ne concerne **QUE** les paiements de demandes (gérant), pas
+  l'abonnement (plateforme).
