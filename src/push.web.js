@@ -59,3 +59,52 @@ export async function enableNotifications() {
     return { ok: false, reason: e && e.message ? e.message : 'Impossible d’activer les notifications.' };
   }
 }
+
+// ==================================================================
+//  ÉTAT RÉEL des notifications sur ce navigateur : la permission a-t-elle
+//  été accordée ET un abonnement push est-il actif ? C'est la source de
+//  vérité du commutateur (il ne doit PAS repasser sur « off » tout seul
+//  après un rechargement).
+// ==================================================================
+export async function getPushState() {
+  try {
+    if (!pushSupported() || !('Notification' in window)) {
+      return { supported: false, granted: false, subscribed: false, subscription: null };
+    }
+    const granted = window.Notification.permission === 'granted';
+    if (!granted) {
+      return { supported: true, granted: false, subscribed: false, subscription: null };
+    }
+    const reg = await navigator.serviceWorker.ready;
+    const subscription = await reg.pushManager.getSubscription();
+    return {
+      supported: true,
+      granted: true,
+      subscribed: !!subscription,
+      subscription: subscription ? subscription.toJSON() : null,
+    };
+  } catch (e) {
+    return { supported: false, granted: false, subscribed: false, subscription: null };
+  }
+}
+
+// ==================================================================
+//  Désactivation VOLONTAIRE : désabonne le navigateur pour que l'utilisateur
+//  ne reçoive plus aucune notification push. Renvoie l'endpoint retiré afin
+//  que le serveur supprime aussi l'abonnement en base.
+// ==================================================================
+export async function disableNotifications() {
+  try {
+    if (!pushSupported()) return { ok: true, endpoint: null };
+    const reg = await navigator.serviceWorker.ready;
+    const subscription = await reg.pushManager.getSubscription();
+    if (subscription) {
+      const endpoint = subscription.endpoint;
+      await subscription.unsubscribe();
+      return { ok: true, endpoint };
+    }
+    return { ok: true, endpoint: null };
+  } catch (e) {
+    return { ok: false, endpoint: null, reason: e && e.message ? e.message : 'Impossible de désactiver les notifications.' };
+  }
+}

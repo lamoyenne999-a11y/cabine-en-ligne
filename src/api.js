@@ -37,7 +37,9 @@ export const api = {
   login: (p) => request('POST', '/api/auth/login', p),
   me: () => request('GET', '/api/auth/me'),
   pushToken: (token) => request('POST', '/api/auth/push-token', { token }),
+  pushTokenRemove: (token) => request('POST', '/api/auth/push-token/remove', { token }),
   pushSubscription: (subscription) => request('POST', '/api/auth/push-subscription', { subscription }),
+  pushSubscriptionRemove: (endpoint) => request('POST', '/api/auth/push-subscription/remove', { endpoint }),
 
   // ---- public (liens de partage) ----
   public: {

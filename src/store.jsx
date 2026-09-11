@@ -329,6 +329,18 @@ export function StoreProvider({ children }) {
     try { await api.pushSubscription(subscription); } catch { /* silencieux */ }
   }, [online]);
 
+  // Désactivation volontaire : retire l'abonnement Web Push du serveur.
+  const unregisterPushSubscription = useCallback(async (endpoint) => {
+    if (!online || !endpoint) return;
+    try { await api.pushSubscriptionRemove(endpoint); } catch { /* silencieux */ }
+  }, [online]);
+
+  // Désactivation volontaire (app native) : retire le jeton Expo du serveur.
+  const unregisterPushToken = useCallback(async (token) => {
+    if (!online || !token) return;
+    try { await api.pushTokenRemove(token); } catch { /* silencieux */ }
+  }, [online]);
+
   // Mise à jour du profil gérant (numéro Wave personnel)
   const loadNotifications = useCallback(async () => {
     if (!online) return;
@@ -419,8 +431,8 @@ export function StoreProvider({ children }) {
   }, [state.role]);
 
   const value = useMemo(
-    () => ({ state, dispatch, online, checking, recheck: probe, login, register, logout, refresh, addGerant, removeGerant, createDemande, markPaid, cancelDemande, acceptDemande, declineDemande, completeDemande, subscribe, updateGerantProfile, registerPushToken, registerPushSubscription, loadNotifications, markNotificationRead, markAllNotificationsRead, loadClientNotifications, markClientNotificationRead, markAllClientNotificationsRead, loadReferral, updateReferralCode }),
-    [state, online, checking, probe, login, register, logout, refresh, addGerant, removeGerant, createDemande, markPaid, cancelDemande, acceptDemande, declineDemande, completeDemande, subscribe, updateGerantProfile, registerPushToken, registerPushSubscription, loadNotifications, markNotificationRead, markAllNotificationsRead, loadClientNotifications, markClientNotificationRead, markAllClientNotificationsRead, loadReferral, updateReferralCode],
+    () => ({ state, dispatch, online, checking, recheck: probe, login, register, logout, refresh, addGerant, removeGerant, createDemande, markPaid, cancelDemande, acceptDemande, declineDemande, completeDemande, subscribe, updateGerantProfile, registerPushToken, registerPushSubscription, unregisterPushSubscription, unregisterPushToken, loadNotifications, markNotificationRead, markAllNotificationsRead, loadClientNotifications, markClientNotificationRead, markAllClientNotificationsRead, loadReferral, updateReferralCode }),
+    [state, online, checking, probe, login, register, logout, refresh, addGerant, removeGerant, createDemande, markPaid, cancelDemande, acceptDemande, declineDemande, completeDemande, subscribe, updateGerantProfile, registerPushToken, registerPushSubscription, unregisterPushSubscription, unregisterPushToken, loadNotifications, markNotificationRead, markAllNotificationsRead, loadClientNotifications, markClientNotificationRead, markAllClientNotificationsRead, loadReferral, updateReferralCode],
   );
   return <Ctx.Provider value={value}>{children}</Ctx.Provider>;
 }

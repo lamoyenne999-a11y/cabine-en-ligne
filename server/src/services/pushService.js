@@ -45,6 +45,14 @@ export function registerWebPushSubscription(userId, subscription) {
   });
 }
 
+// Supprime l'abonnement Web Push d'un utilisateur (désactivation volontaire).
+export function removeWebPushSubscription(userId, endpoint) {
+  if (!endpoint) return { removed: 0 };
+  const matched = find('push_subscriptions', (s) => s.userId === userId && s.endpoint === endpoint);
+  if (matched.length) remove('push_subscriptions', (s) => s.userId === userId && s.endpoint === endpoint);
+  return { removed: matched.length };
+}
+
 // Envoie une notification à tous les abonnements web d'un utilisateur.
 // Fire-and-forget (jamais bloquant) ; supprime les abonnements expirés.
 export async function sendWebPushToUser(userId, { title = 'Cabine En Ligne', body = '' }) {

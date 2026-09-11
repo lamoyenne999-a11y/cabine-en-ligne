@@ -543,6 +543,15 @@ export function registerPushToken(userId, token) {
   return insert('push_tokens', { userId, token: t, createdAt: Date.now() });
 }
 
+// Supprime un jeton de notification (désactivation volontaire sur l'appareil).
+export function removePushToken(userId, token) {
+  if (!token) return { removed: 0 };
+  const t = String(token).trim();
+  const matched = find('push_tokens', (p) => p.userId === userId && p.token === t);
+  if (matched.length) remove('push_tokens', (p) => p.userId === userId && p.token === t);
+  return { removed: matched.length };
+}
+
 // Envoie une push à tous les appareils enregistrés pour un utilisateur.
 export async function sendPushToUser(userId, { title = 'Cabine En Ligne', body = '', data = {} }) {
   if (!config.pushEnabled) return { skipped: 'disabled' };

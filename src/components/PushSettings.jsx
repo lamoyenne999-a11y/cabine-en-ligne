@@ -1,49 +1,86 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { View, StyleSheet, Switch } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { colors, radius, space, font } from '../theme';
 import { T } from './ui';
-import { pushSupported, enableNotifications } from '../push';
+import { pushSupported, enableNotifications, getPushState, disableNotifications } from '../push';
 import { useStore } from '../store';
 
 // ==================================================================
 //  Option « notifications push » — paramétrable dans le profil
-//  (client et gérant). Sur mobile, on demande la permission, on
-//  récupère le jeton Expo et on l'enregistre côté serveur pour que
-//  l'utilisateur soit alerté directement sur son téléphone.
-//  Sur le web (PWA), les push ne sont pas disponibles : on l'explique.
+//  (client et gérant). Le commutateur reflète l'ÉTAT RÉEL de
+//  l'appareil/navigateur : il reste sur « activé » tant que l'utilisateur
+//  ne l'a pas désactivé lui-même, même après un rechargement de l'app.
 // ==================================================================
 
 function usePushRegistration() {
-  const { registerPushToken, registerPushSubscription } = useStore();
-  const [enabled, setEnabled] = useState(typeof window !== 'undefined' && typeof window.__celPushEnabled === 'boolean' ? window.__celPushEnabled : false);
+  const { registerPushToken, registerPushSubscription, unregisterPushSubscription, unregisterPushToken } = useStore();
+  const supported = pushSupported();
+  // On ne connaît pas encore l'état réel au premier rendu : on affiche
+  // "off" un court instant, puis getPushState() le corrige si les
+  // notifications sont déjà actives (source de vérité = le navigateur).
+  const [enabled, setEnabled] = useState(false);
+  const [checking, setChecking] = useState(true);
   const [busy, setBusy] = useState(false);
   const [msg, setMsg] = useState('');
-  const supported = pushSupported();
+
+  // Au montage : lit l'état réel (permission + abonnement) pour ne JAMAIS
+  // faire repasser le commutateur sur « off » alors que tout est actif.
+  useEffect(() => {
+    let alive = true;
+    (async () => {
+      try {
+        const st = await getPushState();
+        if (!alive) return;
+        if (st.supported && st.granted && st.subscribed) setEnabled(true);
+      } catch { /* silencieux */ }
+      finally {
+        if (alive) setChecking(false);
+      }
+    })();
+    return () => { alive = false; };
+  }, []);
 
   const toggle = async (value) => {
+    if (busy) return;
     setBusy(true); setMsg('');
-    if (!value) { setEnabled(false); setBusy(false); return; }
-    const res = await enableNotifications();
-    setBusy(false);
-    if (res && res.ok) {
-      // Web Push (PWA) : on enregistre l'abonnement du navigateur.
-      if (res.subscription) await registerPushSubscription(res.subscription);
-      // Push natif (app mobile) : on enregistre le jeton Expo.
-      if (res.token) await registerPushToken(res.token);
-      setEnabled(true);
-      try { if (typeof window !== 'undefined') window.__celPushEnabled = true; } catch { /* ignore */ }
-    } else {
-      setEnabled(false);
-      setMsg((res && res.reason) || 'Impossible d’activer les notifications.');
+
+    if (value) {
+      // ==== ACTIVATION ====
+      const res = await enableNotifications();
+      if (res && res.ok) {
+        // Web Push (PWA) : enregistre l'abonnement du navigateur.
+        if (res.subscription) await registerPushSubscription(res.subscription);
+        // Push natif (app mobile) : enregistre le jeton Expo.
+        if (res.token) await registerPushToken(res.token);
+        setEnabled(true);
+      } else {
+        setEnabled(false);
+        setMsg((res && res.reason) || 'Impossible d’activer les notifications.');
+      }
+      setBusy(false);
+      return;
     }
+
+    // ==== DÉSACTIVATION VOLONTAIRE ====
+    // L'utilisateur est le SEUL à pouvoir éteindre les notifications.
+    // On désabonne réellement l'appareil et on retire l'enregistrement serveur.
+    try {
+      const off = await disableNotifications();
+      if (off.endpoint) await unregisterPushSubscription(off.endpoint);
+      if (off.token) await unregisterPushToken(off.token);
+      setEnabled(false);
+    } catch {
+      setEnabled(false);
+    }
+    setBusy(false);
   };
 
-  return { enabled, busy, msg, supported, toggle };
+  return { enabled, busy, checking, msg, supported, toggle };
 }
 
 export default function PushSettings() {
-  const { enabled, busy, msg, supported, toggle } = usePushRegistration();
+  const { enabled, busy, checking, msg, supported, toggle } = usePushRegistration();
 
   return (
     <View style={s.card}>
@@ -60,7 +97,7 @@ export default function PushSettings() {
         <Switch
           value={enabled}
           onValueChange={toggle}
-          disabled={busy || !supported}
+          disabled={busy || checking || !supported}
           trackColor={{ true: colors.primary, false: colors.gray }}
           thumbColor={enabled ? '#fff' : '#fff'}
         />

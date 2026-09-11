@@ -12,3 +12,11 @@ export function pushSupported() {
 export async function enableNotifications() {
   return { ok: false, reason: 'Les notifications push nécessitent l’application mobile.' };
 }
+
+export async function getPushState() {
+  return { supported: false, granted: false, subscribed: false, subscription: null };
+}
+
+export async function disableNotifications() {
+  return { ok: true, endpoint: null, token: null };
+}

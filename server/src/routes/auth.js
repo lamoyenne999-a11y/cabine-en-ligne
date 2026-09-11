@@ -1,8 +1,8 @@
 import { Router } from 'express';
 import { findOne, insert } from '../db.js';
 import { signToken, hashPassword, verifyPassword, requireAuth } from '../middleware/auth.js';
-import { subscriptionFor, applyReferral, referralInfoFor, recordEvent, registerPushToken, isPhoneBlocked } from '../services/flowService.js';
-import { registerWebPushSubscription } from '../services/pushService.js';
+import { subscriptionFor, applyReferral, referralInfoFor, recordEvent, registerPushToken, removePushToken, isPhoneBlocked } from '../services/flowService.js';
+import { registerWebPushSubscription, removeWebPushSubscription } from '../services/pushService.js';
 
 const router = Router();
 
@@ -94,6 +94,25 @@ router.post('/push-subscription', requireAuth, (req, res) => {
   try {
     const sub = registerWebPushSubscription(req.user.id, req.body?.subscription);
     res.status(201).json({ ok: true, subscription: sub });
+  } catch (e) {
+    res.status(e.status || 400).json({ error: e.message });
+  }
+});
+
+// POST /api/auth/push-subscription/remove — désactive les notifications :
+// retire l'abonnement Web Push de l'utilisateur (décision de l'utilisateur).
+router.post('/push-subscription/remove', requireAuth, (req, res) => {
+  try {
+    res.json(removeWebPushSubscription(req.user.id, req.body?.endpoint));
+  } catch (e) {
+    res.status(e.status || 400).json({ error: e.message });
+  }
+});
+
+// POST /api/auth/push-token/remove — retire un jeton Expo (app native) de l'utilisateur.
+router.post('/push-token/remove', requireAuth, (req, res) => {
+  try {
+    res.json(removePushToken(req.user.id, req.body?.token));
   } catch (e) {
     res.status(e.status || 400).json({ error: e.message });
   }

@@ -43,3 +43,31 @@ export async function enableNotifications() {
     return { ok: false, reason: e && e.message ? e.message : 'Impossible d’activer les notifications.' };
   }
 }
+
+// État réel des notifications sur l'appareil (source de vérité du commutateur).
+export async function getPushState() {
+  try {
+    if (!Device.isDevice) return { supported: false, granted: false, subscribed: false, subscription: null };
+    const perm = await Notifications.getPermissionsAsync();
+    const granted = perm.status === 'granted';
+    return { supported: true, granted, subscribed: granted, subscription: null };
+  } catch (e) {
+    return { supported: false, granted: false, subscribed: false, subscription: null };
+  }
+}
+
+// Désactivation volontaire : on ne peut pas révoquer la permission côté app,
+// mais on renvoie le jeton courant pour que le serveur le retire en base.
+export async function disableNotifications() {
+  try {
+    if (!Device.isDevice) return { ok: true, endpoint: null, token: null };
+    const projectId =
+      process.env.EXPO_PUBLIC_EAS_PROJECT_ID ||
+      Constants.expoConfig?.extra?.eas?.projectId ||
+      undefined;
+    const token = await Notifications.getExpoPushTokenAsync({ projectId });
+    return { ok: true, endpoint: null, token: token.data };
+  } catch (e) {
+    return { ok: true, endpoint: null, token: null };
+  }
+}
