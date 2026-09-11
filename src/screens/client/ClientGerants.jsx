@@ -89,35 +89,39 @@ export default function ClientGerants() {
       {/* Gérants à ajouter : inscrits sur l'app mais pas encore dans les
           contacts. Chaque ligne a un bouton « Ajouter » à l'endroit même où
           les gérants déjà ajoutés ont la poubelle (supprimer). */}
-      {suggested.length > 0 && (
-        <>
-          <T size={font.sm} weight="800" color={colors.primary} style={{ marginBottom: 6 }}>À ajouter (déjà inscrits sur l'app)</T>
-          {suggested.map((g) => (
-            <Card key={g.userId} style={{ marginBottom: space.sm, borderWidth: 1.5, borderColor: colors.primary }}>
-              <View style={{ flexDirection: 'row', alignItems: 'flex-start', justifyContent: 'space-between' }}>
-                <View style={{ flex: 1, paddingRight: 10 }}>
-                  <View style={{ flexDirection: 'row', alignItems: 'center', flexWrap: 'wrap' }}>
-                    <T size={font.body} weight="800" color={colors.text}>{g.name}</T>
-                    {g.certified ? (
-                      <View style={s.certBadge}>
-                        <Ionicons name="shield-checkmark" size={12} color="#fff" />
-                        <T size={font.xs} weight="800" color="#fff" style={{ marginLeft: 3 }}>Certifié</T>
-                      </View>
-                    ) : null}
-                  </View>
-                  <View style={{ flexDirection: 'row', alignItems: 'center', marginTop: 5 }}>
-                    <Ionicons name="call-outline" size={14} color={colors.primary} />
-                    <T size={font.sm} weight="600" color={colors.muted} style={{ marginLeft: 6 }}>{g.phone}</T>
-                  </View>
+      <T size={font.sm} weight="800" color={colors.primary} style={{ marginBottom: 6 }}>À ajouter (déjà inscrits sur l'app)</T>
+      {suggested.length > 0 ? (
+        suggested.map((g) => (
+          <Card key={g.userId} style={{ marginBottom: space.sm, borderWidth: 1.5, borderColor: colors.primary }}>
+            <View style={{ flexDirection: 'row', alignItems: 'flex-start', justifyContent: 'space-between' }}>
+              <View style={{ flex: 1, paddingRight: 10 }}>
+                <View style={{ flexDirection: 'row', alignItems: 'center', flexWrap: 'wrap' }}>
+                  <T size={font.body} weight="800" color={colors.text}>{g.name}</T>
+                  {g.certified ? (
+                    <View style={s.certBadge}>
+                      <Ionicons name="shield-checkmark" size={12} color="#fff" />
+                      <T size={font.xs} weight="800" color="#fff" style={{ marginLeft: 3 }}>Certifié</T>
+                    </View>
+                  ) : null}
                 </View>
-                <Pressable onPress={() => quickAdd(g)} style={s.addBtn}>
-                  <Ionicons name="add" size={16} color="#fff" />
-                  <T size={font.xs} weight="800" color="#fff" style={{ marginLeft: 4 }}>Ajouter</T>
-                </Pressable>
+                <View style={{ flexDirection: 'row', alignItems: 'center', marginTop: 5 }}>
+                  <Ionicons name="call-outline" size={14} color={colors.primary} />
+                  <T size={font.sm} weight="600" color={colors.muted} style={{ marginLeft: 6 }}>{g.phone}</T>
+                </View>
               </View>
-            </Card>
-          ))}
-        </>
+              <Pressable onPress={() => quickAdd(g)} style={s.addBtn}>
+                <Ionicons name="add" size={16} color="#fff" />
+                <T size={font.xs} weight="800" color="#fff" style={{ marginLeft: 4 }}>Ajouter</T>
+              </Pressable>
+            </View>
+          </Card>
+        ))
+      ) : (
+        <T size={font.xs} weight="600" color={colors.muted2} style={{ marginBottom: space.md }}>
+          {(state.availableGerants || []).length > 0
+            ? 'Tous les gérants inscrits sur l\'app sont déjà dans vos contacts. ✅'
+            : 'Aucun autre gérant inscrit sur l\'app pour le moment. Partagez votre lien : quand un gérant s\'inscrit, il apparaîtra ici avec un bouton « Ajouter ».'}
+        </T>
       )}
 
       {gerants.map((g) => (
