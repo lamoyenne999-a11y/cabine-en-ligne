@@ -125,10 +125,17 @@ export default function Admin({ onBack }) {
   const doDelete = async (user) => {
     setBusy(user.phone); setDeleteTarget(null);
     try {
-      setUsers((prev) => prev.filter((u) => u.phone !== user.phone));
-      const summary = await api.admin.summary(key);
-      setData(summary);
-    } catch (e) { setErr(e?.message || 'Erreur.'); }
+      // On appelle réellement le serveur : sans ça, le compte restait en base
+      // et réapparaissait dans la liste au prochain chargement.
+      const out = await api.admin.deleteAccount(key, user.phone);
+      if (out && out.removed) {
+        setUsers((prev) => prev.filter((u) => u.phone !== user.phone));
+        const summary = await api.admin.summary(key);
+        setData(summary);
+      } else {
+        setErr(out?.error || 'Suppression impossible (compte introuvable).');
+      }
+    } catch (e) { setErr(e?.message || 'Erreur de suppression.'); }
     finally { setBusy(null); }
   };
 

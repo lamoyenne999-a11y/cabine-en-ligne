@@ -304,6 +304,10 @@ export function deleteAccountAll(phone) {
   remove('notifications', (n) => n.userId === id);
   remove('subscriptions', (s) => s.userId === id);
   remove('referrals', (r) => r.referrerId === id || r.referredUserId === id);
+  // On retire aussi les abonnements push de ses appareils : plus aucune
+  // notification ne doit partir vers un compte supprimé.
+  remove('push_tokens', (t) => t.userId === id);
+  remove('push_subscriptions', (s) => s.userId === id);
   recordEvent({ type: 'user_deleted', name: u.name, phone: u.phone, role: u.role });
   return { removed: true, name: u.name, phone: u.phone, role: u.role };
 }
