@@ -40,11 +40,16 @@
   passe ou nouveau compte.
 
 ## Décision produit — paiement Wave (à ne PAS remettre en question)
-- **Le paiement par lien Wave a été retiré volontairement.** Raison : avec
-  Wave Business, le gérant se fait facturer 1 % sur ses services ; le client ne
-  peut pas compenser ces frais (Wave juge ça illogique), et le compte Wave
-  Business du gérant risque d'être **bloqué**. Ce serait néfaste pour le gérant
-  ET pour l'app.
-- **Règle en vigueur** : le client paie le gérant **directement** (numéro Wave
-  du gérant affiché, frais à la charge du client), hors app. Ne jamais
-  réintroduire un paiement par lien ni un passage automatique d'argent.
+- **Le paiement par lien Wave a été retiré volontairement et définitivement.**
+  Raison : avec Wave Business, le gérant se fait facturer 1 % sur ses services ;
+  le client ne peut pas compenser ces frais (Wave juge ça illogique), et le
+  compte Wave Business du gérant risque d'être **bloqué**. Ce serait néfaste
+  pour le gérant ET pour l'app.
+- **Modèle de paiement en vigueur (unique)** : le client **transfère
+  directement** le montant de sa demande au **numéro Wave PERSONNEL du gérant**
+  depuis sa propre app Wave. Les **frais Wave (1 % sur les transferts) sont à
+  la charge du CLIENT** ; le gérant reçoit ainsi **le montant exact** de la
+  demande sur son compte Wave personnel.
+- **Interdits** : réintroduire un lien de paiement marchand, un passage
+  automatique d'argent, ou toute solution où le gérant paierait des frais.
+- Terminologie : dire « Numéro Wave » (jamais « Wave marchand »).
