@@ -5,6 +5,7 @@ import { colors, radius, space, font } from '../theme';
 import { T, Card, Btn } from '../components/ui';
 import { Page } from '../components/Shell';
 import { PLATFORM_WAVE, PLATFORM_NAME, PLATFORM_PAY_LINK } from '../components/WavePay';
+import InstallGuide from '../components/InstallGuide';
 import { useStore } from '../store';
 
 const STEPS = [
@@ -36,6 +37,9 @@ export default function Help({ onBack }) {
             </View>
           </View>
         ))}
+
+        {/* Notice d'installation (Android + iPhone) — ajoutée dans « Comment ça marche » */}
+        <InstallGuide />
       </Card>
 
       <Card style={{ marginTop: space.lg }}>

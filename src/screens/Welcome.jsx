@@ -6,6 +6,7 @@ import { Ionicons } from '@expo/vector-icons';
 import { colors, font, radius, space } from '../theme';
 import { T } from '../components/ui';
 import Logo from '../components/Logo';
+import InstallGuide from '../components/InstallGuide';
 
 export default function Welcome({ onSelect, onAdmin }) {
   const [showHow, setShowHow] = useState(false);
@@ -65,6 +66,9 @@ export default function Welcome({ onSelect, onAdmin }) {
                 <T size={font.sm} weight="600" color={colors.muted} style={{ marginTop: 2 }}>Rapide, sans vous déplacer.</T>
               </View>
             </View>
+
+            {/* Notice d'installation (Android + iPhone) — ajoutée dans « Comment ça marche » */}
+            <InstallGuide />
           </View>
         )}
 
