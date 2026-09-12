@@ -823,7 +823,7 @@ export default function Admin({ onBack }) {
 
 const s = StyleSheet.create({
   input: { flexDirection: 'row', alignItems: 'center', backgroundColor: colors.bg, borderRadius: radius.md, paddingHorizontal: 14, height: 52 },
-  inputText: { flex: 1, fontSize: font.body, color: colors.text, paddingVertical: 0, outlineStyle: 'none' },
+  inputText: { flex: 1, fontSize: font.input, color: colors.text, paddingVertical: 0, outlineStyle: 'none' },
   // Barre de sections
   tabBar: { marginBottom: space.md },
   tabRow: { flexDirection: 'row', paddingBottom: 2 },
@@ -834,7 +834,7 @@ const s = StyleSheet.create({
   sumIcon: { width: 52, height: 52, borderRadius: 26, backgroundColor: colors.primarySoft, alignItems: 'center', justifyContent: 'center' },
   searchCard: { marginBottom: space.sm, paddingVertical: 8, paddingHorizontal: 14 },
   search: { flexDirection: 'row', alignItems: 'center', backgroundColor: colors.bg, borderRadius: radius.md, paddingHorizontal: 12, height: 46 },
-  searchInput: { flex: 1, fontSize: font.body, color: colors.text, paddingVertical: 0, outlineStyle: 'none', marginLeft: 8 },
+  searchInput: { flex: 1, fontSize: font.input, color: colors.text, paddingVertical: 0, outlineStyle: 'none', marginLeft: 8 },
   uRow: { paddingVertical: 10, paddingHorizontal: 4 },
   uDivider: { borderTopWidth: 1, borderTopColor: colors.border },
   uLine: { flexDirection: 'row', alignItems: 'center' },

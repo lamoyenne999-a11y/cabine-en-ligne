@@ -275,7 +275,7 @@ const s = StyleSheet.create({
   codeText: { fontSize: 26, fontWeight: '900', color: colors.primary, letterSpacing: 2 },
   copyBtn: { width: 40, height: 40, borderRadius: 12, backgroundColor: colors.primary, alignItems: 'center', justifyContent: 'center' },
   editRow: { flexDirection: 'row', alignItems: 'center', backgroundColor: colors.bg, borderRadius: radius.md, paddingHorizontal: 14, height: 52 },
-  editInput: { flex: 1, fontSize: font.body, color: colors.text, height: '100%', paddingVertical: 0, outlineStyle: 'none' },
+  editInput: { flex: 1, fontSize: font.input, color: colors.text, height: '100%', paddingVertical: 0, outlineStyle: 'none' },
   stat: { flex: 1, alignItems: 'center' },
   tierRow: { flexDirection: 'row', alignItems: 'center', paddingVertical: 12, borderTopWidth: 1, borderTopColor: colors.border },
   tierRowActive: { borderTopColor: colors.border },

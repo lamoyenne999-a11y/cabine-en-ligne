@@ -232,7 +232,7 @@ const s = StyleSheet.create({
   top: { paddingHorizontal: space.lg, paddingTop: space.md },
   list: { paddingHorizontal: space.lg, paddingBottom: 120 },
   search: { flexDirection: 'row', alignItems: 'center', backgroundColor: '#fff', borderRadius: radius.md, paddingHorizontal: 14, height: 50, marginBottom: space.md },
-  searchText: { flex: 1, marginLeft: 10, fontSize: font.body, color: colors.text, outlineStyle: 'none' },
+  searchText: { flex: 1, marginLeft: 10, fontSize: font.input, color: colors.text, outlineStyle: 'none' },
   linkRow: { flexDirection: 'row', alignItems: 'center', backgroundColor: colors.bg, borderRadius: radius.md, padding: 8 },
   linkText: { flex: 1, fontSize: font.xs, color: colors.primary, marginRight: 8 },
   copyBtn: { width: 40, height: 40, borderRadius: radius.sm, backgroundColor: colors.primary, alignItems: 'center', justifyContent: 'center' },

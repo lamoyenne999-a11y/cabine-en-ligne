@@ -204,7 +204,7 @@ const base = StyleSheet.create({
   },
   input: {
     flex: 1,
-    fontSize: font.body,
+    fontSize: font.input,
     color: colors.text,
     height: '100%',
     paddingVertical: 0,

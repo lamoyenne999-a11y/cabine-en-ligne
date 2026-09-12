@@ -321,7 +321,7 @@ const s = StyleSheet.create({
   typeCardOn: { backgroundColor: colors.primary, borderColor: colors.primary },
   typeIcon: { marginBottom: 8 },
   input: { flexDirection: 'row', alignItems: 'center', backgroundColor: colors.bg, borderRadius: radius.md, paddingHorizontal: 14, height: 52 },
-  inputText: { flex: 1, fontSize: font.body, color: colors.text, paddingVertical: 0, outlineStyle: 'none' },
+  inputText: { flex: 1, fontSize: font.input, color: colors.text, paddingVertical: 0, outlineStyle: 'none' },
   err: { borderWidth: 1.5, borderColor: colors.danger, backgroundColor: colors.dangerBg },
   errText: { marginTop: 6 },
   errBox: { flexDirection: 'row', alignItems: 'flex-start', backgroundColor: colors.dangerBg, borderRadius: radius.md, padding: 12, marginTop: space.lg },

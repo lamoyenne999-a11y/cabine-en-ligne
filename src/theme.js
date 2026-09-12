@@ -62,6 +62,9 @@ export const font = {
   body: 15,
   sm: 13,
   xs: 11,
+  // Taille minimale des champs de saisie (>= 16 px) : en dessous, iOS Safari
+  // fait un zoom automatique au focus du clavier. On fixe 16 pour l'éviter.
+  input: 16,
 };
 
 export const shadow = {

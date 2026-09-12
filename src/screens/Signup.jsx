@@ -113,5 +113,5 @@ const s = StyleSheet.create({
   error: { flexDirection: 'row', alignItems: 'center', backgroundColor: colors.dangerBg, borderRadius: radius.sm, padding: 10, marginBottom: space.md },
   signup: { alignItems: 'center', marginTop: 18 },
   refField: { flexDirection: 'row', alignItems: 'center', backgroundColor: colors.bg, borderRadius: radius.md, paddingHorizontal: 14, height: 52 },
-  refInput: { flex: 1, fontSize: font.body, color: colors.text, height: '100%', paddingVertical: 0, outlineStyle: 'none' },
+  refInput: { flex: 1, fontSize: font.input, color: colors.text, height: '100%', paddingVertical: 0, outlineStyle: 'none' },
 });

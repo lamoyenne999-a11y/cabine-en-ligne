@@ -206,7 +206,7 @@ const s = StyleSheet.create({
   sumCard: { marginBottom: space.lg, padding: space.lg },
   searchCard: { marginBottom: space.sm, paddingVertical: 8, paddingHorizontal: 14 },
   search: { flexDirection: 'row', alignItems: 'center', backgroundColor: colors.bg, borderRadius: radius.md, paddingHorizontal: 12, height: 46 },
-  searchInput: { flex: 1, fontSize: font.body, color: colors.text, paddingVertical: 0, outlineStyle: 'none', marginLeft: 8 },
+  searchInput: { flex: 1, fontSize: font.input, color: colors.text, paddingVertical: 0, outlineStyle: 'none', marginLeft: 8 },
   sumTop: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
   sumIcon: { width: 52, height: 52, borderRadius: 26, backgroundColor: colors.primarySoft, alignItems: 'center', justifyContent: 'center' },
   sumGrid: { flexDirection: 'row', justifyContent: 'space-between', marginTop: space.lg },
