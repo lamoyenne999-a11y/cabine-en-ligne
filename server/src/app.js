@@ -4,7 +4,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { config } from './config.js';
-import { initDb } from './db.js';
+import { initDb, dbHealth } from './db.js';
 import { wave } from './services/waveService.js';
 import authRoutes from './routes/auth.js';
 import clientRoutes from './routes/client.js';
@@ -30,6 +30,14 @@ export async function createApp(opts = {}) {
   app.use(express.json());
 
   app.get('/health', (req, res) => res.json({ status: 'ok', mode: config.waveMode }));
+
+  // Santé de la BASE de données (séparée de /health pour ne rien changer au
+  // healthCheckPath de Render). Réveille les bases en veille (Neon/Supabase)
+  // quand UptimeRobot la ping toutes les 5 minutes.
+  app.get('/health/db', async (req, res) => {
+    const h = await dbHealth();
+    res.status(h.ok ? 200 : 503).json(h);
+  });
 
   // Profils publics (liens de partage) — sans authentification
   app.use('/api/public', publicRoutes);

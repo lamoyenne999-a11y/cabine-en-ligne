@@ -144,7 +144,12 @@ export async function initDb() {
   if (db) return db;
   if (DATABASE_URL) {
     try {
-      pool = new Pool({ connectionString: DATABASE_URL, ssl: DATABASE_URL.includes('render') ? { rejectUnauthorized: false } : undefined });
+      // SSL requis par Render, Neon et Supabase (connexions chiffrées).
+      // rejectUnauthorized:false car ces plateformes servent souvent un
+      // certificat de pooler non vérifiable par le CA par défaut de Node.
+      // (Comportement Render strictement inchangé : il matche le premier cas.)
+      const needsSsl = /(render|neon\.tech|supabase)/i.test(DATABASE_URL);
+      pool = new Pool({ connectionString: DATABASE_URL, ssl: needsSsl ? { rejectUnauthorized: false } : undefined });
       await ensureSchema(pool);
       const loaded = await loadFromPg(pool);
       db = loaded && loaded.users ? resetStaleGerants(cleanupFakeGerants(normalize(loaded))) : seed();
@@ -221,4 +226,20 @@ export function dbStats() {
   let sizeBytes = 0;
   try { sizeBytes = Buffer.byteLength(JSON.stringify(d)); } catch { sizeBytes = 0; }
   return { counts, totalRecords, sizeBytes };
+}
+
+// Vérifie que la base répond réellement (SELECT 1). Sert à /health/db :
+// les moniteurs (UptimeRobot) peuvent ainsi réveiller les bases qui se mettent
+// en veille (Neon scale-to-zero, Supabase pause) et le propriétaire sait d'un
+// coup d'œil si la base est joignable. Ne touche à aucune donnée.
+export async function dbHealth() {
+  if (usingPg && pool) {
+    try {
+      await pool.query('SELECT 1');
+      return { db: 'postgres', ok: true };
+    } catch (e) {
+      return { db: 'postgres', ok: false, error: e.message };
+    }
+  }
+  return { db: 'json', ok: true };
 }
