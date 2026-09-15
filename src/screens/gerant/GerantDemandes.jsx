@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { View, Text, StyleSheet } from 'react-native';
+import { View, Text, Pressable, StyleSheet } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { colors, radius, space, font } from '../../theme';
 import { T, Btn, Card, Pill } from '../../components/ui';
@@ -13,6 +13,7 @@ const STATUS = {
   pending: { label: 'En attente', color: colors.warn, bg: colors.warnBg, icon: 'time' },
   accepted: { label: 'Acceptée', color: colors.primary, bg: colors.primarySoft, icon: 'checkmark-circle' },
   declined: { label: 'Refusée', color: colors.danger, bg: colors.dangerBg, icon: 'close-circle' },
+  unavailable: { label: 'Indisponible', color: colors.warn, bg: colors.warnBg, icon: 'moon' },
   paid: { label: 'Payée', color: '#2E7BF6', bg: '#E7F0FE', icon: 'wallet' },
   completed: { label: 'Complétée', color: colors.success, bg: colors.successBg, icon: 'checkmark-done' },
   canceled: { label: 'Annulée', color: colors.muted, bg: colors.gray, icon: 'close-circle-outline' },
@@ -22,8 +23,9 @@ const TYPE_ICON = { unites: 'phone-portrait-outline', minutes: 'call-outline', i
 const TYPE_LABEL = { unites: 'Unités', minutes: 'Minutes', internet: 'Internet', forfait: 'Appel + Internet' };
 
 export default function GerantDemandes() {
-  const { state, acceptDemande, declineDemande, completeDemande, receiveDemande, notReceiveDemande, partialDemande, subscribe } = useStore();
+  const { state, acceptDemande, declineDemande, unavailableDemande, completeDemande, receiveDemande, notReceiveDemande, partialDemande, subscribe } = useStore();
   const [confirm, setConfirm] = useState(null); // { id, action }
+  const [unavailReason, setUnavailReason] = useState('away');
   const [showSub, setShowSub] = useState(false);
   // L'inbox ne montre que les demandes qui ATTENDENT UNE ACTION du gérant :
   //  - 'pending'   : le client vient d'envoyer → accepter ou refuser.
@@ -43,6 +45,7 @@ export default function GerantDemandes() {
     else if (confirm.action === 'received') receiveDemande(confirm.id);
     else if (confirm.action === 'notreceived') notReceiveDemande(confirm.id);
     else if (confirm.action === 'partial') partialDemande(confirm.id);
+    else if (confirm.action === 'unavailable') unavailableDemande(confirm.id, unavailReason);
     setConfirm(null);
   };
 
@@ -124,10 +127,15 @@ export default function GerantDemandes() {
 
             {/* Étape 1 : accepter / refuser */}
             {isPending && (
-              <View style={s.actions}>
-                <Btn title="Refuser" icon="close" outline color={colors.danger} onPress={() => setConfirm({ id: d.id, action: 'decline' })} style={{ flex: 1, marginRight: 6 }} />
-                <Btn title="Accepter" icon="checkmark" onPress={() => setConfirm({ id: d.id, action: 'accept' })} style={{ flex: 1 }} />
-              </View>
+              <>
+                <View style={s.actions}>
+                  <Btn title="Refuser" icon="close" outline color={colors.danger} onPress={() => setConfirm({ id: d.id, action: 'decline' })} style={{ flex: 1, marginRight: 6 }} />
+                  <Btn title="Accepter" icon="checkmark" onPress={() => setConfirm({ id: d.id, action: 'accept' })} style={{ flex: 1 }} />
+                </View>
+                <View style={s.actions}>
+                  <Btn title="Je ne suis pas disponible" icon="moon-outline" outline color={colors.warn} onPress={() => { setUnavailReason('away'); setConfirm({ id: d.id, action: 'unavailable' }); }} style={{ flex: 1 }} />
+                </View>
+              </>
             )}
             {/* Étape 2 : confirmer l'argent reçu (dès qu'il arrive sur le Wave) */}
             {!d.moneyReceived && (isAccepted || isPaid || isCompleted) && (
@@ -148,7 +156,8 @@ export default function GerantDemandes() {
                 )}
                 {isPaid && (
                   <View style={s.actions}>
-                    <Btn title="Refuser la demande" icon="close-circle" outline color={colors.danger} onPress={() => setConfirm({ id: d.id, action: 'decline' })} style={{ flex: 1 }} />
+                    <Btn title="Pas disponible" icon="moon-outline" outline color={colors.warn} onPress={() => { setUnavailReason('away'); setConfirm({ id: d.id, action: 'unavailable' }); }} style={{ flex: 1, marginRight: 6 }} />
+                    <Btn title="Refuser" icon="close-circle" outline color={colors.danger} onPress={() => setConfirm({ id: d.id, action: 'decline' })} style={{ flex: 1 }} />
                   </View>
                 )}
               </>
@@ -170,7 +179,7 @@ export default function GerantDemandes() {
 
       <Dialog visible={!!confirm}>
         <T size={font.h3} weight="800" color={colors.text} style={{ textAlign: 'center' }}>
-          {confirm?.action === 'accept' ? 'Accepter la demande' : confirm?.action === 'decline' ? 'Refuser la demande' : confirm?.action === 'received' ? "Confirmer l'argent reçu" : confirm?.action === 'notreceived' ? 'Argent non reçu' : confirm?.action === 'partial' ? 'Montant incomplet' : 'Confirmer le service'}
+          {confirm?.action === 'accept' ? 'Accepter la demande' : confirm?.action === 'decline' ? 'Refuser la demande' : confirm?.action === 'received' ? "Confirmer l'argent reçu" : confirm?.action === 'notreceived' ? 'Argent non reçu' : confirm?.action === 'partial' ? 'Montant incomplet' : confirm?.action === 'unavailable' ? 'Je ne suis pas disponible' : 'Confirmer le service'}
         </T>
         <T size={font.sm} weight="600" color={colors.muted} style={{ textAlign: 'center', marginTop: 6, marginBottom: 6 }}>
           {(() => {
@@ -182,6 +191,12 @@ export default function GerantDemandes() {
                 : 'La demande sera signalée comme refusée.';
             }
             const cur = demandes.find((d) => d.id === confirm?.id) || {};
+            if (confirm?.action === 'unavailable') {
+              const wasPaid = cur.status === 'paid';
+              return wasPaid
+                ? 'Le client a déjà payé : il sera informé que vous n\'êtes pas disponible et que le montant doit lui être remboursé (par Wave). Vous passerez « Hors ligne » pour les clients.'
+                : 'Le client sera informé que vous n\'êtes pas disponible (ce n\'est pas un refus) et invité à choisir un autre gérant. Vous passerez « Hors ligne » ; remettez-vous en ligne depuis votre Profil.';
+            }
             if (confirm?.action === 'partial') return `Vous avez reçu moins que ${fmt(cur.amount)} XOF (souvent ${fmt(Math.round((cur.amount || 0) * 0.99))} XOF : frais Wave 1 % déduits). Le client sera notifié et invité à compléter ${fmt(Math.ceil((cur.amount || 0) * 0.01))} XOF.`;
             if (confirm?.action === 'notreceived') return `Vous n'avez PAS reçu ${fmt(cur.amount)} XOF de ${cur.clientName || 'ce client'} ? Il sera notifié immédiatement et invité à vérifier son transfert Wave. La demande repassera « à payer ».`;
             if (confirm?.action === 'received') return `Vous confirmez avoir reçu ${fmt(cur.amount)} XOF de ${cur.clientName || 'ce client'} sur votre Wave ? Le client sera notifié.`;
@@ -190,7 +205,20 @@ export default function GerantDemandes() {
               : "Vous avez crédité le client sans avoir encore reçu l'argent ? Il sera notifié qu'il doit encore régler. Vous pourrez confirmer la réception plus tard.";
           })()}
         </T>
-        <DialogButtons cancel="Annuler" confirm="Confirmer" onCancel={() => setConfirm(null)} onConfirm={doAction} />
+        {confirm?.action === 'unavailable' && (
+          <View style={{ marginTop: 6, marginBottom: 4 }}>
+            {[{ v: 'away', l: 'Je ne suis pas à la cabine' }, { v: 'nomaterial', l: "Je n'ai pas mon matériel" }, { v: 'later', l: 'Indisponible pour le moment' }].map((r) => {
+              const on = unavailReason === r.v;
+              return (
+                <Pressable key={r.v} onPress={() => setUnavailReason(r.v)} style={[s.reasonRow, on && s.reasonRowOn]}>
+                  <Ionicons name={on ? 'radio-button-on' : 'radio-button-off'} size={18} color={on ? colors.primary : colors.muted2} />
+                  <T size={font.sm} weight={on ? '800' : '600'} color={on ? colors.primary : colors.text} style={{ marginLeft: 8 }}>{r.l}</T>
+                </Pressable>
+              );
+            })}
+          </View>
+        )}
+        <DialogButtons cancel="Annuler" confirm={confirm?.action === 'unavailable' ? 'Prévenir le client' : 'Confirmer'} onCancel={() => setConfirm(null)} onConfirm={doAction} />
       </Dialog>
 
       <SubscribeSheet visible={showSub} onClose={() => setShowSub(false)} onSubscribe={(plan) => subscribe(plan)} subtitle="Paiement direct via Wave. Renouvelable à tout moment." />
@@ -202,6 +230,8 @@ const s = StyleSheet.create({
   icon: { width: 46, height: 46, borderRadius: 23, alignItems: 'center', justifyContent: 'center' },
   infoRow: { flexDirection: 'row', justifyContent: 'space-between', paddingVertical: 12, marginTop: 4, borderTopWidth: 1, borderTopColor: colors.border },
   actions: { flexDirection: 'row', marginTop: space.md },
+  reasonRow: { flexDirection: 'row', alignItems: 'center', paddingVertical: 9, paddingHorizontal: 10, borderRadius: radius.md },
+  reasonRowOn: { backgroundColor: colors.primarySoft },
   payState: { flexDirection: 'row', alignItems: 'center', borderRadius: radius.md, padding: 10, marginTop: 12 },
   paidBox: { flexDirection: 'row', alignItems: 'center', backgroundColor: '#E7F0FE', borderRadius: radius.md, padding: 12, marginTop: 12 },
 });

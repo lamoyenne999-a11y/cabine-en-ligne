@@ -322,6 +322,12 @@ export function setUserFrozen(phone, frozen) {
   return { ok: true, phone: u.phone, name: u.name, role: u.role, frozen: !!frozen };
 }
 
+// Disponibilité du gérant (En ligne / Hors ligne), visible par les clients.
+export function setGerantAvailability(userId, available) {
+  update('users', (x) => x.id === userId, { available: !!available, availableChangedAt: Date.now() });
+  return { available: !!available };
+}
+
 // Certification d'un gérant : badge « Certifié » visible par les clients.
 export function setUserCertified(phone, certified) {
   const u = findOne('users', (x) => x.phone === String(phone).trim());
@@ -554,7 +560,7 @@ export function unreadCount(userId) {
 export function createNotification({ userId, type, text, demandeId }) {
   const n = insert('notifications', {
     userId,
-    type,             // 'new_demande' | 'demande_accepted' | 'demande_declined' | 'demande_canceled' | 'demande_paid' | 'demande_received' | 'demande_not_received' | 'demande_partial' | 'client_completed' | 'client_says_full' | 'client_not_served' | 'client_confirmed' | 'demande_served_unpaid' | 'demande_completed'
+    type,             // 'new_demande' | 'demande_accepted' | 'demande_declined' | 'demande_unavailable' | 'demande_canceled' | 'demande_paid' | 'demande_received' | 'demande_not_received' | 'demande_partial' | 'client_completed' | 'client_says_full' | 'client_not_served' | 'client_confirmed' | 'demande_served_unpaid' | 'demande_completed'
     text,
     demandeId: demandeId || '',
     read: false,
@@ -649,7 +655,7 @@ export function gerantsFor(clientId) {
     if (g.userId) {
       const u = findOne('users', (x) => x.id === g.userId);
       if (u) {
-        return { ...g, waveNumber: u.waveNumber || g.waveNumber, payLink: u.payLink || g.payLink || '', suspended: !!u.frozen, certified: !!u.certified };
+        return { ...g, waveNumber: u.waveNumber || g.waveNumber, payLink: u.payLink || g.payLink || '', suspended: !!u.frozen, certified: !!u.certified, online: u.available !== false };
       }
     }
     return g;
@@ -666,7 +672,7 @@ export function availableGerants(clientId) {
   return find('users', (u) => u.role === 'gerant' && u.passwordHash && !u.frozen)
     .map((u) => ({
       userId: u.id, name: u.name, phone: u.phone, waveNumber: u.waveNumber || u.phone, payLink: u.payLink || '',
-      alreadyAdded: added.includes(u.id),
+      alreadyAdded: added.includes(u.id), online: u.available !== false,
       // "Certifié" : badge attribué UNIQUEMENT par le propriétaire (Espace propriétaire).
       certified: !!u.certified,
     }))
@@ -708,6 +714,7 @@ export function gerantProfile(user) {
     phone: user.phone,
     waveNumber: user.waveNumber,
     payLink: user.payLink || '',
+    available: user.available !== false,
   };
 }
 
@@ -794,7 +801,7 @@ export function createDemande({ client, gerantId, gerantUserId, type, amount, be
     amount: parseInt(amount, 10),
     benefName: benefName || client.name,
     benefPhone: benefPhone || client.phone,
-    status: 'pending',           // pending | accepted | declined | paid | completed | canceled
+    status: 'pending',           // pending | accepted | declined | unavailable | paid | completed | canceled
     moneyReceived: false,        // true quand le GÉRANT confirme avoir reçu l'argent (receivedAt)
     createdAt: Date.now(),
     expiresAt: Date.now() + config.demandeExpireMs,
@@ -817,7 +824,7 @@ export function demandesForGerant(userId) {
 
 // ---- Résumé / historique (v2 : on suit les demandes, pas d'argent stocké) ----
 export function demandeSummary(demandes) {
-  const counts = { pending: 0, accepted: 0, declined: 0, paid: 0, completed: 0, canceled: 0 };
+  const counts = { pending: 0, accepted: 0, declined: 0, unavailable: 0, paid: 0, completed: 0, canceled: 0 };
   let totalSpent = 0; // somme payée par le client (paid + completed)
   let totalServed = 0; // somme servie par le gérant (completed)
   let totalReceived = 0; // somme dont le gérant a CONFIRMÉ la réception
@@ -866,7 +873,7 @@ export function cancelDemande({ id, clientId }) {
   return updated;
 }
 
-export function decideDemande({ id, gerantUserId, decision }) {
+export function decideDemande({ id, gerantUserId, decision, reason }) {
   const d = findOne('demandes', (x) => x.id === id && x.gerantUserId === gerantUserId);
   if (!d) throw Object.assign(new Error('Demande introuvable'), { status: 404 });
   // Le gérant doit avoir un abonnement valide pour traiter (accepter/refuser) les demandes.
@@ -876,6 +883,26 @@ export function decideDemande({ id, gerantUserId, decision }) {
   }
   if (g && !serviceAllowed(subscriptionFor(g))) {
     throw Object.assign(new Error('Votre abonnement a expiré. Renouvelez-le pour continuer à traiter les demandes.'), { status: 403 });
+  }
+  if (decision === 'unavailable') {
+    // Le gérant n'est PAS DISPONIBLE (pas à la cabine / pas de matériel) : ce n'est
+    // pas un refus. Le client est invité à choisir un autre gérant. Si le client
+    // avait déjà payé, on lui rappelle que le montant doit être remboursé.
+    if (!['pending', 'paid'].includes(d.status)) throw Object.assign(new Error('Demande déjà traitée'), { status: 400 });
+    const wasPaid = d.status === 'paid';
+    const REASONS = { away: 'pas à la cabine actuellement', nomaterial: 'sans son matériel pour le moment', later: 'indisponible pour le moment' };
+    const why = REASONS[reason] || REASONS.later;
+    update('demandes', (x) => x.id === id, { status: 'unavailable', unavailableReason: reason || 'later', acceptedAt: Date.now() });
+    // Le gérant passe « hors ligne » pour les clients (il peut se remettre en ligne depuis son profil).
+    update('users', (x) => x.id === gerantUserId, { available: false, availableChangedAt: Date.now() });
+    const upd = findOne('demandes', (x) => x.id === id);
+    if (upd && upd.clientId) createNotification({
+      userId: upd.clientId, type: 'demande_unavailable', demandeId: upd.id,
+      text: wasPaid
+        ? `${upd.gerantName} n'est pas disponible (${why}) et ne peut pas traiter votre demande ${TYPE_LABEL[upd.type] || upd.type} ${upd.amount} F. Vous aviez déjà payé : le montant doit vous être remboursé par Wave. Contactez-le, ou renvoyez votre demande à un autre gérant.`
+        : `${upd.gerantName} n'est pas disponible (${why}) et ne peut pas traiter votre demande ${TYPE_LABEL[upd.type] || upd.type} ${upd.amount} F. Ce n'est pas un refus : renvoyez simplement votre demande à un autre gérant en ligne.`,
+    });
+    return upd;
   }
   if (decision === 'decline') {
     // Le gérant peut refuser UNE DEMANDE EN ATTENTE OU DÉJÀ PAYÉE.

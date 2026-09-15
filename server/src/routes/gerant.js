@@ -1,6 +1,7 @@
 import { Router } from 'express';
+import { findOne } from '../db.js';
 import { requireAuth, requireRole } from '../middleware/auth.js';
-import { demandesForGerant, gerantHistory, demandeSummary, decideDemande, markCompleted, markReceived, markNotReceived, markPartial, subscriptionFor, paySubscription, publicProfile, gerantProfile, updateGerantProfile, notificationsFor, unreadCount, markNotificationRead, markAllNotificationsRead } from '../services/flowService.js';
+import { demandesForGerant, gerantHistory, demandeSummary, decideDemande, markCompleted, markReceived, markNotReceived, markPartial, setGerantAvailability, subscriptionFor, paySubscription, publicProfile, gerantProfile, updateGerantProfile, notificationsFor, unreadCount, markNotificationRead, markAllNotificationsRead } from '../services/flowService.js';
 
 const router = Router();
 router.use(requireAuth, requireRole('gerant'));
@@ -16,6 +17,18 @@ router.get('/history', (req, res) => res.json(gerantHistory(req.user.id)));
 
 router.post('/demandes/:id/accept', (req, res) => {
   res.json({ demande: decideDemande({ id: req.params.id, gerantUserId: req.user.id, decision: 'accept' }) });
+});
+
+// Le gérant n'est pas disponible (pas à la cabine / pas de matériel). Body : { reason }
+router.post('/demandes/:id/unavailable', (req, res) => {
+  res.json({ demande: decideDemande({ id: req.params.id, gerantUserId: req.user.id, decision: 'unavailable', reason: req.body?.reason }) });
+});
+
+// Disponibilité En ligne / Hors ligne (profil). Body : { available }
+router.post('/availability', (req, res) => {
+  const out = setGerantAvailability(req.user.id, !!req.body?.available);
+  const fresh = findOne('users', (u) => u.id === req.user.id);
+  res.json({ ...out, user: gerantProfile(fresh || req.user) });
 });
 
 router.post('/demandes/:id/decline', (req, res) => {

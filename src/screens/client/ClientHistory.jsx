@@ -32,6 +32,7 @@ const STATUS = {
   pending: { label: 'En attente', color: colors.warn, bg: colors.warnBg, icon: 'time' },
   accepted: { label: 'À payer', color: colors.primary, bg: colors.primarySoft, icon: 'card' },
   declined: { label: 'Refusée', color: colors.danger, bg: colors.dangerBg, icon: 'close-circle' },
+  unavailable: { label: 'Gérant indisponible', color: colors.warn, bg: colors.warnBg, icon: 'moon' },
   paid: { label: 'Payée', color: '#2E7BF6', bg: '#E7F0FE', icon: 'wallet' },
   completed: { label: 'Complétée', color: colors.success, bg: colors.successBg, icon: 'checkmark-circle' },
   canceled: { label: 'Annulée', color: colors.muted, bg: colors.gray, icon: 'close-circle-outline' },
@@ -42,7 +43,7 @@ const TYPE_LABEL = { unites: 'Unités', minutes: 'Minutes', internet: 'Internet'
 const CREDIT_LABEL = { unites: 'vos unités', minutes: 'vos minutes', internet: 'vos données internet', forfait: 'votre rechargement Appel + Internet' };
 
 function summarize(demandes) {
-  const counts = { pending: 0, accepted: 0, declined: 0, paid: 0, completed: 0, canceled: 0 };
+  const counts = { pending: 0, accepted: 0, declined: 0, unavailable: 0, paid: 0, completed: 0, canceled: 0 };
   let totalSpent = 0, totalServed = 0;
   (demandes || []).forEach((d) => {
     if (counts[d.status] !== undefined) counts[d.status] += 1;
@@ -92,12 +93,13 @@ export default function ClientHistory() {
     { value: 'pending', label: `En attente (${sum.counts.pending})` },
     { value: 'accepted', label: `À payer (${sum.counts.accepted})` },
     { value: 'treated', label: `Traitées (${sum.counts.paid + sum.counts.completed})` },
-    { value: 'declined', label: `Refusées (${sum.counts.declined})` },
+    { value: 'declined', label: `Refusées (${sum.counts.declined + sum.counts.unavailable})` },
     { value: 'canceled', label: `Annulées (${sum.counts.canceled})` },
   ];
   const inGroup = (d) => {
     if (group === 'all') return true;
     if (group === 'treated') return ['paid', 'completed'].includes(d.status);
+    if (group === 'declined') return ['declined', 'unavailable'].includes(d.status);
     return d.status === group;
   };
   const filtered = demandes.filter(inGroup);
@@ -245,6 +247,14 @@ export default function ClientHistory() {
               <T size={font.sm} weight="600" color={colors.muted} style={{ marginTop: 12, textAlign: 'center' }}>
                 Le gérant a refusé. Essayez un autre gérant.
               </T>
+            )}
+            {d.status === 'unavailable' && (
+              <View style={[s.timerBox, { backgroundColor: colors.warnBg }]}>
+                <Ionicons name="moon" size={16} color={colors.warn} />
+                <T size={font.sm} weight="700" color={colors.warn} style={{ marginLeft: 8, flex: 1 }}>
+                  {d.gerantName} n'est pas disponible ({({ away: 'pas à la cabine', nomaterial: 'sans son matériel', later: 'pour le moment' })[d.unavailableReason] || 'pour le moment'}). Ce n'est pas un refus : renvoyez votre demande à un autre gérant en ligne.{d.paidAt ? ' Vous aviez payé : le montant doit vous être remboursé par Wave.' : ''}
+                </T>
+              </View>
             )}
             {/* Montant incomplet signalé par le gérant : compléter ou affirmer avoir tout payé */}
             {d.partialAt && !d.moneyReceived && ['paid', 'accepted', 'completed'].includes(d.status) && (

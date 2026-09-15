@@ -10,6 +10,7 @@ const STATUS = {
   pending: { label: 'En attente', color: colors.warn, bg: colors.warnBg, icon: 'time' },
   accepted: { label: 'Acceptée', color: colors.primary, bg: colors.primarySoft, icon: 'checkmark-circle' },
   declined: { label: 'Refusée', color: colors.danger, bg: colors.dangerBg, icon: 'close-circle' },
+  unavailable: { label: 'Gérant indisponible', color: colors.warn, bg: colors.warnBg, icon: 'moon' },
   paid: { label: 'Payée', color: '#2E7BF6', bg: '#E7F0FE', icon: 'wallet' },
   completed: { label: 'Complétée', color: colors.success, bg: colors.successBg, icon: 'checkmark-done' },
   canceled: { label: 'Annulée', color: colors.muted, bg: colors.gray, icon: 'close-circle-outline' },
@@ -19,7 +20,7 @@ const TYPE_ICON = { unites: 'phone-portrait-outline', minutes: 'call-outline', i
 const TYPE_LABEL = { unites: 'Unités', minutes: 'Minutes', internet: 'Internet', forfait: 'Appel + Internet' };
 
 function summarize(demandes) {
-  const counts = { pending: 0, accepted: 0, declined: 0, paid: 0, completed: 0, canceled: 0 };
+  const counts = { pending: 0, accepted: 0, declined: 0, unavailable: 0, paid: 0, completed: 0, canceled: 0 };
   let totalSpent = 0, totalServed = 0;
   (demandes || []).forEach((d) => {
     if (counts[d.status] !== undefined) counts[d.status] += 1;
@@ -62,13 +63,14 @@ export default function GerantHistory() {
     { value: 'pending', label: `En attente (${sum.counts.pending})` },
     { value: 'treated', label: `Traitées (${sum.counts.completed + sum.counts.paid + sum.counts.accepted})` },
     { value: 'unpaid', label: `À encaisser (${demandes.filter((d) => d.status === 'completed' && !d.moneyReceived).length})` },
-    { value: 'declined', label: `Refusées (${sum.counts.declined})` },
+    { value: 'declined', label: `Refusées / indispo (${sum.counts.declined + sum.counts.unavailable})` },
     { value: 'canceled', label: `Annulées (${sum.counts.canceled})` },
   ];
   const inGroup = (d) => {
     if (group === 'all') return true;
     if (group === 'treated') return ['accepted', 'paid', 'completed'].includes(d.status);
     if (group === 'unpaid') return d.status === 'completed' && !d.moneyReceived;
+    if (group === 'declined') return ['declined', 'unavailable'].includes(d.status);
     return d.status === group;
   };
   const filtered = demandes.filter(inGroup);
@@ -174,6 +176,7 @@ export default function GerantHistory() {
                   paid: d.notServedAt ? `⚠️ Le client dit ne pas avoir reçu sa recharge — à re-servir (voir Demandes).` : d.moneyReceived ? `Argent reçu (${money(d.amount)}) — reste à servir le client.` : `Le client déclare avoir payé ${money(d.amount)} — réception à confirmer.`,
                   completed: d.clientConfirmedAt ? `✅ Le client a confirmé avoir reçu sa recharge${d.moneyReceived ? ' — réglée.' : ' — paiement encore à encaisser.'}` : d.moneyReceived ? `Réglée : ${money(d.amount)} reçus sur votre Wave, client servi.` : `Client servi, paiement de ${money(d.amount)} PAS ENCORE reçu.`,
                   declined: 'Vous avez refusé cette demande.',
+                  unavailable: 'Vous n\'étiez pas disponible : le client a été invité à choisir un autre gérant.',
                   canceled: 'Le client a annulé cette demande.',
                 }[d.status] || 'Payé en direct via Wave.'
               )}

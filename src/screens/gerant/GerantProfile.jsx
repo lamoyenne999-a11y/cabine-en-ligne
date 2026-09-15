@@ -12,7 +12,8 @@ import Help from '../Help';
 import Referral from '../Referral';
 
 export default function GerantProfile({ onLogout }) {
-  const { state, subscribe } = useStore();
+  const { state, subscribe, setAvailability } = useStore();
+  const isAvailable = state.user?.available !== false;
   const u = state.user;
   const sub = state.subscription;
   const [showSub, setShowSub] = useState(false);
@@ -60,6 +61,29 @@ export default function GerantProfile({ onLogout }) {
         {subStatus !== 'active' && (
           <Pressable onPress={() => setShowSub(true)} style={s.subBtn}><T size={font.sm} weight="800" color="#fff">S'abonner — 200 FCFA/mois ou 2000 FCFA/an</T></Pressable>
         )}
+      </Card>
+
+      {/* Disponibilité : visible par les clients (En ligne / Hors ligne) */}
+      <Card style={{ marginTop: space.lg, backgroundColor: isAvailable ? colors.successBg : colors.warnBg }}>
+        <View style={{ flexDirection: 'row', alignItems: 'center' }}>
+          <View style={[s.availDot, { backgroundColor: isAvailable ? colors.success : colors.warn }]} />
+          <View style={{ flex: 1, marginLeft: 12 }}>
+            <T size={font.h3} weight="800" color={colors.text}>{isAvailable ? 'Vous êtes En ligne' : 'Vous êtes Hors ligne'}</T>
+            <T size={font.xs} weight="600" color={colors.muted} style={{ marginTop: 2 }}>
+              {isAvailable
+                ? 'Les clients vous voient disponible et peuvent vous envoyer des demandes.'
+                : 'Les clients vous voient « Hors ligne ». Remettez-vous en ligne quand vous êtes à la cabine avec votre matériel.'}
+            </T>
+          </View>
+        </View>
+        <Btn
+          title={isAvailable ? 'Passer Hors ligne' : 'Me remettre En ligne'}
+          icon={isAvailable ? 'moon-outline' : 'sunny-outline'}
+          color={isAvailable ? colors.warn : colors.success}
+          outline={isAvailable}
+          onPress={() => setAvailability(!isAvailable)}
+          style={{ marginTop: space.md }}
+        />
       </Card>
 
       {/* Confirmation de paiement de l'abonnement + période de validité */}
@@ -156,6 +180,7 @@ export default function GerantProfile({ onLogout }) {
 }
 
 const s = StyleSheet.create({
+  availDot: { width: 14, height: 14, borderRadius: 7 },
   avatar: { width: 84, height: 84, borderRadius: 42, backgroundColor: colors.primary, alignItems: 'center', justifyContent: 'center' },
   subBtn: { backgroundColor: colors.primary, paddingHorizontal: 20, paddingVertical: 10, borderRadius: radius.pill, marginTop: 14 },
   paidIcon: { width: 48, height: 48, borderRadius: 24, backgroundColor: '#fff', alignItems: 'center', justifyContent: 'center' },

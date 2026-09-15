@@ -239,6 +239,20 @@ async function main() {
     console.log('  (tests admin ignorés : ADMIN_KEY non défini)');
   }
 
+  // ===== Gérant indisponible (pas un refus) =====
+  const dmU2 = await req('POST', '/client/demandes', { gerantId, gerantName: 'Gérant Test', gerantWave: gphone, type: 'unites', amount: 300, benefName: 'Awa', benefPhone: '07' + uniq }, ct);
+  const unavailId = dmU2.json.demande?.id;
+  const un = await req('POST', `/gerant/demandes/${unavailId}/unavailable`, { reason: 'away' }, gt);
+  check('Gérant signale « pas disponible »', un.status === 200 && un.json.demande?.status === 'unavailable' && un.json.demande?.unavailableReason === 'away');
+  const cnu = await req('GET', '/client/notifications', null, ct);
+  check('Client notifié « gérant indisponible »', (cnu.json.notifications || []).some((n) => n.type === 'demande_unavailable' && n.demandeId === unavailId));
+  const gp = await req('GET', '/gerant/profile', null, gt);
+  check('Gérant passé Hors ligne automatiquement', gp.json.user?.available === false);
+  const avU = await req('GET', '/client/gerants/available', null, ct);
+  check('Client voit le gérant hors ligne', (avU.json.gerants || []).some((g) => g.phone === gphone && g.online === false));
+  const back = await req('POST', '/gerant/availability', { available: true }, gt);
+  check('Gérant se remet En ligne', back.status === 200 && back.json.available === true);
+
   // ===== Paiement AVANT acceptation (le client paie directement, gérant n'a pas encore répondu) =====
   const dm2 = await req('POST', '/client/demandes', {
     gerantId, gerantName: 'Gérant Test', gerantWave: gphone,

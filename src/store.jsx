@@ -98,6 +98,8 @@ function reducer(state, action) {
       return { ...state, gerantDemandes: action.payload };
     case 'GERANT_UPDATE_DEMANDE':
       return { ...state, gerantDemandes: state.gerantDemandes.map((d) => (d.id === action.payload.id ? { ...d, ...action.payload } : d)) };
+    case 'SET_USER_PATCH':
+      return { ...state, user: state.user ? { ...state.user, ...action.payload } : state.user };
     case 'GERANT_NOT_RECEIVED_DEMANDE':
       return { ...state, gerantDemandes: state.gerantDemandes.map((d) => (d.id === action.payload ? { ...d, moneyReceived: false, notReceivedAt: Date.now(), status: d.status === 'paid' ? 'accepted' : d.status } : d)) };
     case 'GERANT_RECEIVED_DEMANDE':
@@ -241,12 +243,14 @@ export function StoreProvider({ children }) {
         if (av) dispatch({ type: 'SET_AVAILABLE_GERANTS', payload: av.gerants });
         if (n) dispatch({ type: 'SET_CLIENT_NOTIFICATIONS', payload: n });
       } else if (state.role === 'gerant') {
-        const [d, n] = await Promise.all([
+        const [d, n, p] = await Promise.all([
           api.gerant.demandes().catch(safe),
           api.gerant.notifications().catch(safe),
+          api.gerant.profile().catch(safe),
         ]);
         if (d) dispatch({ type: 'SET_GERANT_DEMANDES', payload: d.demandes });
         if (n) dispatch({ type: 'SET_NOTIFICATIONS', payload: n });
+        if (p && p.user) dispatch({ type: 'SET_GERANT_PROFILE', payload: { available: p.user.available } });
       }
     } catch (e) { safe(e); }
   }, [online, state.role, state.loggedIn]);
@@ -312,6 +316,19 @@ export function StoreProvider({ children }) {
   const declineDemande = useCallback(async (id) => {
     dispatch({ type: 'GERANT_UPDATE_DEMANDE', payload: { id, status: 'declined' } });
     if (online) { try { await api.gerant.decline(id); } catch {} }
+  }, [online]);
+
+  // Le gérant n'est pas disponible : la demande passe « indisponible », le client est invité à choisir un autre gérant.
+  const unavailableDemande = useCallback(async (id, reason) => {
+    dispatch({ type: 'GERANT_UPDATE_DEMANDE', payload: { id, status: 'unavailable', unavailableReason: reason } });
+    dispatch({ type: 'SET_USER_PATCH', payload: { available: false } });
+    if (online) { try { await api.gerant.unavailable(id, reason); } catch {} }
+  }, [online]);
+
+  // Disponibilité En ligne / Hors ligne du gérant.
+  const setAvailability = useCallback(async (available) => {
+    dispatch({ type: 'SET_USER_PATCH', payload: { available: !!available } });
+    if (online) { try { await api.gerant.setAvailability(available); } catch {} }
   }, [online]);
 
   const completeDemande = useCallback(async (id) => {
@@ -471,8 +488,8 @@ export function StoreProvider({ children }) {
   }, [state.role]);
 
   const value = useMemo(
-    () => ({ state, dispatch, online, checking, recheck: probe, login, register, logout, refresh, addGerant, removeGerant, createDemande, markPaid, cancelDemande, acceptDemande, declineDemande, completeDemande, receiveDemande, notReceiveDemande, partialDemande, paymentReply, notServedDemande, confirmServedDemande, subscribe, updateGerantProfile, registerPushToken, registerPushSubscription, unregisterPushSubscription, unregisterPushToken, loadNotifications, markNotificationRead, markAllNotificationsRead, loadClientNotifications, markClientNotificationRead, markAllClientNotificationsRead, loadReferral, updateReferralCode }),
-    [state, online, checking, probe, login, register, logout, refresh, addGerant, removeGerant, createDemande, markPaid, cancelDemande, acceptDemande, declineDemande, completeDemande, receiveDemande, notReceiveDemande, partialDemande, paymentReply, notServedDemande, confirmServedDemande, subscribe, updateGerantProfile, registerPushToken, registerPushSubscription, unregisterPushSubscription, unregisterPushToken, loadNotifications, markNotificationRead, markAllNotificationsRead, loadClientNotifications, markClientNotificationRead, markAllClientNotificationsRead, loadReferral, updateReferralCode],
+    () => ({ state, dispatch, online, checking, recheck: probe, login, register, logout, refresh, addGerant, removeGerant, createDemande, markPaid, cancelDemande, acceptDemande, declineDemande, unavailableDemande, setAvailability, completeDemande, receiveDemande, notReceiveDemande, partialDemande, paymentReply, notServedDemande, confirmServedDemande, subscribe, updateGerantProfile, registerPushToken, registerPushSubscription, unregisterPushSubscription, unregisterPushToken, loadNotifications, markNotificationRead, markAllNotificationsRead, loadClientNotifications, markClientNotificationRead, markAllClientNotificationsRead, loadReferral, updateReferralCode }),
+    [state, online, checking, probe, login, register, logout, refresh, addGerant, removeGerant, createDemande, markPaid, cancelDemande, acceptDemande, declineDemande, unavailableDemande, setAvailability, completeDemande, receiveDemande, notReceiveDemande, partialDemande, paymentReply, notServedDemande, confirmServedDemande, subscribe, updateGerantProfile, registerPushToken, registerPushSubscription, unregisterPushSubscription, unregisterPushToken, loadNotifications, markNotificationRead, markAllNotificationsRead, loadClientNotifications, markClientNotificationRead, markAllClientNotificationsRead, loadReferral, updateReferralCode],
   );
   return <Ctx.Provider value={value}>{children}</Ctx.Provider>;
 }
