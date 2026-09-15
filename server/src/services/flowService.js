@@ -322,6 +322,55 @@ export function setUserFrozen(phone, frozen) {
   return { ok: true, phone: u.phone, name: u.name, role: u.role, frozen: !!frozen };
 }
 
+// Certification d'un gérant : badge « Certifié » visible par les clients.
+export function setUserCertified(phone, certified) {
+  const u = findOne('users', (x) => x.phone === String(phone).trim());
+  if (!u) return { ok: false, error: 'Compte introuvable' };
+  if (u.role !== 'gerant') return { ok: false, error: 'Seul un gérant peut être certifié' };
+  update('users', (x) => x.id === u.id, { certified: !!certified, certifiedAt: certified ? Date.now() : 0 });
+  recordEvent({ type: certified ? 'gerant_certified' : 'gerant_uncertified', name: u.name, phone: u.phone, role: u.role });
+  createNotification({
+    userId: u.id,
+    type: certified ? 'certified' : 'uncertified',
+    text: certified
+      ? 'Félicitations ! Votre cabine est désormais « Certifiée » : les clients voient votre badge de confiance.'
+      : 'Votre badge « Certifié » a été retiré par l\'administration.',
+  });
+  return { ok: true, phone: u.phone, name: u.name, certified: !!certified };
+}
+
+// Offrir du temps gratuit (récompense / reconduction d'essai) : { days }.
+//  - Essai en cours  : on prolonge la fin d'essai.
+//  - Abonnement actif: on prolonge la date de fin d'abonnement.
+//  - Expiré          : on rouvre une période gratuite (statut « trial ») à partir d'aujourd'hui.
+export function grantFreeTime(phone, days, note = '') {
+  const n = parseInt(days, 10);
+  if (!(n > 0) || n > 3660) throw Object.assign(new Error('Durée invalide (1 à 3660 jours)'), { status: 400 });
+  const u = findOne('users', (x) => x.phone === String(phone).trim());
+  if (!u) return { ok: false, error: 'Compte introuvable' };
+  const now = Date.now();
+  const add = n * 86400000;
+  const cur = subscriptionFor(u);
+  const s = u.subscription || {};
+  let patch;
+  if (cur.status === 'active') patch = { ...s, subscribedUntil: (s.subscribedUntil || now) + add, expiryNotified: false };
+  else if (cur.status === 'trial') patch = { ...s, status: 'trial', trialEndsAt: (s.trialEndsAt || now) + add, expiryNotified: false };
+  else patch = { ...s, status: 'trial', trialEndsAt: now + add, subscribedUntil: 0, expiryNotified: false };
+  update('users', (x) => x.id === u.id, { subscription: patch, lastGift: { days: n, at: now, note } });
+  insert('gifts', { userId: u.id, phone: u.phone, name: u.name, role: u.role, days: n, note, createdAt: now });
+  recordEvent({ type: 'free_time_granted', name: u.name, phone: u.phone, role: u.role, amount: n });
+  const label = n % 30 === 0 ? `${n / 30} mois` : n % 7 === 0 ? `${n / 7} semaine${n / 7 > 1 ? 's' : ''}` : `${n} jour${n > 1 ? 's' : ''}`;
+  createNotification({
+    userId: u.id,
+    type: 'gift',
+    text: `Cadeau ! Cabine En Ligne vous offre ${label} d'utilisation gratuite${note ? ' — ' + note : ''}. Profitez-en !`,
+  });
+  return { ok: true, phone: u.phone, name: u.name, days: n, subscription: subscriptionFor(findOne('users', (x) => x.id === u.id)) };
+}
+export function giftsForAdmin(limit = 100) {
+  return find('gifts', () => true).sort((a, b) => b.createdAt - a.createdAt).slice(0, limit);
+}
+
 // ------------------------------------------------------------------
 //  BLOCAGE (sanction) — liste noire de numéros de téléphone.
 //  Un numéro bloqué ne peut plus se connecter ni se réinscrire, même
@@ -434,7 +483,7 @@ export function eventsForAdmin(limit = 100) {
 export function eventsCounters() {
   const rows = find('events', () => true);
   const c = { total: rows.length };
-  for (const type of ['user_registered', 'user_deleted', 'subscription_paid', 'subscription_expired', 'user_blocked', 'user_unblocked', 'unblock_request']) {
+  for (const type of ['user_registered', 'user_deleted', 'subscription_paid', 'subscription_expired', 'user_blocked', 'user_unblocked', 'unblock_request', 'free_time_granted', 'gerant_certified']) {
     c[type] = rows.filter((r) => r.type === type).length;
   }
   return c;
@@ -600,7 +649,7 @@ export function gerantsFor(clientId) {
     if (g.userId) {
       const u = findOne('users', (x) => x.id === g.userId);
       if (u) {
-        return { ...g, waveNumber: u.waveNumber || g.waveNumber, payLink: u.payLink || g.payLink || '', suspended: !!u.frozen };
+        return { ...g, waveNumber: u.waveNumber || g.waveNumber, payLink: u.payLink || g.payLink || '', suspended: !!u.frozen, certified: !!u.certified };
       }
     }
     return g;
@@ -618,9 +667,8 @@ export function availableGerants(clientId) {
     .map((u) => ({
       userId: u.id, name: u.name, phone: u.phone, waveNumber: u.waveNumber || u.phone, payLink: u.payLink || '',
       alreadyAdded: added.includes(u.id),
-      // "Certifié" : gérant dont la confiance est renforcée (profil lié au compte
-      // + lien Wave marchand configuré). À terme : KYC complet / badge vérifié.
-      certified: !!(u.certified || u.payLink),
+      // "Certifié" : badge attribué UNIQUEMENT par le propriétaire (Espace propriétaire).
+      certified: !!u.certified,
     }))
     .sort((a, b) => (a.name || '').localeCompare(b.name || ''));
 }

@@ -212,7 +212,15 @@ export default function ClientHome() {
               return (
                 <Pressable key={g.id} onPress={() => { setSel({ id: g.id, userId: g.userId, name: g.name, phone: g.phone, waveNumber: g.waveNumber, payLink: g.payLink || '', online: g.online }); clearErr('gerant'); setShowGerants(false); }} style={[s.gerantRow, on && { opacity: 0.7 }]}>
                   <View style={{ flex: 1 }}>
-                    <T size={font.body} weight="800" color={colors.text}>{g.name}</T>
+                    <View style={{ flexDirection: 'row', alignItems: 'center', flexWrap: 'wrap' }}>
+                      <T size={font.body} weight="800" color={colors.text}>{g.name}</T>
+                      {g.certified && (
+                        <View style={s.certBadge}>
+                          <Ionicons name="shield-checkmark" size={12} color="#fff" />
+                          <T size={font.xs} weight="800" color="#fff" style={{ marginLeft: 3 }}>Certifié</T>
+                        </View>
+                      )}
+                    </View>
                     <T size={font.sm} weight="600" color={colors.muted} style={{ marginTop: 2 }}>{g.phone}</T>
                   </View>
                   <View style={{ flexDirection: 'row', alignItems: 'center' }}>
@@ -228,8 +236,12 @@ export default function ClientHome() {
         {/* Autres gérants de confiance (badge certifié) — proposés en complément */}
         {suggested.length > 0 && (
           <>
-            <T size={font.sm} weight="800" color={colors.primary} style={{ marginBottom: 4, marginTop: state.gerants.length > 0 ? space.md : 0 }}>Autres gérants de confiance</T>
-            <T size={font.xs} weight="600" color={colors.muted2} style={{ marginBottom: 8 }}>Des gérants inscrits, vérifiés par le badge « Certifié ». Envoyez-leur une demande directement.</T>
+            <T size={font.sm} weight="800" color={colors.primary} style={{ marginBottom: 4, marginTop: state.gerants.length > 0 ? space.md : 0 }}>Autres gérants inscrits</T>
+            <T size={font.xs} weight="600" color={colors.muted2} style={{ marginBottom: 8 }}>
+              {suggested.some((g) => g.certified)
+                ? 'Gérants inscrits sur l\'app. Le badge « Certifié » signale ceux vérifiés par Cabine En Ligne.'
+                : 'Gérants inscrits sur l\'app. Vérifiez le nom et le numéro avant d\'envoyer votre demande.'}
+            </T>
             {suggested.map((g) => (
               <Pressable key={g.userId} onPress={() => { setSel({ userId: g.userId, name: g.name, phone: g.phone, waveNumber: g.waveNumber, payLink: g.payLink || '', online: true }); clearErr('gerant'); setShowGerants(false); }} style={s.gerantRow}>
                 <View style={s.availIcon}><Ionicons name="storefront-outline" size={18} color={colors.primary} /></View>

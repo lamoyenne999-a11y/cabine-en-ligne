@@ -28,6 +28,12 @@ ces demandes et se font **payer en direct via Wave**.
   l'argent : la demande est alors **« Servie · à encaisser »** et le client est notifié qu'il
   doit encore régler. **Chaque étape notifie le client** (paiement reçu / servi mais impayé /
   complétée).
+- **Certification des gérants** : le badge « Certifié » est attribué **uniquement par le
+  propriétaire** (Espace propriétaire → Utilisateurs → gérant → **Certifier**). Les clients le
+  voient dans le choix du gérant. Le gérant est notifié.
+- **Offrir du temps gratuit** : le propriétaire peut offrir 1 semaine → 6 mois (ou un nombre de
+  jours libre) à tout utilisateur : essai prolongé, abonnement prolongé, ou nouvelle période
+  gratuite si expiré. L'utilisateur est notifié ; l'historique des cadeaux est journalisé.
 - **Espace propriétaire** : tri des utilisateurs par profil (**Tous / Clients / Gérants**) en
   plus des filtres d'abonnement ; l'export CSV suit le filtre.
 - **Historique & totaux** : chaque utilisateur a un onglet **Historique**.

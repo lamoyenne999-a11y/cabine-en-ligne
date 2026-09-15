@@ -28,6 +28,12 @@ export default function Admin({ onBack }) {
   const [users, setUsers] = useState([]);
   const [busy, setBusy] = useState(null); // phone de l'utilisateur en cours d'action
   const [suspendTarget, setSuspendTarget] = useState(null); // {user, frozen}
+  const [giftTarget, setGiftTarget] = useState(null);       // utilisateur à qui offrir du temps
+  const [giftDays, setGiftDays] = useState(30);
+  const [giftCustom, setGiftCustom] = useState('');
+  const [giftNote, setGiftNote] = useState('');
+  const [giftDone, setGiftDone] = useState('');
+  const [certTarget, setCertTarget] = useState(null);       // {user, certified}
   const [deleteTarget, setDeleteTarget] = useState(null); // user
   const [blockTarget, setBlockTarget] = useState(null); // user à bloquer
   const [unblockTarget, setUnblockTarget] = useState(null); // user à débloquer
@@ -153,6 +159,32 @@ export default function Admin({ onBack }) {
     try {
       const out = await api.admin.setFrozen(key, user.phone, frozen);
       setUsers((prev) => prev.map((u) => u.phone === user.phone ? { ...u, frozen: !!out.frozen } : u));
+    } catch (e) { setErr(e?.message || 'Erreur.'); }
+    finally { setBusy(null); }
+  };
+
+  // Offre du temps gratuit (récompense / reconduction d'essai).
+  const doGift = async () => {
+    const user = giftTarget; if (!user) return;
+    const days = giftCustom ? parseInt(giftCustom, 10) : giftDays;
+    if (!(days > 0)) { setErr('Indiquez une durée valide.'); return; }
+    setBusy(user.phone);
+    try {
+      const out = await api.admin.grantFreeTime(key, user.phone, days, giftNote.trim());
+      setUsers((prev) => prev.map((u) => u.phone === user.phone ? { ...u, subscription: out.subscription, lastGift: { days, at: Date.now(), note: giftNote.trim() } } : u));
+      setGiftDone(`${days} jour${days > 1 ? 's' : ''} offert${days > 1 ? 's' : ''} à ${user.name}. Il/elle a été notifié(e).`);
+      setGiftTarget(null); setGiftCustom(''); setGiftNote(''); setGiftDays(30);
+      setTimeout(() => setGiftDone(''), 4000);
+    } catch (e) { setErr(e?.message || 'Erreur.'); }
+    finally { setBusy(null); }
+  };
+
+  // Certifie / retire la certification d'un gérant.
+  const doSetCertified = async (user, certified) => {
+    setBusy(user.phone); setCertTarget(null);
+    try {
+      const out = await api.admin.setCertified(key, user.phone, certified);
+      setUsers((prev) => prev.map((u) => u.phone === user.phone ? { ...u, certified: !!out.certified } : u));
     } catch (e) { setErr(e?.message || 'Erreur.'); }
     finally { setBusy(null); }
   };
@@ -369,6 +401,11 @@ export default function Admin({ onBack }) {
             )}
           </View>
 
+          {giftDone ? (
+            <View style={{ backgroundColor: colors.successBg, borderRadius: radius.md, padding: 10, marginBottom: 8 }}>
+              <T size={font.sm} weight="700" color={colors.success}>🎁 {giftDone}</T>
+            </View>
+          ) : null}
           <Card style={s.searchCard}>
             <View style={s.search}>
               <Ionicons name="search" size={18} color={colors.muted} />
@@ -449,6 +486,9 @@ export default function Admin({ onBack }) {
                       <View style={{ flex: 1, marginLeft: 10 }}>
                         <View style={{ flexDirection: 'row', alignItems: 'center', flexWrap: 'wrap' }}>
                           <T size={font.body} weight="800" color={colors.text} numberOfLines={1}>{u.name || '—'}</T>
+                          {u.certified ? (
+                            <View style={s.certBadge}><Ionicons name="shield-checkmark" size={11} color="#fff" /><T size={font.xs} weight="800" color="#fff" style={{ marginLeft: 3 }}>Certifié</T></View>
+                          ) : null}
                           {u.blocked ? (
                             <View style={s.blockedBadge}><T size={font.xs} weight="800" color="#fff">Bloqué</T></View>
                           ) : (u.frozen ? <View style={s.frozenBadge}><T size={font.xs} weight="800" color={colors.warn}>Suspendu</T></View> : null)}
@@ -478,6 +518,34 @@ export default function Admin({ onBack }) {
                                     : `Abonnement expiré le ${fmtDate(u.subscription.subscribedUntil)}.`)
                                 : 'Aucun abonnement payé.')}
                         </T>
+                        {u.lastGift ? (
+                          <T size={font.xs} weight="700" color={colors.success} style={{ marginBottom: 8 }}>
+                            🎁 Dernier cadeau : {u.lastGift.days} jour{u.lastGift.days > 1 ? 's' : ''} le {fmtDate(u.lastGift.at)}{u.lastGift.note ? ` — ${u.lastGift.note}` : ''}
+                          </T>
+                        ) : null}
+                        <View style={{ flexDirection: 'row', marginBottom: 8 }}>
+                          <Btn
+                            title="Offrir du temps"
+                            icon="gift-outline"
+                            color={colors.success}
+                            size="sm"
+                            onPress={() => { setGiftTarget(u); setGiftDays(30); setGiftCustom(''); setGiftNote(''); }}
+                            loading={busy === u.phone}
+                            style={{ flex: 1, marginRight: u.role === 'gerant' ? 8 : 0 }}
+                          />
+                          {u.role === 'gerant' && (
+                            <Btn
+                              title={u.certified ? 'Retirer le badge' : 'Certifier'}
+                              icon={u.certified ? 'shield-outline' : 'shield-checkmark-outline'}
+                              outline={!!u.certified}
+                              color={colors.primary}
+                              size="sm"
+                              onPress={() => setCertTarget({ user: u, certified: !u.certified })}
+                              loading={busy === u.phone}
+                              style={{ flex: 1 }}
+                            />
+                          )}
+                        </View>
                         <View style={{ flexDirection: 'row', marginBottom: 8 }}>
                           <Btn
                             title={u.frozen ? 'Réactiver' : 'Suspendre'}
@@ -759,6 +827,51 @@ export default function Admin({ onBack }) {
       )}
 
       {/* Confirmation : suspendre / réactiver */}
+      {/* Offrir du temps gratuit */}
+      <Dialog visible={!!giftTarget}>
+        <T size={font.h3} weight="800" color={colors.text} style={{ textAlign: 'center' }}>🎁 Offrir du temps gratuit</T>
+        <T size={font.sm} weight="600" color={colors.muted} style={{ textAlign: 'center', marginTop: 6 }}>
+          à {giftTarget?.name} ({giftTarget?.phone}) · {giftTarget?.role === 'gerant' ? 'Gérant' : 'Client'}
+        </T>
+        <T size={font.xs} weight="600" color={colors.muted2} style={{ textAlign: 'center', marginTop: 4, marginBottom: 12 }}>
+          {giftTarget?.subscription?.status === 'active'
+            ? `Abonnement actif : la date de fin sera prolongée.`
+            : giftTarget?.subscription?.status === 'trial'
+              ? `Essai en cours : la fin d'essai sera prolongée.`
+              : `Période expirée : une nouvelle période gratuite démarre aujourd'hui.`}
+        </T>
+        <View style={{ flexDirection: 'row', flexWrap: 'wrap', justifyContent: 'center' }}>
+          {[{ d: 7, l: '1 semaine' }, { d: 14, l: '2 semaines' }, { d: 30, l: '1 mois' }, { d: 60, l: '2 mois' }, { d: 90, l: '3 mois' }, { d: 180, l: '6 mois' }].map((o) => (
+            <Chip key={o.d} label={o.l} active={!giftCustom && giftDays === o.d} onPress={() => { setGiftDays(o.d); setGiftCustom(''); }} selectedColor={colors.success} />
+          ))}
+        </View>
+        <View style={[s.search, { marginTop: 10 }]}>
+          <Ionicons name="calendar-outline" size={18} color={colors.muted} />
+          <TextInput value={giftCustom} onChangeText={(t) => setGiftCustom(t.replace(/[^0-9]/g, '').slice(0, 4))} placeholder="Ou nombre de jours personnalisé" placeholderTextColor={colors.muted2} keyboardType="number-pad" style={s.searchInput} />
+        </View>
+        <View style={[s.search, { marginTop: 8 }]}>
+          <Ionicons name="chatbubble-ellipses-outline" size={18} color={colors.muted} />
+          <TextInput value={giftNote} onChangeText={setGiftNote} placeholder="Message (optionnel) : ex. Merci d'être parmi les premiers !" placeholderTextColor={colors.muted2} style={s.searchInput} maxLength={120} />
+        </View>
+        <T size={font.xs} weight="600" color={colors.muted2} style={{ textAlign: 'center', marginTop: 10 }}>
+          L'utilisateur recevra une notification l'informant du cadeau.
+        </T>
+        <DialogButtons cancel="Annuler" confirm={`Offrir ${giftCustom ? giftCustom + ' j' : ({ 7: '1 sem.', 14: '2 sem.', 30: '1 mois', 60: '2 mois', 90: '3 mois', 180: '6 mois' }[giftDays] || giftDays + ' j')}`} onCancel={() => setGiftTarget(null)} onConfirm={doGift} />
+      </Dialog>
+
+      {/* Certification */}
+      <Dialog visible={!!certTarget}>
+        <T size={font.h3} weight="800" color={colors.text} style={{ textAlign: 'center' }}>
+          {certTarget?.certified ? 'Certifier ce gérant ?' : 'Retirer la certification ?'}
+        </T>
+        <T size={font.sm} weight="600" color={colors.muted} style={{ textAlign: 'center', marginTop: 6, marginBottom: 6 }}>
+          {certTarget?.certified
+            ? `${certTarget?.user?.name} affichera le badge « Certifié » auprès des clients (gérant vérifié par vous : identité, numéro Wave, sérieux). Il sera notifié.`
+            : `${certTarget?.user?.name} perdra son badge « Certifié ». Il sera notifié.`}
+        </T>
+        <DialogButtons cancel="Annuler" confirm={certTarget?.certified ? 'Certifier' : 'Retirer'} onCancel={() => setCertTarget(null)} onConfirm={() => doSetCertified(certTarget.user, certTarget.certified)} />
+      </Dialog>
+
       <Dialog visible={!!suspendTarget}>
         <T size={font.h3} weight="800" color={colors.text} style={{ textAlign: 'center' }}>
           {suspendTarget?.frozen && !suspendTarget?.user?.frozen ? 'Suspendre ce compte ?' : 'Réactiver ce compte ?'}
@@ -848,6 +961,7 @@ const s = StyleSheet.create({
   inputText: { flex: 1, fontSize: font.input, color: colors.text, paddingVertical: 0, outlineStyle: 'none' },
   // Barre de sections
   tabBar: { marginBottom: space.md },
+  certBadge: { flexDirection: 'row', alignItems: 'center', backgroundColor: colors.primary, borderRadius: radius.pill, paddingHorizontal: 7, paddingVertical: 2, marginLeft: 6 },
   roleBar: { flexDirection: 'row', marginBottom: space.sm },
   roleBtn: { flex: 1, alignItems: 'center', backgroundColor: '#fff', borderRadius: radius.md, paddingVertical: 10, marginHorizontal: 3, borderWidth: 1.5, borderColor: colors.border },
   roleBtnOn: { backgroundColor: colors.primary, borderColor: colors.primary },

@@ -12,12 +12,13 @@ function check(label, cond) {
   if (cond) { pass++; console.log(`  ✅ ${label}`); }
   else { fail++; console.log(`  ❌ ${label}`); }
 }
-async function req(method, path, body, token) {
+async function req(method, path, body, token, extraHeaders = {}) {
   const r = await fetch(BASE + path, {
     method,
     headers: {
       'content-type': 'application/json',
       ...(token ? { authorization: `Bearer ${token}` } : {}),
+      ...extraHeaders,
     },
     body: body ? JSON.stringify(body) : undefined,
   });
@@ -183,6 +184,31 @@ async function main() {
   const cf = await req('GET', '/client/demandes', null, ct);
   const fin = (cf.json.demandes || []).find((d) => d.id === demandeId);
   check('Demande finalement « completed »', fin?.status === 'completed');
+
+  // ===== Espace propriétaire : certification + temps offert (si ADMIN_KEY défini) =====
+  const AK = process.env.ADMIN_KEY || '';
+  const cphone = '07' + uniq;
+  if (AK) {
+    const H = { 'x-admin-key': AK };
+    const cert = await req('POST', '/admin/set-certified', { phone: gphone, certified: true }, null, H);
+    check('Admin certifie le gérant', cert.status === 200 && cert.json.certified === true);
+    const av = await req('GET', '/client/gerants/available', null, ct);
+    const list = av.json.gerants || av.json.available || [];
+    check('Le badge Certifié est visible côté client', Array.isArray(list) ? list.some((g) => g.phone === gphone && g.certified) : true);
+    const certC = await req('POST', '/admin/set-certified', { phone: cphone, certified: true }, null, H);
+    check('Un client ne peut pas être certifié (400)', certC.status === 400);
+    const before = (await req('GET', '/client/subscription', null, ct)).json.subscription;
+    const gift = await req('POST', '/admin/grant-free-time', { phone: cphone, days: 14, note: 'Merci !' }, null, H);
+    check('Admin offre 14 jours', gift.status === 200 && gift.json.days === 14);
+    const after = gift.json.subscription;
+    check('L\'essai est prolongé de 14 jours', after.trialEndsAt - before.trialEndsAt >= 14 * 86400000 - 5000);
+    const gn = await req('GET', '/client/notifications', null, ct);
+    check('Client notifié du cadeau', (gn.json.notifications || []).some((n) => n.type === 'gift'));
+    const bad = await req('POST', '/admin/grant-free-time', { phone: cphone, days: 0 }, null, H);
+    check('Durée invalide refusée (400)', bad.status === 400);
+  } else {
+    console.log('  (tests admin ignorés : ADMIN_KEY non défini)');
+  }
 
   // ===== Paiement AVANT acceptation (le client paie directement, gérant n'a pas encore répondu) =====
   const dm2 = await req('POST', '/client/demandes', {

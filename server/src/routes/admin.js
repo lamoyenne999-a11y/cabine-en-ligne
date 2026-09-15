@@ -1,6 +1,6 @@
 import express from 'express';
 import { config } from '../config.js';
-import { subscriptionPayments, subscriptionTotals, subscriptionFor, referralSummary, referredUsersCount, referralPaymentCount, referralRateFor, deleteAccountAll, setUserFrozen, eventsForAdmin, eventsCounters, referralCodeStats, expiredUsers, reconcileExpiredEvents, isPhoneBlocked, blockUser, unblockUser, blockedList, unblockRequestsPending, resolveUnblockRequest } from '../services/flowService.js';
+import { setUserCertified, grantFreeTime, giftsForAdmin, subscriptionPayments, subscriptionTotals, subscriptionFor, referralSummary, referredUsersCount, referralPaymentCount, referralRateFor, deleteAccountAll, setUserFrozen, eventsForAdmin, eventsCounters, referralCodeStats, expiredUsers, reconcileExpiredEvents, isPhoneBlocked, blockUser, unblockUser, blockedList, unblockRequestsPending, resolveUnblockRequest } from '../services/flowService.js';
 import { find, findOne, update, dbStats } from '../db.js';
 
 const router = express.Router();
@@ -67,6 +67,8 @@ router.get('/users', requireAdmin, (req, res) => {
       rate: referralRateFor(referredUsersCount(u.id)),
       subscription: subscriptionFor(u),
       frozen: !!u.frozen,
+      certified: !!u.certified,
+      lastGift: u.lastGift || null,
       blocked: isPhoneBlocked(u.phone),
     }));
   res.json({ users });
@@ -85,6 +87,29 @@ router.post('/delete-account', requireAdmin, (req, res) => {
     res.status(e.status || 500).json({ error: e.message });
   }
 });
+
+// Certifie / décertifie un gérant. Body : { phone, certified }.
+router.post('/set-certified', requireAdmin, (req, res) => {
+  const phone = String(req.body?.phone || '').trim();
+  if (!phone) return res.status(400).json({ error: 'Téléphone requis' });
+  try {
+    const out = setUserCertified(phone, !!req.body?.certified);
+    if (!out.ok) return res.status(400).json(out);
+    res.json(out);
+  } catch (e) { res.status(e.status || 500).json({ error: e.message }); }
+});
+
+// Offre du temps gratuit à un utilisateur. Body : { phone, days, note }.
+router.post('/grant-free-time', requireAdmin, (req, res) => {
+  const phone = String(req.body?.phone || '').trim();
+  if (!phone) return res.status(400).json({ error: 'Téléphone requis' });
+  try {
+    const out = grantFreeTime(phone, req.body?.days, String(req.body?.note || '').slice(0, 120));
+    if (!out.ok) return res.status(404).json(out);
+    res.json(out);
+  } catch (e) { res.status(e.status || 500).json({ error: e.message }); }
+});
+router.get('/gifts', requireAdmin, (req, res) => res.json({ gifts: giftsForAdmin(200) }));
 
 // Suspend / réactive un compte (bloque les activités sans supprimer les données).
 // Réservé au propriétaire. Body : { phone, frozen }.
