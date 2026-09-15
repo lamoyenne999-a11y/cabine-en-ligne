@@ -84,6 +84,20 @@ export default function GerantDemandes() {
               <T size={font.sm} weight="700" color={colors.text}>{d.benefName === d.benefPhone ? d.benefPhone : `${d.benefName} (${d.benefPhone})`}</T>
             </View>
 
+            {isCompleted && d.clientConfirmedAt && (
+              <View style={[s.payState, { backgroundColor: colors.successBg }]}>
+                <Ionicons name="checkmark-done-circle" size={16} color={colors.success} />
+                <T size={font.sm} weight="700" color={colors.success} style={{ marginLeft: 8, flex: 1 }}>Le client a confirmé avoir bien reçu sa recharge.</T>
+              </View>
+            )}
+            {d.notServedAt && !isCompleted && (
+              <View style={[s.payState, { backgroundColor: colors.dangerBg }]}>
+                <Ionicons name="alert-circle" size={16} color={colors.danger} />
+                <T size={font.sm} weight="800" color={colors.danger} style={{ marginLeft: 8, flex: 1 }}>
+                  Le client dit NE PAS avoir reçu {TYPE_LABEL[d.type] || 'sa recharge'} ({d.benefPhone}). Vérifiez le numéro crédité, servez-le, puis appuyez sur « J'ai servi le client ».
+                </T>
+              </View>
+            )}
             {/* Étiquette paiement : reçu / déclaré par le client / en attente */}
             <View style={[s.payState, { backgroundColor: d.moneyReceived ? colors.successBg : isPaid ? '#E7F0FE' : colors.warnBg }]}>
               <Ionicons name={d.moneyReceived ? 'checkmark-circle' : isPaid ? 'water' : 'time-outline'} size={16} color={d.moneyReceived ? colors.success : isPaid ? colors.wave : colors.warn} />

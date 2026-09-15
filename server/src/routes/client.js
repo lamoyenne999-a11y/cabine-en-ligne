@@ -1,6 +1,6 @@
 import { Router } from 'express';
 import { requireAuth, requireRole } from '../middleware/auth.js';
-import { gerantsFor, addGerant, removeGerant, createDemande, demandesForClient, clientHistory, demandeSummary, subscriptionFor, paySubscription, publicProfile, markPaid, cancelDemande, clientPaymentReply, notificationsFor, unreadCount, markNotificationRead, markAllNotificationsRead, availableGerants } from '../services/flowService.js';
+import { gerantsFor, addGerant, removeGerant, createDemande, demandesForClient, clientHistory, demandeSummary, subscriptionFor, paySubscription, publicProfile, markPaid, cancelDemande, clientPaymentReply, clientNotServed, clientConfirmServed, notificationsFor, unreadCount, markNotificationRead, markAllNotificationsRead, availableGerants } from '../services/flowService.js';
 
 const router = Router();
 router.use(requireAuth, requireRole('client'));
@@ -52,6 +52,18 @@ router.post('/demandes/:id/paid', (req, res) => {
 // Réponse du client après « montant incomplet » : { kind: 'completed' | 'full' }
 router.post('/demandes/:id/payment-reply', (req, res, next) => {
   try { res.json({ demande: clientPaymentReply({ id: req.params.id, clientId: req.user.id, kind: req.body?.kind }) }); }
+  catch (e) { next(e); }
+});
+
+// Le client confirme avoir BIEN reçu sa recharge (gérant notifié)
+router.post('/demandes/:id/confirm-served', (req, res, next) => {
+  try { res.json({ demande: clientConfirmServed({ id: req.params.id, clientId: req.user.id }) }); }
+  catch (e) { next(e); }
+});
+
+// Le client n'a PAS reçu ce qu'il a demandé alors que le gérant a marqué « servi »
+router.post('/demandes/:id/not-served', (req, res, next) => {
+  try { res.json({ demande: clientNotServed({ id: req.params.id, clientId: req.user.id }) }); }
   catch (e) { next(e); }
 });
 

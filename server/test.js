@@ -192,6 +192,23 @@ async function main() {
   const ghr = await req('GET', '/gerant/history', null, gt);
   check('Historique gérant : totalReceived = 2500 et 0 à encaisser', ghr.json.summary?.totalReceived === 2500 && ghr.json.summary?.awaitingPayment === 0);
 
+  // Le client conteste : rien reçu → repasse « paid », gérant notifié → re-servi
+  const ns = await req('POST', `/client/demandes/${demandeId}/not-served`, {}, ct);
+  check('Client signale « rien reçu » → demande repasse à traiter', ns.status === 200 && ns.json.demande?.status === 'paid' && !!ns.json.demande?.notServedAt);
+  const gns = await req('GET', '/gerant/notifications', null, gt);
+  check('Gérant notifié « client non servi »', (gns.json.notifications || []).some((n) => n.type === 'client_not_served' && n.demandeId === demandeId));
+  const comp3 = await req('POST', `/gerant/demandes/${demandeId}/complete`, {}, gt);
+  check('Gérant re-sert la demande', comp3.status === 200 && comp3.json.demande?.status === 'completed');
+  const nsBad = await req('POST', `/client/demandes/${demandeId}/not-served`, {}, ct);
+  check('Contestation possible à nouveau (200)', nsBad.status === 200);
+  const comp4 = await req('POST', `/gerant/demandes/${demandeId}/complete`, {}, gt);
+  check('Gérant re-sert (2e fois)', comp4.status === 200);
+
+  const cs = await req('POST', `/client/demandes/${demandeId}/confirm-served`, {}, ct);
+  check('Client confirme avoir bien reçu', cs.status === 200 && !!cs.json.demande?.clientConfirmedAt && cs.json.demande?.status === 'completed');
+  const gcs = await req('GET', '/gerant/notifications', null, gt);
+  check('Gérant notifié « client a bien reçu »', (gcs.json.notifications || []).some((n) => n.type === 'client_confirmed' && n.demandeId === demandeId));
+
   // État final côté client
   const cf = await req('GET', '/client/demandes', null, ct);
   const fin = (cf.json.demandes || []).find((d) => d.id === demandeId);

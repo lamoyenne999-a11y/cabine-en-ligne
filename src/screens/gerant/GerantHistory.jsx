@@ -171,8 +171,8 @@ export default function GerantHistory() {
                 {
                   pending: 'En attente de votre réponse — le client peut encore annuler.',
                   accepted: 'Demande acceptée. Le client paiera via Wave.',
-                  paid: d.moneyReceived ? `Argent reçu (${money(d.amount)}) — reste à servir le client.` : `Le client déclare avoir payé ${money(d.amount)} — réception à confirmer.`,
-                  completed: d.moneyReceived ? `Réglée : ${money(d.amount)} reçus sur votre Wave, client servi.` : `Client servi, paiement de ${money(d.amount)} PAS ENCORE reçu.`,
+                  paid: d.notServedAt ? `⚠️ Le client dit ne pas avoir reçu sa recharge — à re-servir (voir Demandes).` : d.moneyReceived ? `Argent reçu (${money(d.amount)}) — reste à servir le client.` : `Le client déclare avoir payé ${money(d.amount)} — réception à confirmer.`,
+                  completed: d.clientConfirmedAt ? `✅ Le client a confirmé avoir reçu sa recharge${d.moneyReceived ? ' — réglée.' : ' — paiement encore à encaisser.'}` : d.moneyReceived ? `Réglée : ${money(d.amount)} reçus sur votre Wave, client servi.` : `Client servi, paiement de ${money(d.amount)} PAS ENCORE reçu.`,
                   declined: 'Vous avez refusé cette demande.',
                   canceled: 'Le client a annulé cette demande.',
                 }[d.status] || 'Payé en direct via Wave.'

@@ -73,7 +73,8 @@ function matches(d, q) {
 }
 
 export default function ClientHistory() {
-  const { state, markPaid, cancelDemande, paymentReply } = useStore();
+  const { state, markPaid, cancelDemande, paymentReply, notServedDemande, confirmServedDemande } = useStore();
+  const [notServedTarget, setNotServedTarget] = useState(null);
   const [paying, setPaying] = useState(null);
   const [canceling, setCanceling] = useState(null);
   const [q, setQ] = useState('');
@@ -173,7 +174,9 @@ export default function ClientHistory() {
           </T>
         </Card>
       ) : visible.map((d) => {
-        const st = d.partialAt && !d.moneyReceived && d.status !== 'canceled' && d.status !== 'declined'
+        const st = d.status === 'completed' && d.clientConfirmedAt
+          ? { ...STATUS.completed, label: 'Terminée ✓' }
+          : d.partialAt && !d.moneyReceived && d.status !== 'canceled' && d.status !== 'declined'
           ? { label: 'Montant incomplet', color: colors.warn, bg: colors.warnBg, icon: 'remove-circle' }
           : d.status === 'completed' && !d.moneyReceived
           ? { label: 'Servie · à payer', color: colors.warn, bg: colors.warnBg, icon: 'alert-circle' }
@@ -293,6 +296,34 @@ export default function ClientHistory() {
                 Réglée : paiement reçu par {d.gerantName} et {CREDIT_LABEL[d.type] || 'votre numéro'} crédité(s). Merci !
               </T>
             )}
+            {d.status === 'completed' && !d.clientConfirmedAt && (
+              <>
+                <T size={font.sm} weight="800" color={colors.text} style={{ marginTop: 12 }}>Avez-vous bien reçu {CREDIT_LABEL[d.type] || 'votre recharge'} ?</T>
+                <View style={{ flexDirection: 'row', marginTop: 8 }}>
+                  <Btn title="Non, rien reçu ✗" icon="alert-circle-outline" outline color={colors.danger} size="sm" onPress={() => setNotServedTarget(d)} style={{ flex: 1, marginRight: 6 }} />
+                  <Btn title="Oui, bien reçu ✓" icon="checkmark-circle" color={colors.success} size="sm" onPress={() => confirmServedDemande(d.id)} style={{ flex: 1 }} />
+                </View>
+                <T size={font.xs} weight="600" color={colors.muted2} style={{ textAlign: 'center', marginTop: 6 }}>
+                  Vérifiez votre solde (cela peut prendre quelques minutes). Le gérant sera notifié de votre réponse.
+                </T>
+              </>
+            )}
+            {d.status === 'completed' && d.clientConfirmedAt && (
+              <View style={[s.timerBox, { backgroundColor: colors.successBg }]}>
+                <Ionicons name="checkmark-done-circle" size={16} color={colors.success} />
+                <T size={font.sm} weight="700" color={colors.success} style={{ marginLeft: 8, flex: 1 }}>
+                  Vous avez confirmé la réception. Demande terminée. Merci !
+                </T>
+              </View>
+            )}
+            {d.notServedAt && d.status !== 'completed' && !['declined', 'canceled'].includes(d.status) && (
+              <View style={[s.timerBox, { backgroundColor: colors.dangerBg }]}>
+                <Ionicons name="alert-circle" size={16} color={colors.danger} />
+                <T size={font.sm} weight="700" color={colors.danger} style={{ marginLeft: 8, flex: 1 }}>
+                  Vous avez signalé ne rien avoir reçu. {d.gerantName} a été notifié et doit vous servir à nouveau.
+                </T>
+              </View>
+            )}
             {d.status === 'canceled' && (
               <T size={font.sm} weight="600" color={colors.muted} style={{ marginTop: 12, textAlign: 'center' }}>
                 Demande annulée : le gérant n'a pas traité votre demande à temps.
@@ -301,6 +332,14 @@ export default function ClientHistory() {
           </Card>
         );
       })}
+
+      <Dialog visible={!!notServedTarget}>
+        <T size={font.h3} weight="800" color={colors.text} style={{ textAlign: 'center' }}>Rien reçu ?</T>
+        <T size={font.sm} weight="600" color={colors.muted} style={{ textAlign: 'center', marginTop: 6, marginBottom: 6 }}>
+          {notServedTarget ? `${notServedTarget.gerantName} a indiqué vous avoir servi (${TYPE_LABEL[notServedTarget.type] || 'demande'} ${money(notServedTarget.amount)} pour le ${notServedTarget.benefPhone}). Confirmez que vous n'avez rien reçu : il sera notifié et devra vous servir.` : ''}
+        </T>
+        <DialogButtons cancel="Annuler" confirm="Oui, rien reçu" onCancel={() => setNotServedTarget(null)} onConfirm={() => { if (notServedTarget) notServedDemande(notServedTarget.id); setNotServedTarget(null); }} />
+      </Dialog>
 
       <WavePaySheet
         visible={!!paying}

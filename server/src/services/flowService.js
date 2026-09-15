@@ -554,7 +554,7 @@ export function unreadCount(userId) {
 export function createNotification({ userId, type, text, demandeId }) {
   const n = insert('notifications', {
     userId,
-    type,             // 'new_demande' | 'demande_accepted' | 'demande_declined' | 'demande_canceled' | 'demande_paid' | 'demande_received' | 'demande_not_received' | 'demande_partial' | 'client_completed' | 'client_says_full' | 'demande_served_unpaid' | 'demande_completed'
+    type,             // 'new_demande' | 'demande_accepted' | 'demande_declined' | 'demande_canceled' | 'demande_paid' | 'demande_received' | 'demande_not_received' | 'demande_partial' | 'client_completed' | 'client_says_full' | 'client_not_served' | 'client_confirmed' | 'demande_served_unpaid' | 'demande_completed'
     text,
     demandeId: demandeId || '',
     read: false,
@@ -1014,6 +1014,38 @@ export function clientPaymentReply({ id, clientId, kind }) {
   return upd;
 }
 
+// Le client CONFIRME avoir bien reçu sa recharge : clôture définitive, gérant notifié.
+export function clientConfirmServed({ id, clientId }) {
+  const d = findOne('demandes', (x) => x.id === id && x.clientId === clientId);
+  if (!d) throw Object.assign(new Error('Demande introuvable'), { status: 404 });
+  if (d.status !== 'completed') throw Object.assign(new Error('Cette demande n\'est pas marquée comme servie'), { status: 400 });
+  if (d.clientConfirmedAt) return d;
+  update('demandes', (x) => x.id === id, { clientConfirmedAt: Date.now(), notServedAt: 0 });
+  const upd = findOne('demandes', (x) => x.id === id);
+  if (upd && upd.gerantUserId) createNotification({
+    userId: upd.gerantUserId, type: 'client_confirmed', demandeId: upd.id,
+    text: `${upd.clientName} confirme avoir bien reçu ${TYPE_LABEL[upd.type] || upd.type} ${upd.amount} F. Merci pour votre service !`,
+  });
+  return upd;
+}
+
+// Le client conteste : le gérant a marqué « servi » mais le client n'a rien reçu.
+// La demande repasse en « à traiter » (paid si l'argent est confirmé/déclaré,
+// sinon accepted) et le gérant est notifié. Le client garde la trace (notServedAt).
+export function clientNotServed({ id, clientId }) {
+  const d = findOne('demandes', (x) => x.id === id && x.clientId === clientId);
+  if (!d) throw Object.assign(new Error('Demande introuvable'), { status: 404 });
+  if (d.status !== 'completed') throw Object.assign(new Error('Cette demande n\'est pas marquée comme servie'), { status: 400 });
+  const back = (d.moneyReceived || d.paidAt) ? 'paid' : 'accepted';
+  update('demandes', (x) => x.id === id, { status: back, completedAt: 0, clientConfirmedAt: 0, notServedAt: Date.now(), notServedCount: (d.notServedCount || 0) + 1 });
+  const upd = findOne('demandes', (x) => x.id === id);
+  if (upd && upd.gerantUserId) createNotification({
+    userId: upd.gerantUserId, type: 'client_not_served', demandeId: upd.id,
+    text: `${upd.clientName} indique NE PAS avoir reçu ${TYPE_LABEL[upd.type] || upd.type} ${upd.amount} F (numéro ${upd.benefPhone || ''}). Vérifiez le numéro crédité, servez-le, puis appuyez à nouveau sur « J'ai servi le client ».`,
+  });
+  return upd;
+}
+
 // Le gérant a SERVI le client (unités / minutes / internet crédités).
 // Possible même si le paiement n'est pas encore confirmé : la demande est
 // alors « servie, paiement en attente » et le client est invité à régler.
@@ -1031,7 +1063,9 @@ export function markCompleted({ id, gerantUserId }) {
       userId: upd.clientId,
       type: upd.moneyReceived ? 'demande_completed' : 'demande_served_unpaid',
       text: upd.moneyReceived
-        ? `${upd.gerantName} vous a servi — ${label}. Demande complétée. Merci !`
+        ? (d.notServedAt
+          ? `${upd.gerantName} indique vous avoir servi à nouveau — ${label}. Vérifiez votre solde. Si ce n'est toujours pas bon, contactez-le ou signalez-le encore.`
+          : `${upd.gerantName} vous a servi — ${label}. Demande complétée. Merci !`)
         : `${upd.gerantName} vous a servi — ${label}. Le paiement n'a pas encore été reçu : merci de régler ${upd.amount} F sur son Wave${upd.gerantWave ? ' (' + upd.gerantWave + ')' : ''}.`,
       demandeId: upd.id,
     });

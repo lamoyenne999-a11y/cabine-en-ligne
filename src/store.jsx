@@ -331,6 +331,18 @@ export function StoreProvider({ children }) {
     if (online) { try { const r = await api.gerant.partial(id); if (r?.demande) dispatch({ type: 'GERANT_UPDATE_DEMANDE', payload: r.demande }); } catch {} }
   }, [online]);
 
+  // Le client confirme avoir bien reçu sa recharge.
+  const confirmServedDemande = useCallback(async (id) => {
+    dispatch({ type: 'CLIENT_UPDATE_DEMANDE', payload: { id, clientConfirmedAt: Date.now(), notServedAt: 0 } });
+    if (online) { try { const r = await api.client.confirmServed(id); if (r?.demande) dispatch({ type: 'CLIENT_UPDATE_DEMANDE', payload: r.demande }); } catch {} }
+  }, [online]);
+
+  // Le client n'a pas reçu ce qu'il a demandé (gérant a marqué servi à tort).
+  const notServedDemande = useCallback(async (id) => {
+    dispatch({ type: 'CLIENT_UPDATE_DEMANDE', payload: { id, status: 'paid', notServedAt: Date.now() } });
+    if (online) { try { const r = await api.client.notServed(id); if (r?.demande) dispatch({ type: 'CLIENT_UPDATE_DEMANDE', payload: r.demande }); } catch {} }
+  }, [online]);
+
   // Réponse du client après « montant incomplet » : 'completed' ou 'full'.
   const paymentReply = useCallback(async (id, kind) => {
     dispatch({ type: 'CLIENT_UPDATE_DEMANDE', payload: kind === 'full' ? { id, clientDisputedAt: Date.now() } : { id, partialCompletedAt: Date.now(), clientDisputedAt: 0 } });
@@ -459,8 +471,8 @@ export function StoreProvider({ children }) {
   }, [state.role]);
 
   const value = useMemo(
-    () => ({ state, dispatch, online, checking, recheck: probe, login, register, logout, refresh, addGerant, removeGerant, createDemande, markPaid, cancelDemande, acceptDemande, declineDemande, completeDemande, receiveDemande, notReceiveDemande, partialDemande, paymentReply, subscribe, updateGerantProfile, registerPushToken, registerPushSubscription, unregisterPushSubscription, unregisterPushToken, loadNotifications, markNotificationRead, markAllNotificationsRead, loadClientNotifications, markClientNotificationRead, markAllClientNotificationsRead, loadReferral, updateReferralCode }),
-    [state, online, checking, probe, login, register, logout, refresh, addGerant, removeGerant, createDemande, markPaid, cancelDemande, acceptDemande, declineDemande, completeDemande, receiveDemande, notReceiveDemande, partialDemande, paymentReply, subscribe, updateGerantProfile, registerPushToken, registerPushSubscription, unregisterPushSubscription, unregisterPushToken, loadNotifications, markNotificationRead, markAllNotificationsRead, loadClientNotifications, markClientNotificationRead, markAllClientNotificationsRead, loadReferral, updateReferralCode],
+    () => ({ state, dispatch, online, checking, recheck: probe, login, register, logout, refresh, addGerant, removeGerant, createDemande, markPaid, cancelDemande, acceptDemande, declineDemande, completeDemande, receiveDemande, notReceiveDemande, partialDemande, paymentReply, notServedDemande, confirmServedDemande, subscribe, updateGerantProfile, registerPushToken, registerPushSubscription, unregisterPushSubscription, unregisterPushToken, loadNotifications, markNotificationRead, markAllNotificationsRead, loadClientNotifications, markClientNotificationRead, markAllClientNotificationsRead, loadReferral, updateReferralCode }),
+    [state, online, checking, probe, login, register, logout, refresh, addGerant, removeGerant, createDemande, markPaid, cancelDemande, acceptDemande, declineDemande, completeDemande, receiveDemande, notReceiveDemande, partialDemande, paymentReply, notServedDemande, confirmServedDemande, subscribe, updateGerantProfile, registerPushToken, registerPushSubscription, unregisterPushSubscription, unregisterPushToken, loadNotifications, markNotificationRead, markAllNotificationsRead, loadClientNotifications, markClientNotificationRead, markAllClientNotificationsRead, loadReferral, updateReferralCode],
   );
   return <Ctx.Provider value={value}>{children}</Ctx.Provider>;
 }
