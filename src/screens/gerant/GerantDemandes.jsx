@@ -22,7 +22,7 @@ const TYPE_ICON = { unites: 'phone-portrait-outline', minutes: 'call-outline', i
 const TYPE_LABEL = { unites: 'Unités', minutes: 'Minutes', internet: 'Internet', forfait: 'Appel + Internet' };
 
 export default function GerantDemandes() {
-  const { state, acceptDemande, declineDemande, completeDemande, receiveDemande, notReceiveDemande, subscribe } = useStore();
+  const { state, acceptDemande, declineDemande, completeDemande, receiveDemande, notReceiveDemande, partialDemande, subscribe } = useStore();
   const [confirm, setConfirm] = useState(null); // { id, action }
   const [showSub, setShowSub] = useState(false);
   // L'inbox ne montre que les demandes qui ATTENDENT UNE ACTION du gérant :
@@ -42,6 +42,7 @@ export default function GerantDemandes() {
     else if (confirm.action === 'complete') completeDemande(confirm.id);
     else if (confirm.action === 'received') receiveDemande(confirm.id);
     else if (confirm.action === 'notreceived') notReceiveDemande(confirm.id);
+    else if (confirm.action === 'partial') partialDemande(confirm.id);
     setConfirm(null);
   };
 
@@ -89,7 +90,13 @@ export default function GerantDemandes() {
               <T size={font.sm} weight="700" color={d.moneyReceived ? colors.success : isPaid ? colors.wave : colors.warn} style={{ marginLeft: 8, flex: 1 }}>
                 {d.moneyReceived
                   ? `Argent reçu : ${fmt(d.amount)} XOF confirmés sur votre Wave.`
-                  : isPaid
+                  : d.clientDisputedAt
+                    ? `Le client affirme avoir payé la totalité (${fmt(d.amount)} XOF). Revérifiez votre Wave, puis confirmez ou contactez-le.`
+                    : d.partialCompletedAt && d.partialAt && d.partialCompletedAt > d.partialAt
+                      ? `Le client dit avoir complété les ${fmt(d.partialMissing)} XOF manquants. Vérifiez votre Wave, puis confirmez.`
+                      : d.partialAt
+                        ? `Montant incomplet signalé : ${fmt(d.partialReceived)} reçus sur ${fmt(d.amount)} XOF. Le client a été invité à compléter ${fmt(d.partialMissing)} XOF.`
+                        : isPaid
                     ? `Le client déclare avoir payé ${fmt(d.amount)} XOF via Wave. Vérifiez votre Wave, puis confirmez.`
                     : isCompleted
                       ? `Client servi, mais paiement de ${fmt(d.amount)} XOF pas encore reçu. Le client a été relancé.`
@@ -120,6 +127,11 @@ export default function GerantDemandes() {
                   )}
                   <Btn title="Oui, argent reçu ✓" icon="cash-outline" color={colors.success} onPress={() => setConfirm({ id: d.id, action: 'received' })} style={{ flex: 1 }} />
                 </View>
+                {(isPaid || isCompleted) && (
+                  <View style={s.actions}>
+                    <Btn title={d.partialAt ? 'Toujours incomplet (relancer)' : 'Reçu, mais incomplet'} icon="remove-circle-outline" outline color={colors.warn} onPress={() => setConfirm({ id: d.id, action: 'partial' })} style={{ flex: 1 }} />
+                  </View>
+                )}
                 {isPaid && (
                   <View style={s.actions}>
                     <Btn title="Refuser la demande" icon="close-circle" outline color={colors.danger} onPress={() => setConfirm({ id: d.id, action: 'decline' })} style={{ flex: 1 }} />
@@ -144,7 +156,7 @@ export default function GerantDemandes() {
 
       <Dialog visible={!!confirm}>
         <T size={font.h3} weight="800" color={colors.text} style={{ textAlign: 'center' }}>
-          {confirm?.action === 'accept' ? 'Accepter la demande' : confirm?.action === 'decline' ? 'Refuser la demande' : confirm?.action === 'received' ? "Confirmer l'argent reçu" : confirm?.action === 'notreceived' ? 'Argent non reçu' : 'Confirmer le service'}
+          {confirm?.action === 'accept' ? 'Accepter la demande' : confirm?.action === 'decline' ? 'Refuser la demande' : confirm?.action === 'received' ? "Confirmer l'argent reçu" : confirm?.action === 'notreceived' ? 'Argent non reçu' : confirm?.action === 'partial' ? 'Montant incomplet' : 'Confirmer le service'}
         </T>
         <T size={font.sm} weight="600" color={colors.muted} style={{ textAlign: 'center', marginTop: 6, marginBottom: 6 }}>
           {(() => {
@@ -156,6 +168,7 @@ export default function GerantDemandes() {
                 : 'La demande sera signalée comme refusée.';
             }
             const cur = demandes.find((d) => d.id === confirm?.id) || {};
+            if (confirm?.action === 'partial') return `Vous avez reçu moins que ${fmt(cur.amount)} XOF (souvent ${fmt(Math.round((cur.amount || 0) * 0.99))} XOF : frais Wave 1 % déduits). Le client sera notifié et invité à compléter ${fmt(Math.ceil((cur.amount || 0) * 0.01))} XOF.`;
             if (confirm?.action === 'notreceived') return `Vous n'avez PAS reçu ${fmt(cur.amount)} XOF de ${cur.clientName || 'ce client'} ? Il sera notifié immédiatement et invité à vérifier son transfert Wave. La demande repassera « à payer ».`;
             if (confirm?.action === 'received') return `Vous confirmez avoir reçu ${fmt(cur.amount)} XOF de ${cur.clientName || 'ce client'} sur votre Wave ? Le client sera notifié.`;
             return cur.moneyReceived

@@ -73,7 +73,7 @@ function matches(d, q) {
 }
 
 export default function ClientHistory() {
-  const { state, markPaid, cancelDemande } = useStore();
+  const { state, markPaid, cancelDemande, paymentReply } = useStore();
   const [paying, setPaying] = useState(null);
   const [canceling, setCanceling] = useState(null);
   const [q, setQ] = useState('');
@@ -173,7 +173,9 @@ export default function ClientHistory() {
           </T>
         </Card>
       ) : visible.map((d) => {
-        const st = d.status === 'completed' && !d.moneyReceived
+        const st = d.partialAt && !d.moneyReceived && d.status !== 'canceled' && d.status !== 'declined'
+          ? { label: 'Montant incomplet', color: colors.warn, bg: colors.warnBg, icon: 'remove-circle' }
+          : d.status === 'completed' && !d.moneyReceived
           ? { label: 'Servie · à payer', color: colors.warn, bg: colors.warnBg, icon: 'alert-circle' }
           : d.status === 'accepted' && d.notReceivedAt
             ? { label: 'Paiement non reçu', color: colors.danger, bg: colors.dangerBg, icon: 'warning' }
@@ -241,7 +243,31 @@ export default function ClientHistory() {
                 Le gérant a refusé. Essayez un autre gérant.
               </T>
             )}
-            {d.status === 'paid' && (
+            {/* Montant incomplet signalé par le gérant : compléter ou affirmer avoir tout payé */}
+            {d.partialAt && !d.moneyReceived && ['paid', 'accepted', 'completed'].includes(d.status) && (
+              <View style={[s.timerBox, { backgroundColor: colors.warnBg, flexDirection: 'column', alignItems: 'stretch' }]}>
+                <View style={{ flexDirection: 'row', alignItems: 'center' }}>
+                  <Ionicons name="remove-circle" size={16} color={colors.warn} />
+                  <T size={font.sm} weight="700" color={colors.warn} style={{ marginLeft: 8, flex: 1 }}>
+                    {d.clientDisputedAt
+                      ? `Vous avez indiqué avoir tout payé. ${d.gerantName} revérifie son Wave.`
+                      : d.partialCompletedAt && d.partialCompletedAt > d.partialAt
+                        ? `Complément envoyé. ${d.gerantName} vérifie son Wave.`
+                        : `${d.gerantName} a reçu ${money(d.partialReceived)} au lieu de ${money(d.amount)} (frais Wave déduits ?). Complément à envoyer : ${money(d.partialMissing)}.`}
+                  </T>
+                </View>
+                {!d.clientDisputedAt && !(d.partialCompletedAt > d.partialAt) && (
+                  <>
+                    <WavePayBox amount={d.partialMissing} merchant={d.gerantWave} merchantName={d.gerantName} includeFees={false} compact />
+                    <View style={{ flexDirection: 'row', marginTop: 10 }}>
+                      <Btn title="J'ai complété" icon="checkmark" onPress={() => paymentReply(d.id, 'completed')} style={{ flex: 1, marginRight: 6 }} />
+                      <Btn title="J'ai bien tout payé" icon="hand-left-outline" outline onPress={() => paymentReply(d.id, 'full')} style={{ flex: 1 }} />
+                    </View>
+                  </>
+                )}
+              </View>
+            )}
+            {d.status === 'paid' && !d.partialAt && (
               <View style={s.timerBox}>
                 <Ionicons name={d.moneyReceived ? 'checkmark-circle' : 'time'} size={16} color={d.moneyReceived ? colors.success : colors.muted} />
                 <T size={font.sm} weight="600" color={colors.muted} style={{ marginLeft: 8, flex: 1 }}>

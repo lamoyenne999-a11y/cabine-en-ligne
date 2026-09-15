@@ -1,6 +1,6 @@
 import { Router } from 'express';
 import { requireAuth, requireRole } from '../middleware/auth.js';
-import { demandesForGerant, gerantHistory, demandeSummary, decideDemande, markCompleted, markReceived, markNotReceived, subscriptionFor, paySubscription, publicProfile, gerantProfile, updateGerantProfile, notificationsFor, unreadCount, markNotificationRead, markAllNotificationsRead } from '../services/flowService.js';
+import { demandesForGerant, gerantHistory, demandeSummary, decideDemande, markCompleted, markReceived, markNotReceived, markPartial, subscriptionFor, paySubscription, publicProfile, gerantProfile, updateGerantProfile, notificationsFor, unreadCount, markNotificationRead, markAllNotificationsRead } from '../services/flowService.js';
 
 const router = Router();
 router.use(requireAuth, requireRole('gerant'));
@@ -30,6 +30,11 @@ router.post('/demandes/:id/received', (req, res) => {
 // Le gérant signale qu'il n'a PAS reçu l'argent (le client sera notifié)
 router.post('/demandes/:id/not-received', (req, res) => {
   res.json({ demande: markNotReceived({ id: req.params.id, gerantUserId: req.user.id }) });
+});
+
+// Le gérant a reçu un montant INCOMPLET (ex. frais Wave 1 % déduits). Body : { received? }
+router.post('/demandes/:id/partial', (req, res) => {
+  res.json({ demande: markPartial({ id: req.params.id, gerantUserId: req.user.id, received: req.body?.received }) });
 });
 
 // Quand le gérant a servi le client (crédité les unités/minutes/internet)

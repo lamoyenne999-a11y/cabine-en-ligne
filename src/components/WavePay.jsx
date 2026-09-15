@@ -24,7 +24,7 @@ export function isValidPayLink(link) {
   return !!link && /^https:\/\/[^\s]+\/m\//i.test(String(link).trim());
 }
 
-export function WavePayBox({ amount, merchant, merchantName, payLink, mode = 'number', compact }) {
+export function WavePayBox({ amount, merchant, merchantName, payLink, mode = 'number', compact, includeFees = true }) {
   const [copied, setCopied] = useState(false);
   const [justOpened, setJustOpened] = useState(false);
   const copy = () => {
@@ -58,8 +58,13 @@ export function WavePayBox({ amount, merchant, merchantName, payLink, mode = 'nu
   };
   if (!merchant) return null;
   const hasLink = mode === 'link' && isValidPayLink(payLink);
-  const amt = (amount || 0).toLocaleString('fr-FR').replace(/\u202f/g, ' ');
-  const btnLabel = amount ? `Payer ${amt} FCFA par Wave` : 'Payer par Wave';
+  const fmtN = (n) => (n || 0).toLocaleString('fr-FR').replace(/\u202f/g, ' ');
+  const amt = fmtN(amount);
+  // Frais Wave (1 %) à la charge du client : on affiche le TOTAL à envoyer pour
+  // que le gérant reçoive bien le montant exact de la demande.
+  const fees = mode === 'number' && includeFees && amount ? Math.ceil(amount * 0.01) : 0;
+  const total = (amount || 0) + fees;
+  const btnLabel = amount ? `Payer ${fees ? fmtN(total) : amt} FCFA par Wave` : 'Payer par Wave';
 
   return (
     <View style={[s.infoBox, compact && s.infoBoxCompact]}>
@@ -75,8 +80,10 @@ export function WavePayBox({ amount, merchant, merchantName, payLink, mode = 'nu
       ) : (
         <T size={font.xs} weight="600" color={colors.muted} style={{ textAlign: 'center', marginTop: 6 }}>
           {compact
-            ? 'Frais Wave (1 %) côté client. Copiez le numéro et payez depuis votre app Wave.'
-            : `Transférez ${amount ? `${amt} F` : 'le montant'} au numéro ci-dessous depuis votre app Wave. Les frais Wave (1 %) sont prélevés sur votre compte — ${merchantName} reçoit la totalité.`}
+            ? (fees ? `Envoyez ${fmtN(total)} F (${amt} F + ${fmtN(fees)} F de frais Wave) pour que ${merchantName || 'le gérant'} reçoive ${amt} F.` : 'Frais Wave (1 %) côté client. Copiez le numéro et payez depuis votre app Wave.')
+            : (fees
+              ? `Envoyez ${fmtN(total)} F au numéro ci-dessous depuis votre app Wave : ${amt} F + ${fmtN(fees)} F de frais Wave (1 %). Ainsi ${merchantName || 'le gérant'} reçoit bien ${amt} F.`
+              : `Transférez ${amount ? `${amt} F` : 'le montant'} au numéro ci-dessous depuis votre app Wave.`)}
         </T>
       )}
 

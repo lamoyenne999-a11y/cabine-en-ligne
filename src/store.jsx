@@ -325,6 +325,18 @@ export function StoreProvider({ children }) {
     if (online) { try { const r = await api.gerant.notReceived(id); if (r?.demande) dispatch({ type: 'GERANT_UPDATE_DEMANDE', payload: r.demande }); } catch {} }
   }, [online]);
 
+  // Le gérant a reçu un montant incomplet (frais Wave déduits) : client notifié.
+  const partialDemande = useCallback(async (id) => {
+    dispatch({ type: 'GERANT_UPDATE_DEMANDE', payload: { id, partialAt: Date.now(), clientDisputedAt: 0 } });
+    if (online) { try { const r = await api.gerant.partial(id); if (r?.demande) dispatch({ type: 'GERANT_UPDATE_DEMANDE', payload: r.demande }); } catch {} }
+  }, [online]);
+
+  // Réponse du client après « montant incomplet » : 'completed' ou 'full'.
+  const paymentReply = useCallback(async (id, kind) => {
+    dispatch({ type: 'CLIENT_UPDATE_DEMANDE', payload: kind === 'full' ? { id, clientDisputedAt: Date.now() } : { id, partialCompletedAt: Date.now(), clientDisputedAt: 0 } });
+    if (online) { try { const r = await api.client.paymentReply(id, kind); if (r?.demande) dispatch({ type: 'CLIENT_UPDATE_DEMANDE', payload: r.demande }); } catch {} }
+  }, [online]);
+
   // Le gérant confirme avoir reçu l'argent du client sur son Wave.
   const receiveDemande = useCallback(async (id) => {
     dispatch({ type: 'GERANT_RECEIVED_DEMANDE', payload: id });
@@ -447,8 +459,8 @@ export function StoreProvider({ children }) {
   }, [state.role]);
 
   const value = useMemo(
-    () => ({ state, dispatch, online, checking, recheck: probe, login, register, logout, refresh, addGerant, removeGerant, createDemande, markPaid, cancelDemande, acceptDemande, declineDemande, completeDemande, receiveDemande, notReceiveDemande, subscribe, updateGerantProfile, registerPushToken, registerPushSubscription, unregisterPushSubscription, unregisterPushToken, loadNotifications, markNotificationRead, markAllNotificationsRead, loadClientNotifications, markClientNotificationRead, markAllClientNotificationsRead, loadReferral, updateReferralCode }),
-    [state, online, checking, probe, login, register, logout, refresh, addGerant, removeGerant, createDemande, markPaid, cancelDemande, acceptDemande, declineDemande, completeDemande, receiveDemande, notReceiveDemande, subscribe, updateGerantProfile, registerPushToken, registerPushSubscription, unregisterPushSubscription, unregisterPushToken, loadNotifications, markNotificationRead, markAllNotificationsRead, loadClientNotifications, markClientNotificationRead, markAllClientNotificationsRead, loadReferral, updateReferralCode],
+    () => ({ state, dispatch, online, checking, recheck: probe, login, register, logout, refresh, addGerant, removeGerant, createDemande, markPaid, cancelDemande, acceptDemande, declineDemande, completeDemande, receiveDemande, notReceiveDemande, partialDemande, paymentReply, subscribe, updateGerantProfile, registerPushToken, registerPushSubscription, unregisterPushSubscription, unregisterPushToken, loadNotifications, markNotificationRead, markAllNotificationsRead, loadClientNotifications, markClientNotificationRead, markAllClientNotificationsRead, loadReferral, updateReferralCode }),
+    [state, online, checking, probe, login, register, logout, refresh, addGerant, removeGerant, createDemande, markPaid, cancelDemande, acceptDemande, declineDemande, completeDemande, receiveDemande, notReceiveDemande, partialDemande, paymentReply, subscribe, updateGerantProfile, registerPushToken, registerPushSubscription, unregisterPushSubscription, unregisterPushToken, loadNotifications, markNotificationRead, markAllNotificationsRead, loadClientNotifications, markClientNotificationRead, markAllClientNotificationsRead, loadReferral, updateReferralCode],
   );
   return <Ctx.Provider value={value}>{children}</Ctx.Provider>;
 }

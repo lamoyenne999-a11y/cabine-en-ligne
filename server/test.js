@@ -140,6 +140,18 @@ async function main() {
   const repay = await req('POST', `/client/demandes/${demandeId}/paid`, {}, ct);
   check('Client re-signale le paiement', repay.status === 200 && repay.json.demande?.status === 'paid');
 
+  // Montant incomplet (frais Wave) → client notifié → client répond « tout payé » → gérant notifié
+  const part = await req('POST', `/gerant/demandes/${demandeId}/partial`, {}, gt);
+  check('Gérant signale un montant incomplet (1 % manquant)', part.status === 200 && part.json.demande?.partialMissing === 20 && part.json.demande?.partialReceived === 1980);
+  const cnp = await req('GET', '/client/notifications', null, ct);
+  check('Client notifié « montant incomplet »', (cnp.json.notifications || []).some((n) => n.type === 'demande_partial'));
+  const rep = await req('POST', `/client/demandes/${demandeId}/payment-reply`, { kind: 'full' }, ct);
+  check('Client affirme avoir tout payé', rep.status === 200 && !!rep.json.demande?.clientDisputedAt);
+  const gnp = await req('GET', '/gerant/notifications', null, gt);
+  check('Gérant notifié « client dit avoir tout payé »', (gnp.json.notifications || []).some((n) => n.type === 'client_says_full'));
+  const rep2 = await req('POST', `/client/demandes/${demandeId}/payment-reply`, { kind: 'completed' }, ct);
+  check('Client signale avoir complété', rep2.status === 200 && !!rep2.json.demande?.partialCompletedAt);
+
   // Le gérant confirme la réception de l'argent → client notifié
   const rcv = await req('POST', `/gerant/demandes/${demandeId}/received`, {}, gt);
   check('Gérant confirme la réception de l\'argent', rcv.status === 200 && rcv.json.demande?.moneyReceived === true && rcv.json.demande?.status === 'paid');

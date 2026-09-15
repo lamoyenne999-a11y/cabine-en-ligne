@@ -554,7 +554,7 @@ export function unreadCount(userId) {
 export function createNotification({ userId, type, text, demandeId }) {
   const n = insert('notifications', {
     userId,
-    type,             // 'new_demande' | 'demande_accepted' | 'demande_declined' | 'demande_canceled' | 'demande_paid' | 'demande_received' | 'demande_not_received' | 'demande_served_unpaid' | 'demande_completed'
+    type,             // 'new_demande' | 'demande_accepted' | 'demande_declined' | 'demande_canceled' | 'demande_paid' | 'demande_received' | 'demande_not_received' | 'demande_partial' | 'client_completed' | 'client_says_full' | 'demande_served_unpaid' | 'demande_completed'
     text,
     demandeId: demandeId || '',
     read: false,
@@ -933,7 +933,7 @@ export function markReceived({ id, gerantUserId }) {
   if (!d) throw Object.assign(new Error('Demande introuvable'), { status: 404 });
   if (['declined', 'canceled'].includes(d.status)) throw Object.assign(new Error('Cette demande est refusée ou annulée'), { status: 400 });
   if (d.moneyReceived) return d;
-  const patch = { moneyReceived: true, receivedAt: Date.now() };
+  const patch = { moneyReceived: true, receivedAt: Date.now(), partialAt: 0, clientDisputedAt: 0 };
   if (['pending', 'accepted'].includes(d.status)) { patch.status = 'paid'; patch.paidAt = d.paidAt || Date.now(); if (!d.acceptedAt) patch.acceptedAt = Date.now(); }
   update('demandes', (x) => x.id === id, patch);
   const upd = findOne('demandes', (x) => x.id === id);
@@ -971,6 +971,46 @@ export function markNotReceived({ id, gerantUserId }) {
       demandeId: upd.id,
     });
   }
+  return upd;
+}
+
+// Le gérant a reçu l'argent mais PAS le montant complet (souvent : frais Wave 1 %
+// déduits par le client). Le client est notifié du complément à envoyer.
+export function markPartial({ id, gerantUserId, received }) {
+  const d = findOne('demandes', (x) => x.id === id && x.gerantUserId === gerantUserId);
+  if (!d) throw Object.assign(new Error('Demande introuvable'), { status: 404 });
+  if (d.moneyReceived) throw Object.assign(new Error('Vous avez déjà confirmé la réception complète'), { status: 400 });
+  if (!['paid', 'completed', 'accepted'].includes(d.status)) throw Object.assign(new Error('Le client n\'a pas encore signalé de paiement'), { status: 400 });
+  const total = d.amount || 0;
+  let got = parseInt(received, 10);
+  if (!(got >= 0) || got >= total) got = Math.round(total * 0.99); // défaut : 1 % manquant
+  const missing = total - got;
+  update('demandes', (x) => x.id === id, { partialAt: Date.now(), partialReceived: got, partialMissing: missing, clientDisputedAt: 0 });
+  const upd = findOne('demandes', (x) => x.id === id);
+  if (upd && upd.clientId) createNotification({
+    userId: upd.clientId, type: 'demande_partial', demandeId: upd.id,
+    text: `${upd.gerantName} a reçu ${got} F au lieu de ${total} F (frais Wave déduits ?). Merci de compléter ${missing} F sur son Wave${upd.gerantWave ? ' (' + upd.gerantWave + ')' : ''}, puis appuyez sur « J'ai complété ».`,
+  });
+  return upd;
+}
+
+// Le client répond après un « montant incomplet » : soit il a complété, soit il
+// affirme avoir tout payé. Dans les deux cas le gérant est notifié et revérifie.
+export function clientPaymentReply({ id, clientId, kind }) {
+  const d = findOne('demandes', (x) => x.id === id && x.clientId === clientId);
+  if (!d) throw Object.assign(new Error('Demande introuvable'), { status: 404 });
+  if (!d.partialAt) throw Object.assign(new Error('Aucun montant incomplet signalé pour cette demande'), { status: 400 });
+  const full = kind === 'full';
+  const patch = full ? { clientDisputedAt: Date.now() } : { partialCompletedAt: Date.now(), clientDisputedAt: 0 };
+  if (d.status === 'accepted') { patch.status = 'paid'; patch.paidAt = Date.now(); }
+  update('demandes', (x) => x.id === id, patch);
+  const upd = findOne('demandes', (x) => x.id === id);
+  if (upd && upd.gerantUserId) createNotification({
+    userId: upd.gerantUserId, type: full ? 'client_says_full' : 'client_completed', demandeId: upd.id,
+    text: full
+      ? `${upd.clientName} affirme avoir payé la totalité (${upd.amount} F) pour ${TYPE_LABEL[upd.type] || upd.type}. Vérifiez à nouveau votre Wave puis confirmez « Argent reçu » ou contactez-le.`
+      : `${upd.clientName} a complété les ${upd.partialMissing || ''} F manquants pour ${TYPE_LABEL[upd.type] || upd.type} ${upd.amount} F. Vérifiez votre Wave puis confirmez « Argent reçu ».`,
+  });
   return upd;
 }
 

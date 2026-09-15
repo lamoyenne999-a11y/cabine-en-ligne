@@ -1,6 +1,6 @@
 import { Router } from 'express';
 import { requireAuth, requireRole } from '../middleware/auth.js';
-import { gerantsFor, addGerant, removeGerant, createDemande, demandesForClient, clientHistory, demandeSummary, subscriptionFor, paySubscription, publicProfile, markPaid, cancelDemande, notificationsFor, unreadCount, markNotificationRead, markAllNotificationsRead, availableGerants } from '../services/flowService.js';
+import { gerantsFor, addGerant, removeGerant, createDemande, demandesForClient, clientHistory, demandeSummary, subscriptionFor, paySubscription, publicProfile, markPaid, cancelDemande, clientPaymentReply, notificationsFor, unreadCount, markNotificationRead, markAllNotificationsRead, availableGerants } from '../services/flowService.js';
 
 const router = Router();
 router.use(requireAuth, requireRole('client'));
@@ -49,6 +49,12 @@ router.post('/demandes/:id/paid', (req, res) => {
 });
 
 // Annule une demande non traitée à temps
+// Réponse du client après « montant incomplet » : { kind: 'completed' | 'full' }
+router.post('/demandes/:id/payment-reply', (req, res, next) => {
+  try { res.json({ demande: clientPaymentReply({ id: req.params.id, clientId: req.user.id, kind: req.body?.kind }) }); }
+  catch (e) { next(e); }
+});
+
 router.post('/demandes/:id/cancel', (req, res) => {
   try {
     res.json({ demande: cancelDemande({ id: req.params.id, clientId: req.user.id }) });
