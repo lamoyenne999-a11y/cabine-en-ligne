@@ -107,6 +107,13 @@ export default function GerantDemandes() {
     ];
     return [];
   };
+  // Action affichée SOUS les 2 boutons principaux (pleine largeur, petite).
+  const secondaryAction = (d) => {
+    if ((d.status === 'paid' || d.status === 'completed') && !d.moneyReceived) {
+      return { key: 'partial', title: d.partialAt ? 'Toujours incomplet — relancer le client' : 'Reçu, mais incomplet (frais Wave)', icon: 'remove-circle-outline', color: colors.warn };
+    }
+    return null;
+  };
   // Actions SECONDAIRES (panneau « ⋯ »).
   const moreActions = (d) => {
     const a = [];
@@ -114,7 +121,6 @@ export default function GerantDemandes() {
     if (d.moneyReceived && d.status !== 'completed') a.unshift({ key: 'complete', title: 'J\'ai servi le client', icon: 'checkmark-done', color: colors.primary });
     else if (canServe) a.push({ key: 'complete', title: 'J\'ai servi (sans attendre le paiement)', icon: 'checkmark-done-outline', color: colors.primary });
     if (d.status === 'pending' || d.status === 'accepted') a.push({ key: 'received', title: 'Argent déjà reçu ✓', icon: 'cash-outline', color: colors.success });
-    if ((d.status === 'paid' || d.status === 'completed') && !d.moneyReceived) a.push({ key: 'partial', title: d.partialAt ? 'Toujours incomplet (relancer)' : 'Reçu, mais incomplet (frais Wave)', icon: 'remove-circle-outline', color: colors.warn });
     if (d.status === 'pending' || d.status === 'paid') a.push({ key: 'unavailable', title: 'Je ne suis pas disponible', icon: 'moon-outline', color: colors.warn });
     if (d.status === 'pending' || d.status === 'paid') a.push({ key: 'decline', title: 'Refuser la demande', icon: 'close-circle', color: colors.danger });
     return a;
@@ -162,6 +168,7 @@ export default function GerantDemandes() {
         const line = stateLine(d);
         const tone = TONES[line.tone] || TONES.muted;
         const prim = primaryActions(d);
+        const sec = secondaryAction(d);
         const extra = moreActions(d);
         return (
           <Card key={d.id} style={s.card}>
@@ -199,6 +206,9 @@ export default function GerantDemandes() {
                   </Pressable>
                 )}
               </View>
+            )}
+            {sec && (
+              <Btn title={sec.title} icon={sec.icon} size="sm" color={sec.color} outline onPress={() => ask(d.id, sec.key)} style={{ marginTop: 6 }} />
             )}
           </Card>
         );
