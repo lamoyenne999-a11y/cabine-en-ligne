@@ -223,7 +223,7 @@ export default function ClientHistory() {
                 <View style={s.timerBox}>
                   <Ionicons name={isExpired(d, now) ? 'alert-circle' : 'time'} size={16} color={isExpired(d, now) ? colors.danger : colors.muted} />
                   <T size={font.sm} weight="600" color={isExpired(d, now) ? colors.danger : colors.muted} style={{ marginLeft: 8, flex: 1 }}>
-                    {isExpired(d, now) ? `Le gérant n'a pas répondu à temps (${remainingLabel(d, now)}).` : `En attente de réponse du gérant — ${remainingLabel(d, now)}.`}
+                    {isExpired(d, now) ? `Le gérant n'a pas répondu dans les 5 min. Vous pouvez annuler et choisir un autre gérant.` : `Le gérant a 5 min pour répondre — ${remainingLabel(d, now)}.`}
                   </T>
                 </View>
                 <Btn title="Annuler la demande" icon="close-circle" outline color={colors.danger} onPress={() => setCanceling(d)} style={{ marginTop: space.md }} />

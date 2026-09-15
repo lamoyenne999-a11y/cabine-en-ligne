@@ -278,7 +278,7 @@ export default function ClientHome() {
           <Ionicons name="checkmark-circle" size={72} color={colors.success} />
           <T size={font.h3} weight="900" color={colors.text} style={{ marginTop: 12 }}>Demande lancée !</T>
           <T size={font.sm} weight="600" color={colors.muted} style={{ marginTop: 4, textAlign: 'center' }}>
-            Votre demande a bien été envoyée à {lastDemande?.gerantName || gerant?.name}.
+            Votre demande a bien été envoyée à {lastDemande?.gerantName || gerant?.name}. Il a 5 minutes pour répondre.
           </T>
         </View>
 

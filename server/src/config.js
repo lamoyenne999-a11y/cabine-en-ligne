@@ -19,7 +19,7 @@ export const config = {
   waveMockDelayMs: Number(process.env.WAVE_MOCK_DELAY_MS || 1800),
 
   // Délai de traitement d'une demande avant que le client puisse l'annuler (ms)
-  demandeExpireMs: Number(process.env.DEMANDE_EXPIRE_MS || 30 * 60 * 1000),
+  demandeExpireMs: Number(process.env.DEMANDE_EXPIRE_MS || 5 * 60 * 1000), // délai de réponse du gérant : 5 min
 
   // Pays (pour formater les numéros de téléphone en +225, +221, …)
   phonePrefix: process.env.PHONE_PREFIX || '+225',
