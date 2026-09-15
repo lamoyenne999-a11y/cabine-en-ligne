@@ -560,7 +560,7 @@ export function unreadCount(userId) {
 export function createNotification({ userId, type, text, demandeId }) {
   const n = insert('notifications', {
     userId,
-    type,             // 'new_demande' | 'demande_accepted' | 'demande_declined' | 'demande_unavailable' | 'demande_canceled' | 'demande_paid' | 'demande_received' | 'demande_not_received' | 'demande_partial' | 'client_completed' | 'client_says_full' | 'client_not_served' | 'client_confirmed' | 'demande_served_unpaid' | 'demande_completed'
+    type,             // 'new_demande' | 'demande_accepted' | 'payment_requested' | 'demande_declined' | 'demande_unavailable' | 'demande_canceled' | 'demande_paid' | 'demande_received' | 'demande_not_received' | 'demande_partial' | 'client_completed' | 'client_says_full' | 'client_not_served' | 'client_confirmed' | 'demande_served_unpaid' | 'demande_completed'
     text,
     demandeId: demandeId || '',
     read: false,
@@ -926,7 +926,7 @@ export function decideDemande({ id, gerantUserId, decision, reason }) {
     update('demandes', (x) => x.id === id, { status: 'accepted', acceptedAt: Date.now() });
     const upd = findOne('demandes', (x) => x.id === id);
     // Notifie le client que sa demande a été acceptée
-    if (upd && upd.clientId) createNotification({ userId: upd.clientId, type: 'demande_accepted', text: `${upd.gerantName} a accepté votre demande — ${TYPE_LABEL[upd.type] || upd.type}  ${upd.amount} F`, demandeId: upd.id });
+    if (upd && upd.clientId) createNotification({ userId: upd.clientId, type: 'demande_accepted', text: `${upd.gerantName} a bien reçu votre demande — ${TYPE_LABEL[upd.type] || upd.type}  ${upd.amount} F — et s'en occupe.${upd.status === 'accepted' && !upd.paidAt ? ' Payez via Wave pour qu\'il puisse vous servir.' : ''}`, demandeId: upd.id });
     return upd;
   }
 }
@@ -998,6 +998,22 @@ export function markNotReceived({ id, gerantUserId }) {
       demandeId: upd.id,
     });
   }
+  return upd;
+}
+
+// Le gérant demande au client de PAYER AVANT traitement (client avait choisi « Plus tard »).
+export function requestPayment({ id, gerantUserId }) {
+  const d = findOne('demandes', (x) => x.id === id && x.gerantUserId === gerantUserId);
+  if (!d) throw Object.assign(new Error('Demande introuvable'), { status: 404 });
+  if (!['pending', 'accepted'].includes(d.status)) throw Object.assign(new Error('Le client a déjà signalé son paiement'), { status: 400 });
+  const patch = { paymentRequestedAt: Date.now(), paymentRequestCount: (d.paymentRequestCount || 0) + 1 };
+  if (d.status === 'pending') { patch.status = 'accepted'; patch.acceptedAt = Date.now(); }
+  update('demandes', (x) => x.id === id, patch);
+  const upd = findOne('demandes', (x) => x.id === id);
+  if (upd && upd.clientId) createNotification({
+    userId: upd.clientId, type: 'payment_requested', demandeId: upd.id,
+    text: `${upd.gerantName} a bien reçu votre demande ${TYPE_LABEL[upd.type] || upd.type} ${upd.amount} F et vous demande de payer d'abord : envoyez ${upd.amount} F (+ frais Wave) au ${upd.gerantWave || 'numéro Wave indiqué'}, puis appuyez sur « J'ai payé ». Il vous servira dès réception.`,
+  });
   return upd;
 }
 

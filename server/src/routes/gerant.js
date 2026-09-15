@@ -1,7 +1,7 @@
 import { Router } from 'express';
 import { findOne } from '../db.js';
 import { requireAuth, requireRole } from '../middleware/auth.js';
-import { demandesForGerant, gerantHistory, demandeSummary, decideDemande, markCompleted, markReceived, markNotReceived, markPartial, setGerantAvailability, subscriptionFor, paySubscription, publicProfile, gerantProfile, updateGerantProfile, notificationsFor, unreadCount, markNotificationRead, markAllNotificationsRead } from '../services/flowService.js';
+import { demandesForGerant, gerantHistory, demandeSummary, decideDemande, markCompleted, markReceived, markNotReceived, markPartial, requestPayment, setGerantAvailability, subscriptionFor, paySubscription, publicProfile, gerantProfile, updateGerantProfile, notificationsFor, unreadCount, markNotificationRead, markAllNotificationsRead } from '../services/flowService.js';
 
 const router = Router();
 router.use(requireAuth, requireRole('gerant'));
@@ -22,6 +22,11 @@ router.post('/demandes/:id/accept', (req, res) => {
 // Le gérant n'est pas disponible (pas à la cabine / pas de matériel). Body : { reason }
 router.post('/demandes/:id/unavailable', (req, res) => {
   res.json({ demande: decideDemande({ id: req.params.id, gerantUserId: req.user.id, decision: 'unavailable', reason: req.body?.reason }) });
+});
+
+// Demande au client de payer avant traitement (client avait choisi « Plus tard »)
+router.post('/demandes/:id/request-payment', (req, res) => {
+  res.json({ demande: requestPayment({ id: req.params.id, gerantUserId: req.user.id }) });
 });
 
 // Disponibilité En ligne / Hors ligne (profil). Body : { available }

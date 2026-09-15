@@ -77,6 +77,7 @@ export const api = {
     accept: (id) => request('POST', `/api/gerant/demandes/${id}/accept`),
     decline: (id) => request('POST', `/api/gerant/demandes/${id}/decline`),
     unavailable: (id, reason) => request('POST', `/api/gerant/demandes/${id}/unavailable`, { reason }),
+    requestPayment: (id) => request('POST', `/api/gerant/demandes/${id}/request-payment`),
     setAvailability: (available) => request('POST', '/api/gerant/availability', { available }),
     complete: (id) => request('POST', `/api/gerant/demandes/${id}/complete`),
     received: (id) => request('POST', `/api/gerant/demandes/${id}/received`),

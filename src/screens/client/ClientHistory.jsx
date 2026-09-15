@@ -184,6 +184,8 @@ export default function ClientHistory() {
           ? { label: 'Servie · à payer', color: colors.warn, bg: colors.warnBg, icon: 'alert-circle' }
           : d.status === 'accepted' && d.notReceivedAt
             ? { label: 'Paiement non reçu', color: colors.danger, bg: colors.dangerBg, icon: 'warning' }
+          : d.status === 'accepted' && d.paymentRequestedAt
+            ? { label: 'Paiement demandé', color: '#2E7BF6', bg: '#E7F0FE', icon: 'card' }
             : (STATUS[d.status] || STATUS.pending);
         return (
           <Card key={d.id} style={{ marginBottom: space.sm }}>
@@ -232,10 +234,12 @@ export default function ClientHistory() {
             )}
             {d.status === 'accepted' && (
               <>
-                <View style={[s.timerBox, d.notReceivedAt && { backgroundColor: colors.dangerBg }]}>
-                  <Ionicons name={d.notReceivedAt ? 'warning' : 'checkmark-circle'} size={16} color={d.notReceivedAt ? colors.danger : colors.success} />
+                <View style={[s.timerBox, d.notReceivedAt && { backgroundColor: colors.dangerBg }, d.paymentRequestedAt && !d.notReceivedAt && { backgroundColor: '#E7F0FE' }]}>
+                  <Ionicons name={d.notReceivedAt ? 'warning' : d.paymentRequestedAt ? 'card' : 'checkmark-circle'} size={16} color={d.notReceivedAt ? colors.danger : d.paymentRequestedAt ? '#2E7BF6' : colors.success} />
                   <T size={font.sm} weight={d.notReceivedAt ? '700' : '600'} color={d.notReceivedAt ? colors.danger : colors.muted} style={{ marginLeft: 8, flex: 1 }}>
-                    {d.notReceivedAt
+                    {d.paymentRequestedAt && !d.notReceivedAt
+                      ? `${d.gerantName} a bien reçu votre demande et vous demande de payer d'abord. Il vous servira dès réception du paiement.`
+                      : d.notReceivedAt
                       ? `${d.gerantName} n'a PAS reçu votre paiement. Vérifiez votre transfert Wave (numéro ${d.gerantWave || 'du gérant'}, montant ${money(d.amount)}), puis appuyez à nouveau sur « J'ai payé », ou contactez-le.`
                       : `${d.gerantName} a accepté votre demande. Payez via Wave, ou annulez si vous changez d'avis.`}
                   </T>

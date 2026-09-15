@@ -239,6 +239,18 @@ async function main() {
     console.log('  (tests admin ignorés : ADMIN_KEY non défini)');
   }
 
+  // ===== « Payer d'abord » : le gérant demande le paiement avant traitement =====
+  const dmRP = await req('POST', '/client/demandes', { gerantId, gerantName: 'Gérant Test', gerantWave: gphone, type: 'internet', amount: 700, benefName: 'Awa', benefPhone: '07' + uniq }, ct);
+  const rpId = dmRP.json.demande?.id;
+  const rp = await req('POST', `/gerant/demandes/${rpId}/request-payment`, {}, gt);
+  check('Gérant demande le paiement → demande acceptée + paiement demandé', rp.status === 200 && rp.json.demande?.status === 'accepted' && !!rp.json.demande?.paymentRequestedAt);
+  const cnrp = await req('GET', '/client/notifications', null, ct);
+  check('Client notifié « payez d\'abord »', (cnrp.json.notifications || []).some((n) => n.type === 'payment_requested' && n.demandeId === rpId));
+  const payRP = await req('POST', `/client/demandes/${rpId}/paid`, {}, ct);
+  check('Client paie ensuite (paid)', payRP.status === 200 && payRP.json.demande?.status === 'paid');
+  const rpBad = await req('POST', `/gerant/demandes/${rpId}/request-payment`, {}, gt);
+  check('Demande de paiement refusée si déjà payée (400)', rpBad.status === 400);
+
   // ===== Gérant indisponible (pas un refus) =====
   const dmU2 = await req('POST', '/client/demandes', { gerantId, gerantName: 'Gérant Test', gerantWave: gphone, type: 'unites', amount: 300, benefName: 'Awa', benefPhone: '07' + uniq }, ct);
   const unavailId = dmU2.json.demande?.id;
