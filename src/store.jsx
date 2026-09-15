@@ -98,6 +98,8 @@ function reducer(state, action) {
       return { ...state, gerantDemandes: action.payload };
     case 'GERANT_UPDATE_DEMANDE':
       return { ...state, gerantDemandes: state.gerantDemandes.map((d) => (d.id === action.payload.id ? { ...d, ...action.payload } : d)) };
+    case 'GERANT_NOT_RECEIVED_DEMANDE':
+      return { ...state, gerantDemandes: state.gerantDemandes.map((d) => (d.id === action.payload ? { ...d, moneyReceived: false, notReceivedAt: Date.now(), status: d.status === 'paid' ? 'accepted' : d.status } : d)) };
     case 'GERANT_RECEIVED_DEMANDE':
       return { ...state, gerantDemandes: state.gerantDemandes.map((d) => (d.id === action.payload ? { ...d, moneyReceived: true, receivedAt: Date.now(), status: ['pending', 'accepted'].includes(d.status) ? 'paid' : d.status } : d)) };
 
@@ -317,6 +319,12 @@ export function StoreProvider({ children }) {
     if (online) { try { const r = await api.gerant.complete(id); if (r?.demande) dispatch({ type: 'GERANT_UPDATE_DEMANDE', payload: r.demande }); } catch {} }
   }, [online]);
 
+  // Le gérant signale qu'il n'a PAS reçu l'argent : la demande repasse « à payer », client notifié.
+  const notReceiveDemande = useCallback(async (id) => {
+    dispatch({ type: 'GERANT_NOT_RECEIVED_DEMANDE', payload: id });
+    if (online) { try { const r = await api.gerant.notReceived(id); if (r?.demande) dispatch({ type: 'GERANT_UPDATE_DEMANDE', payload: r.demande }); } catch {} }
+  }, [online]);
+
   // Le gérant confirme avoir reçu l'argent du client sur son Wave.
   const receiveDemande = useCallback(async (id) => {
     dispatch({ type: 'GERANT_RECEIVED_DEMANDE', payload: id });
@@ -439,8 +447,8 @@ export function StoreProvider({ children }) {
   }, [state.role]);
 
   const value = useMemo(
-    () => ({ state, dispatch, online, checking, recheck: probe, login, register, logout, refresh, addGerant, removeGerant, createDemande, markPaid, cancelDemande, acceptDemande, declineDemande, completeDemande, receiveDemande, subscribe, updateGerantProfile, registerPushToken, registerPushSubscription, unregisterPushSubscription, unregisterPushToken, loadNotifications, markNotificationRead, markAllNotificationsRead, loadClientNotifications, markClientNotificationRead, markAllClientNotificationsRead, loadReferral, updateReferralCode }),
-    [state, online, checking, probe, login, register, logout, refresh, addGerant, removeGerant, createDemande, markPaid, cancelDemande, acceptDemande, declineDemande, completeDemande, receiveDemande, subscribe, updateGerantProfile, registerPushToken, registerPushSubscription, unregisterPushSubscription, unregisterPushToken, loadNotifications, markNotificationRead, markAllNotificationsRead, loadClientNotifications, markClientNotificationRead, markAllClientNotificationsRead, loadReferral, updateReferralCode],
+    () => ({ state, dispatch, online, checking, recheck: probe, login, register, logout, refresh, addGerant, removeGerant, createDemande, markPaid, cancelDemande, acceptDemande, declineDemande, completeDemande, receiveDemande, notReceiveDemande, subscribe, updateGerantProfile, registerPushToken, registerPushSubscription, unregisterPushSubscription, unregisterPushToken, loadNotifications, markNotificationRead, markAllNotificationsRead, loadClientNotifications, markClientNotificationRead, markAllClientNotificationsRead, loadReferral, updateReferralCode }),
+    [state, online, checking, probe, login, register, logout, refresh, addGerant, removeGerant, createDemande, markPaid, cancelDemande, acceptDemande, declineDemande, completeDemande, receiveDemande, notReceiveDemande, subscribe, updateGerantProfile, registerPushToken, registerPushSubscription, unregisterPushSubscription, unregisterPushToken, loadNotifications, markNotificationRead, markAllNotificationsRead, loadClientNotifications, markClientNotificationRead, markAllClientNotificationsRead, loadReferral, updateReferralCode],
   );
   return <Ctx.Provider value={value}>{children}</Ctx.Provider>;
 }

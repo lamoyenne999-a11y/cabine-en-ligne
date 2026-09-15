@@ -131,6 +131,14 @@ async function main() {
   const paid = await req('POST', `/client/demandes/${demandeId}/paid`, {}, ct);
   check('Client signale le paiement (paid)', paid.status === 200 && paid.json.demande?.status === 'paid');
 
+  // Le gérant signale d'abord NE PAS avoir reçu → demande repasse « accepted », client notifié
+  const nr = await req('POST', `/gerant/demandes/${demandeId}/not-received`, {}, gt);
+  check('Gérant signale « argent non reçu » → à payer', nr.status === 200 && nr.json.demande?.status === 'accepted' && !nr.json.demande?.moneyReceived);
+  const cn0 = await req('GET', '/client/notifications', null, ct);
+  check('Client notifié « paiement non reçu »', (cn0.json.notifications || []).some((n) => n.type === 'demande_not_received'));
+  const repay = await req('POST', `/client/demandes/${demandeId}/paid`, {}, ct);
+  check('Client re-signale le paiement', repay.status === 200 && repay.json.demande?.status === 'paid');
+
   // Le gérant confirme la réception de l'argent → client notifié
   const rcv = await req('POST', `/gerant/demandes/${demandeId}/received`, {}, gt);
   check('Gérant confirme la réception de l\'argent', rcv.status === 200 && rcv.json.demande?.moneyReceived === true && rcv.json.demande?.status === 'paid');

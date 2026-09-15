@@ -505,7 +505,7 @@ export function unreadCount(userId) {
 export function createNotification({ userId, type, text, demandeId }) {
   const n = insert('notifications', {
     userId,
-    type,             // 'new_demande' | 'demande_accepted' | 'demande_declined' | 'demande_canceled' | 'demande_paid' | 'demande_received' | 'demande_served_unpaid' | 'demande_completed'
+    type,             // 'new_demande' | 'demande_accepted' | 'demande_declined' | 'demande_canceled' | 'demande_paid' | 'demande_received' | 'demande_not_received' | 'demande_served_unpaid' | 'demande_completed'
     text,
     demandeId: demandeId || '',
     read: false,
@@ -897,6 +897,29 @@ export function markReceived({ id, gerantUserId }) {
       text: upd.status === 'completed'
         ? `${upd.gerantName} a confirmé la réception de votre paiement — ${label}. Votre demande est entièrement réglée. Merci !`
         : `${upd.gerantName} a bien reçu votre paiement — ${label}. Votre demande est en cours de traitement.`,
+      demandeId: upd.id,
+    });
+  }
+  return upd;
+}
+
+// Le gérant signale qu'il n'a PAS reçu l'argent alors que le client dit avoir payé.
+// La demande repasse « acceptée / à payer » et le client est notifié : il doit
+// vérifier son transfert Wave (numéro, montant) ou contacter le gérant.
+export function markNotReceived({ id, gerantUserId }) {
+  const d = findOne('demandes', (x) => x.id === id && x.gerantUserId === gerantUserId);
+  if (!d) throw Object.assign(new Error('Demande introuvable'), { status: 404 });
+  if (d.moneyReceived) throw Object.assign(new Error('Vous avez déjà confirmé la réception de ce paiement'), { status: 400 });
+  if (!['paid', 'completed'].includes(d.status)) throw Object.assign(new Error('Le client n\'a pas encore signalé de paiement'), { status: 400 });
+  const patch = { moneyReceived: false, notReceivedAt: Date.now(), notReceivedCount: (d.notReceivedCount || 0) + 1 };
+  if (d.status === 'paid') { patch.status = 'accepted'; patch.paidAt = 0; if (!d.acceptedAt) patch.acceptedAt = Date.now(); }
+  update('demandes', (x) => x.id === id, patch);
+  const upd = findOne('demandes', (x) => x.id === id);
+  if (upd && upd.clientId) {
+    createNotification({
+      userId: upd.clientId,
+      type: 'demande_not_received',
+      text: `${upd.gerantName} n'a PAS reçu votre paiement de ${upd.amount} F — ${TYPE_LABEL[upd.type] || upd.type}. Vérifiez votre transfert Wave (numéro ${upd.gerantWave || 'du gérant'}, montant) puis appuyez à nouveau sur « J'ai payé », ou contactez ${upd.gerantName}.`,
       demandeId: upd.id,
     });
   }

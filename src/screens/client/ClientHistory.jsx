@@ -175,7 +175,9 @@ export default function ClientHistory() {
       ) : visible.map((d) => {
         const st = d.status === 'completed' && !d.moneyReceived
           ? { label: 'Servie · à payer', color: colors.warn, bg: colors.warnBg, icon: 'alert-circle' }
-          : (STATUS[d.status] || STATUS.pending);
+          : d.status === 'accepted' && d.notReceivedAt
+            ? { label: 'Paiement non reçu', color: colors.danger, bg: colors.dangerBg, icon: 'warning' }
+            : (STATUS[d.status] || STATUS.pending);
         return (
           <Card key={d.id} style={{ marginBottom: space.sm }}>
             <View style={{ flexDirection: 'row', alignItems: 'center' }}>
@@ -223,10 +225,12 @@ export default function ClientHistory() {
             )}
             {d.status === 'accepted' && (
               <>
-                <View style={s.timerBox}>
-                  <Ionicons name="checkmark-circle" size={16} color={colors.success} />
-                  <T size={font.sm} weight="600" color={colors.muted} style={{ marginLeft: 8, flex: 1 }}>
-                    {d.gerantName} a accepté votre demande. Payez via Wave, ou annulez si vous changez d'avis.
+                <View style={[s.timerBox, d.notReceivedAt && { backgroundColor: colors.dangerBg }]}>
+                  <Ionicons name={d.notReceivedAt ? 'warning' : 'checkmark-circle'} size={16} color={d.notReceivedAt ? colors.danger : colors.success} />
+                  <T size={font.sm} weight={d.notReceivedAt ? '700' : '600'} color={d.notReceivedAt ? colors.danger : colors.muted} style={{ marginLeft: 8, flex: 1 }}>
+                    {d.notReceivedAt
+                      ? `${d.gerantName} n'a PAS reçu votre paiement. Vérifiez votre transfert Wave (numéro ${d.gerantWave || 'du gérant'}, montant ${money(d.amount)}), puis appuyez à nouveau sur « J'ai payé », ou contactez-le.`
+                      : `${d.gerantName} a accepté votre demande. Payez via Wave, ou annulez si vous changez d'avis.`}
                   </T>
                 </View>
                 <Btn title="Annuler la demande" icon="close-circle" outline color={colors.danger} onPress={() => setCanceling(d)} style={{ marginTop: space.md }} />

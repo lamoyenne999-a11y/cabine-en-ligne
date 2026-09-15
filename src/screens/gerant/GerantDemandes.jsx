@@ -22,7 +22,7 @@ const TYPE_ICON = { unites: 'phone-portrait-outline', minutes: 'call-outline', i
 const TYPE_LABEL = { unites: 'Unités', minutes: 'Minutes', internet: 'Internet', forfait: 'Appel + Internet' };
 
 export default function GerantDemandes() {
-  const { state, acceptDemande, declineDemande, completeDemande, receiveDemande, subscribe } = useStore();
+  const { state, acceptDemande, declineDemande, completeDemande, receiveDemande, notReceiveDemande, subscribe } = useStore();
   const [confirm, setConfirm] = useState(null); // { id, action }
   const [showSub, setShowSub] = useState(false);
   // L'inbox ne montre que les demandes qui ATTENDENT UNE ACTION du gérant :
@@ -41,6 +41,7 @@ export default function GerantDemandes() {
     else if (confirm.action === 'decline') declineDemande(confirm.id);
     else if (confirm.action === 'complete') completeDemande(confirm.id);
     else if (confirm.action === 'received') receiveDemande(confirm.id);
+    else if (confirm.action === 'notreceived') notReceiveDemande(confirm.id);
     setConfirm(null);
   };
 
@@ -93,7 +94,9 @@ export default function GerantDemandes() {
                     : isCompleted
                       ? `Client servi, mais paiement de ${fmt(d.amount)} XOF pas encore reçu. Le client a été relancé.`
                       : isAccepted
-                        ? `En attente du paiement Wave du client${d.gerantWave ? ' (numéro ' + d.gerantWave + ')' : ''}.`
+                        ? (d.notReceivedAt
+                          ? `Vous avez signalé ne pas avoir reçu l'argent. Le client a été notifié et doit vérifier son transfert.`
+                          : `En attente du paiement Wave du client${d.gerantWave ? ' (numéro ' + d.gerantWave + ')' : ''}.`)
                         : `Paiement non reçu pour l'instant.`}
               </T>
             </View>
@@ -107,10 +110,22 @@ export default function GerantDemandes() {
             )}
             {/* Étape 2 : confirmer l'argent reçu (dès qu'il arrive sur le Wave) */}
             {!d.moneyReceived && (isAccepted || isPaid || isCompleted) && (
-              <View style={s.actions}>
-                {isPaid && <Btn title="Refuser" icon="close-circle" outline color={colors.danger} onPress={() => setConfirm({ id: d.id, action: 'decline' })} style={{ flex: 1, marginRight: 6 }} />}
-                <Btn title="Argent reçu ✓" icon="cash-outline" color={colors.success} onPress={() => setConfirm({ id: d.id, action: 'received' })} style={{ flex: 1 }} />
-              </View>
+              <>
+                {(isPaid || isCompleted) && (
+                  <T size={font.sm} weight="800" color={colors.text} style={{ marginTop: 12 }}>Avez-vous reçu l'argent sur votre Wave ?</T>
+                )}
+                <View style={s.actions}>
+                  {(isPaid || isCompleted) && (
+                    <Btn title="Non, pas reçu ✗" icon="close-circle" outline color={colors.danger} onPress={() => setConfirm({ id: d.id, action: 'notreceived' })} style={{ flex: 1, marginRight: 6 }} />
+                  )}
+                  <Btn title="Oui, argent reçu ✓" icon="cash-outline" color={colors.success} onPress={() => setConfirm({ id: d.id, action: 'received' })} style={{ flex: 1 }} />
+                </View>
+                {isPaid && (
+                  <View style={s.actions}>
+                    <Btn title="Refuser la demande" icon="close-circle" outline color={colors.danger} onPress={() => setConfirm({ id: d.id, action: 'decline' })} style={{ flex: 1 }} />
+                  </View>
+                )}
+              </>
             )}
             {/* Étape 3 : servir le client */}
             {!isCompleted && !isPending && (
@@ -129,7 +144,7 @@ export default function GerantDemandes() {
 
       <Dialog visible={!!confirm}>
         <T size={font.h3} weight="800" color={colors.text} style={{ textAlign: 'center' }}>
-          {confirm?.action === 'accept' ? 'Accepter la demande' : confirm?.action === 'decline' ? 'Refuser la demande' : confirm?.action === 'received' ? "Confirmer l'argent reçu" : 'Confirmer le service'}
+          {confirm?.action === 'accept' ? 'Accepter la demande' : confirm?.action === 'decline' ? 'Refuser la demande' : confirm?.action === 'received' ? "Confirmer l'argent reçu" : confirm?.action === 'notreceived' ? 'Argent non reçu' : 'Confirmer le service'}
         </T>
         <T size={font.sm} weight="600" color={colors.muted} style={{ textAlign: 'center', marginTop: 6, marginBottom: 6 }}>
           {(() => {
@@ -141,6 +156,7 @@ export default function GerantDemandes() {
                 : 'La demande sera signalée comme refusée.';
             }
             const cur = demandes.find((d) => d.id === confirm?.id) || {};
+            if (confirm?.action === 'notreceived') return `Vous n'avez PAS reçu ${fmt(cur.amount)} XOF de ${cur.clientName || 'ce client'} ? Il sera notifié immédiatement et invité à vérifier son transfert Wave. La demande repassera « à payer ».`;
             if (confirm?.action === 'received') return `Vous confirmez avoir reçu ${fmt(cur.amount)} XOF de ${cur.clientName || 'ce client'} sur votre Wave ? Le client sera notifié.`;
             return cur.moneyReceived
               ? 'Vous avez bien crédité le client ? La demande sera marquée complétée et le client notifié.'

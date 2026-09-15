@@ -44,6 +44,7 @@ export default function Admin({ onBack }) {
 
   // Navigation interne entre les sections de l'Espace propriétaire.
   const [adminTab, setAdminTab] = useState('apercu'); // apercu | utilisateurs | activite | parrainage | paiements | systeme
+  const goUsers = (role) => { setURole(role); setUFilter('all'); setUCount(U_PAGE); setAdminTab('utilisateurs'); };
 
   const load = async () => {
     if (!key.trim()) { setErr('Saisissez la clé propriétaire.'); return; }
@@ -338,8 +339,8 @@ export default function Admin({ onBack }) {
 
           <View style={{ flexDirection: 'row', marginTop: space.lg, marginBottom: space.sm }}>
             <View style={{ flex: 1, marginRight: 8 }}><StatTile icon="people-outline" value={users.length} label="Utilisateurs" tone="purple" /></View>
-            <View style={{ flex: 1, marginRight: 8 }}><StatTile icon="person-outline" value={clientsCount} label="Clients" tone="blue" /></View>
-            <View style={{ flex: 1 }}><StatTile icon="storefront-outline" value={gerantsCount} label="Gérants" tone="orange" /></View>
+            <Pressable style={{ flex: 1, marginRight: 8 }} onPress={() => goUsers('client')}><StatTile icon="person-outline" value={clientsCount} label="Clients ›" tone="blue" /></Pressable>
+            <Pressable style={{ flex: 1 }} onPress={() => goUsers('gerant')}><StatTile icon="storefront-outline" value={gerantsCount} label="Gérants ›" tone="orange" /></Pressable>
           </View>
           <View style={{ flexDirection: 'row', marginBottom: space.sm }}>
             <View style={{ flex: 1, marginRight: 8 }}><StatTile icon="person-add-outline" value={eventCounters.user_registered || 0} label="Inscriptions" tone="green" /></View>
@@ -388,16 +389,22 @@ export default function Admin({ onBack }) {
             </View>
           </Card>
 
-          {/* Tri par profil : Tous / Clients / Gérants */}
-          <View style={{ flexDirection: 'row', flexWrap: 'wrap', alignItems: 'center', marginBottom: 6 }}>
-            <T size={font.xs} weight="700" color={colors.muted} style={{ marginRight: 8 }}>Profil :</T>
+          {/* Tri par profil : Tous / Clients / Gérants — gros sélecteur bien visible */}
+          <View style={s.roleBar}>
             {[
-              { value: 'all', label: `Tous (${users.length})` },
-              { value: 'client', label: `Clients (${clientsCount})` },
-              { value: 'gerant', label: `Gérants (${gerantsCount})` },
-            ].map((r) => (
-              <Chip key={r.value} label={r.label} active={uRole === r.value} onPress={() => { setURole(r.value); setUCount(U_PAGE); }} />
-            ))}
+              { value: 'all', label: 'Tous', count: users.length, icon: 'people' },
+              { value: 'client', label: 'Clients', count: clientsCount, icon: 'person' },
+              { value: 'gerant', label: 'Gérants', count: gerantsCount, icon: 'storefront' },
+            ].map((r) => {
+              const on = uRole === r.value;
+              return (
+                <Pressable key={r.value} onPress={() => { setURole(r.value); setUCount(U_PAGE); }} style={[s.roleBtn, on && s.roleBtnOn]}>
+                  <Ionicons name={on ? r.icon : r.icon + '-outline'} size={18} color={on ? '#fff' : colors.primary} />
+                  <T size={font.sm} weight="800" color={on ? '#fff' : colors.text} style={{ marginTop: 4 }}>{r.label}</T>
+                  <T size={font.xs} weight="700" color={on ? 'rgba(255,255,255,0.85)' : colors.muted}>{r.count}</T>
+                </Pressable>
+              );
+            })}
           </View>
 
           <View style={{ flexDirection: 'row', flexWrap: 'wrap', alignItems: 'center', marginBottom: 6 }}>
@@ -841,6 +848,9 @@ const s = StyleSheet.create({
   inputText: { flex: 1, fontSize: font.input, color: colors.text, paddingVertical: 0, outlineStyle: 'none' },
   // Barre de sections
   tabBar: { marginBottom: space.md },
+  roleBar: { flexDirection: 'row', marginBottom: space.sm },
+  roleBtn: { flex: 1, alignItems: 'center', backgroundColor: '#fff', borderRadius: radius.md, paddingVertical: 10, marginHorizontal: 3, borderWidth: 1.5, borderColor: colors.border },
+  roleBtnOn: { backgroundColor: colors.primary, borderColor: colors.primary },
   tabRow: { flexDirection: 'row', paddingBottom: 2 },
   tabBtn: { flexDirection: 'row', alignItems: 'center', backgroundColor: '#fff', borderRadius: radius.pill, paddingHorizontal: 12, paddingVertical: 8, marginRight: 8 },
   tabBtnOn: { backgroundColor: colors.primary },

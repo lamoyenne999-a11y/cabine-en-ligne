@@ -19,6 +19,7 @@ const ICONS = {
   demande_canceled: 'close-circle-outline',
   demande_paid: 'wallet-outline',
   demande_received: 'cash-outline',
+  demande_not_received: 'warning-outline',
   demande_served_unpaid: 'alert-circle-outline',
   demande_completed: 'checkmark-done-outline',
 };
@@ -29,6 +30,7 @@ const COLORS = {
   demande_canceled: colors.danger,
   demande_paid: '#2E7BF6',
   demande_received: colors.success,
+  demande_not_received: colors.danger,
   demande_served_unpaid: colors.warn,
   demande_completed: colors.success,
 };
