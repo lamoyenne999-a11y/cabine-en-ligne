@@ -505,7 +505,7 @@ export function unreadCount(userId) {
 export function createNotification({ userId, type, text, demandeId }) {
   const n = insert('notifications', {
     userId,
-    type,             // 'new_demande' | 'demande_accepted' | 'demande_declined' | 'demande_canceled' | 'demande_paid' | 'demande_completed'
+    type,             // 'new_demande' | 'demande_accepted' | 'demande_declined' | 'demande_canceled' | 'demande_paid' | 'demande_received' | 'demande_served_unpaid' | 'demande_completed'
     text,
     demandeId: demandeId || '',
     read: false,
@@ -747,6 +747,7 @@ export function createDemande({ client, gerantId, gerantUserId, type, amount, be
     benefName: benefName || client.name,
     benefPhone: benefPhone || client.phone,
     status: 'pending',           // pending | accepted | declined | paid | completed | canceled
+    moneyReceived: false,        // true quand le GÉRANT confirme avoir reçu l'argent (receivedAt)
     createdAt: Date.now(),
     expiresAt: Date.now() + config.demandeExpireMs,
     acceptedAt: 0,
@@ -771,12 +772,16 @@ export function demandeSummary(demandes) {
   const counts = { pending: 0, accepted: 0, declined: 0, paid: 0, completed: 0, canceled: 0 };
   let totalSpent = 0; // somme payée par le client (paid + completed)
   let totalServed = 0; // somme servie par le gérant (completed)
+  let totalReceived = 0; // somme dont le gérant a CONFIRMÉ la réception
+  let awaitingPayment = 0; // demandes servies mais paiement non confirmé
   for (const d of demandes || []) {
     if (counts[d.status] !== undefined) counts[d.status] += 1;
     if (d.status === 'paid' || d.status === 'completed') totalSpent += d.amount || 0;
     if (d.status === 'completed') totalServed += d.amount || 0;
+    if (d.moneyReceived) totalReceived += d.amount || 0;
+    if (d.status === 'completed' && !d.moneyReceived) awaitingPayment += 1;
   }
-  return { count: (demandes || []).length, counts, totalSpent, totalServed };
+  return { count: (demandes || []).length, counts, totalSpent, totalServed, totalReceived, awaitingPayment };
 }
 
 export function clientHistory(clientId) {
@@ -870,10 +875,55 @@ export function markPaid({ id, clientId }) {
   return updated;
 }
 
+// Le gérant confirme avoir REÇU l'argent du client sur son Wave.
+//  - Demande en attente / acceptée : elle passe « payée » (réception confirmée).
+//  - Demande déjà « payée » (déclarée par le client) : réception confirmée, à traiter.
+//  - Demande déjà servie (« completed ») sans paiement : elle devient réglée.
+// Le client est notifié à chaque fois : il sait où en est sa demande.
+export function markReceived({ id, gerantUserId }) {
+  const d = findOne('demandes', (x) => x.id === id && x.gerantUserId === gerantUserId);
+  if (!d) throw Object.assign(new Error('Demande introuvable'), { status: 404 });
+  if (['declined', 'canceled'].includes(d.status)) throw Object.assign(new Error('Cette demande est refusée ou annulée'), { status: 400 });
+  if (d.moneyReceived) return d;
+  const patch = { moneyReceived: true, receivedAt: Date.now() };
+  if (['pending', 'accepted'].includes(d.status)) { patch.status = 'paid'; patch.paidAt = d.paidAt || Date.now(); if (!d.acceptedAt) patch.acceptedAt = Date.now(); }
+  update('demandes', (x) => x.id === id, patch);
+  const upd = findOne('demandes', (x) => x.id === id);
+  if (upd && upd.clientId) {
+    const label = `${TYPE_LABEL[upd.type] || upd.type}  ${upd.amount} F`;
+    createNotification({
+      userId: upd.clientId,
+      type: upd.status === 'completed' ? 'demande_completed' : 'demande_received',
+      text: upd.status === 'completed'
+        ? `${upd.gerantName} a confirmé la réception de votre paiement — ${label}. Votre demande est entièrement réglée. Merci !`
+        : `${upd.gerantName} a bien reçu votre paiement — ${label}. Votre demande est en cours de traitement.`,
+      demandeId: upd.id,
+    });
+  }
+  return upd;
+}
+
+// Le gérant a SERVI le client (unités / minutes / internet crédités).
+// Possible même si le paiement n'est pas encore confirmé : la demande est
+// alors « servie, paiement en attente » et le client est invité à régler.
 export function markCompleted({ id, gerantUserId }) {
   const d = findOne('demandes', (x) => x.id === id && x.gerantUserId === gerantUserId);
   if (!d) throw Object.assign(new Error('Demande introuvable'), { status: 404 });
-  if (!['paid', 'accepted'].includes(d.status)) throw Object.assign(new Error('Demande non payée'), { status: 400 });
-  update('demandes', (x) => x.id === id, { status: 'completed' });
-  return findOne('demandes', (x) => x.id === id);
+  if (!['pending', 'accepted', 'paid'].includes(d.status)) throw Object.assign(new Error('Cette demande ne peut plus être servie'), { status: 400 });
+  const patch = { status: 'completed', completedAt: Date.now() };
+  if (!d.acceptedAt) patch.acceptedAt = Date.now();
+  update('demandes', (x) => x.id === id, patch);
+  const upd = findOne('demandes', (x) => x.id === id);
+  if (upd && upd.clientId) {
+    const label = `${TYPE_LABEL[upd.type] || upd.type}  ${upd.amount} F`;
+    createNotification({
+      userId: upd.clientId,
+      type: upd.moneyReceived ? 'demande_completed' : 'demande_served_unpaid',
+      text: upd.moneyReceived
+        ? `${upd.gerantName} vous a servi — ${label}. Demande complétée. Merci !`
+        : `${upd.gerantName} vous a servi — ${label}. Le paiement n'a pas encore été reçu : merci de régler ${upd.amount} F sur son Wave${upd.gerantWave ? ' (' + upd.gerantWave + ')' : ''}.`,
+      demandeId: upd.id,
+    });
+  }
+  return upd;
 }

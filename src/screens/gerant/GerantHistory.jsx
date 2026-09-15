@@ -61,12 +61,14 @@ export default function GerantHistory() {
     { value: 'all', label: `Toutes (${demandes.length})` },
     { value: 'pending', label: `En attente (${sum.counts.pending})` },
     { value: 'treated', label: `Traitées (${sum.counts.completed + sum.counts.paid + sum.counts.accepted})` },
+    { value: 'unpaid', label: `À encaisser (${demandes.filter((d) => d.status === 'completed' && !d.moneyReceived).length})` },
     { value: 'declined', label: `Refusées (${sum.counts.declined})` },
     { value: 'canceled', label: `Annulées (${sum.counts.canceled})` },
   ];
   const inGroup = (d) => {
     if (group === 'all') return true;
     if (group === 'treated') return ['accepted', 'paid', 'completed'].includes(d.status);
+    if (group === 'unpaid') return d.status === 'completed' && !d.moneyReceived;
     return d.status === group;
   };
   const filtered = demandes.filter(inGroup);
@@ -141,7 +143,9 @@ export default function GerantHistory() {
           </T>
         </Card>
       ) : visible.map((d) => {
-        const st = STATUS[d.status] || STATUS.pending;
+        const st = d.status === 'completed'
+          ? (d.moneyReceived ? { ...STATUS.completed, label: 'Réglée' } : { label: 'Servie · à encaisser', color: colors.warn, bg: colors.warnBg, icon: 'alert-circle' })
+          : (STATUS[d.status] || STATUS.pending);
         return (
           <Card key={d.id} style={{ marginBottom: space.sm }}>
             <View style={{ flexDirection: 'row', alignItems: 'center' }}>
@@ -167,8 +171,8 @@ export default function GerantHistory() {
                 {
                   pending: 'En attente de votre réponse — le client peut encore annuler.',
                   accepted: 'Demande acceptée. Le client paiera via Wave.',
-                  paid: `Le client a payé ${money(d.amount)} via Wave — créditez-le.`,
-                  completed: `Montant reçu sur votre numéro Wave : ${money(d.amount)}`,
+                  paid: d.moneyReceived ? `Argent reçu (${money(d.amount)}) — reste à servir le client.` : `Le client déclare avoir payé ${money(d.amount)} — réception à confirmer.`,
+                  completed: d.moneyReceived ? `Réglée : ${money(d.amount)} reçus sur votre Wave, client servi.` : `Client servi, paiement de ${money(d.amount)} PAS ENCORE reçu.`,
                   declined: 'Vous avez refusé cette demande.',
                   canceled: 'Le client a annulé cette demande.',
                 }[d.status] || 'Payé en direct via Wave.'

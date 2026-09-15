@@ -98,6 +98,8 @@ function reducer(state, action) {
       return { ...state, gerantDemandes: action.payload };
     case 'GERANT_UPDATE_DEMANDE':
       return { ...state, gerantDemandes: state.gerantDemandes.map((d) => (d.id === action.payload.id ? { ...d, ...action.payload } : d)) };
+    case 'GERANT_RECEIVED_DEMANDE':
+      return { ...state, gerantDemandes: state.gerantDemandes.map((d) => (d.id === action.payload ? { ...d, moneyReceived: true, receivedAt: Date.now(), status: ['pending', 'accepted'].includes(d.status) ? 'paid' : d.status } : d)) };
 
     case 'SET_NOTIFICATIONS':
       return { ...state, notifications: action.payload.notifications || [], unread: action.payload.unread ?? (action.payload.notifications || []).filter((n) => !n.read).length };
@@ -311,8 +313,14 @@ export function StoreProvider({ children }) {
   }, [online]);
 
   const completeDemande = useCallback(async (id) => {
-    dispatch({ type: 'GERANT_UPDATE_DEMANDE', payload: { id, status: 'completed' } });
-    if (online) { try { await api.gerant.complete(id); } catch {} }
+    dispatch({ type: 'GERANT_UPDATE_DEMANDE', payload: { id, status: 'completed', completedAt: Date.now() } });
+    if (online) { try { const r = await api.gerant.complete(id); if (r?.demande) dispatch({ type: 'GERANT_UPDATE_DEMANDE', payload: r.demande }); } catch {} }
+  }, [online]);
+
+  // Le gérant confirme avoir reçu l'argent du client sur son Wave.
+  const receiveDemande = useCallback(async (id) => {
+    dispatch({ type: 'GERANT_RECEIVED_DEMANDE', payload: id });
+    if (online) { try { const r = await api.gerant.received(id); if (r?.demande) dispatch({ type: 'GERANT_UPDATE_DEMANDE', payload: r.demande }); } catch {} }
   }, [online]);
 
   // Enregistre le jeton de notification push de l'appareil (app mobile uniquement)
@@ -431,8 +439,8 @@ export function StoreProvider({ children }) {
   }, [state.role]);
 
   const value = useMemo(
-    () => ({ state, dispatch, online, checking, recheck: probe, login, register, logout, refresh, addGerant, removeGerant, createDemande, markPaid, cancelDemande, acceptDemande, declineDemande, completeDemande, subscribe, updateGerantProfile, registerPushToken, registerPushSubscription, unregisterPushSubscription, unregisterPushToken, loadNotifications, markNotificationRead, markAllNotificationsRead, loadClientNotifications, markClientNotificationRead, markAllClientNotificationsRead, loadReferral, updateReferralCode }),
-    [state, online, checking, probe, login, register, logout, refresh, addGerant, removeGerant, createDemande, markPaid, cancelDemande, acceptDemande, declineDemande, completeDemande, subscribe, updateGerantProfile, registerPushToken, registerPushSubscription, unregisterPushSubscription, unregisterPushToken, loadNotifications, markNotificationRead, markAllNotificationsRead, loadClientNotifications, markClientNotificationRead, markAllClientNotificationsRead, loadReferral, updateReferralCode],
+    () => ({ state, dispatch, online, checking, recheck: probe, login, register, logout, refresh, addGerant, removeGerant, createDemande, markPaid, cancelDemande, acceptDemande, declineDemande, completeDemande, receiveDemande, subscribe, updateGerantProfile, registerPushToken, registerPushSubscription, unregisterPushSubscription, unregisterPushToken, loadNotifications, markNotificationRead, markAllNotificationsRead, loadClientNotifications, markClientNotificationRead, markAllClientNotificationsRead, loadReferral, updateReferralCode }),
+    [state, online, checking, probe, login, register, logout, refresh, addGerant, removeGerant, createDemande, markPaid, cancelDemande, acceptDemande, declineDemande, completeDemande, receiveDemande, subscribe, updateGerantProfile, registerPushToken, registerPushSubscription, unregisterPushSubscription, unregisterPushToken, loadNotifications, markNotificationRead, markAllNotificationsRead, loadClientNotifications, markClientNotificationRead, markAllClientNotificationsRead, loadReferral, updateReferralCode],
   );
   return <Ctx.Provider value={value}>{children}</Ctx.Provider>;
 }

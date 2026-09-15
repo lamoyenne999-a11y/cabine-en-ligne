@@ -23,7 +23,13 @@ ces demandes et se font **payer en direct via Wave**.
   bénéficiaire, gérant).
 - Les **gérants reçoivent la demande directement** et **acceptent ou refusent**.
 - **Paiement en direct via Wave** : l'app montre le numéro Wave marchand + « J'ai payé ».
-  Le gérant indique ensuite qu'il a servi le client.
+- **Confirmation côté gérant** : le gérant appuie sur **« Argent reçu ✓ »** dès que le montant
+  arrive sur son Wave, puis **« J'ai servi le client »**. Il peut servir avant d'avoir reçu
+  l'argent : la demande est alors **« Servie · à encaisser »** et le client est notifié qu'il
+  doit encore régler. **Chaque étape notifie le client** (paiement reçu / servi mais impayé /
+  complétée).
+- **Espace propriétaire** : tri des utilisateurs par profil (**Tous / Clients / Gérants**) en
+  plus des filtres d'abonnement ; l'export CSV suit le filtre.
 - **Historique & totaux** : chaque utilisateur a un onglet **Historique**.
   - **Client** : toutes ses transactions + **total dépensé** et statistiques par statut.
   - **Gérant** : toutes les demandes traitées + **total servi** et statistiques par statut.

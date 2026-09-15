@@ -131,14 +131,17 @@ async function main() {
   const paid = await req('POST', `/client/demandes/${demandeId}/paid`, {}, ct);
   check('Client signale le paiement (paid)', paid.status === 200 && paid.json.demande?.status === 'paid');
 
+  // Le gérant confirme la réception de l'argent → client notifié
+  const rcv = await req('POST', `/gerant/demandes/${demandeId}/received`, {}, gt);
+  check('Gérant confirme la réception de l\'argent', rcv.status === 200 && rcv.json.demande?.moneyReceived === true && rcv.json.demande?.status === 'paid');
+  const cn1 = await req('GET', '/client/notifications', null, ct);
+  check('Client notifié « paiement reçu »', (cn1.json.notifications || []).some((n) => n.type === 'demande_received'));
+
   // Le gérant complète le service
   const comp = await req('POST', `/gerant/demandes/${demandeId}/complete`, {}, gt);
   check('Gérant complète la demande', comp.status === 200 && comp.json.demande?.status === 'completed');
-
-  // État final côté client
-  const cf = await req('GET', '/client/demandes', null, ct);
-  const fin = (cf.json.demandes || []).find((d) => d.id === demandeId);
-  check('Demande finalement « completed »', fin?.status === 'completed');
+  const cn2 = await req('GET', '/client/notifications', null, ct);
+  check('Client notifié « complétée »', (cn2.json.notifications || []).some((n) => n.type === 'demande_completed'));
 
   // Historique client : total dépensé = somme des achats
   const ch = await req('GET', '/client/history', null, ct);
@@ -155,6 +158,23 @@ async function main() {
   check('Historique gérant : total servi +2000', gh.json.summary?.totalServed === base.totalServed + 2000);
   check('Historique gérant : +1 demande complétée', gh.json.summary?.counts?.completed === (base.counts?.completed || 0) + 1);
   check('Historique gérant : la demande apparaît', (gh.json.demandes || []).some((d) => d.id === demandeId && d.status === 'completed'));
+
+  // Cas inverse : servi AVANT paiement → client notifié qu'il doit payer, puis réception confirmée
+  const dmU = await req('POST', '/client/demandes', { gerantId, type: 'minutes', amount: 500, benefName: 'Moi', benefPhone: '0700000000' }, ct);
+  const dU = dmU.json.demande?.id;
+  const compU = await req('POST', `/gerant/demandes/${dU}/complete`, {}, gt);
+  check('Gérant sert sans paiement → completed non réglée', compU.status === 200 && compU.json.demande?.status === 'completed' && !compU.json.demande?.moneyReceived);
+  const cnU = await req('GET', '/client/notifications', null, ct);
+  check('Client notifié « servi, paiement en attente »', (cnU.json.notifications || []).some((n) => n.type === 'demande_served_unpaid' && n.demandeId === dU));
+  const rcvU = await req('POST', `/gerant/demandes/${dU}/received`, {}, gt);
+  check('Réception confirmée après service → réglée', rcvU.status === 200 && rcvU.json.demande?.moneyReceived === true && rcvU.json.demande?.status === 'completed');
+  const ghr = await req('GET', '/gerant/history', null, gt);
+  check('Historique gérant : totalReceived = 2500 et 0 à encaisser', ghr.json.summary?.totalReceived === 2500 && ghr.json.summary?.awaitingPayment === 0);
+
+  // État final côté client
+  const cf = await req('GET', '/client/demandes', null, ct);
+  const fin = (cf.json.demandes || []).find((d) => d.id === demandeId);
+  check('Demande finalement « completed »', fin?.status === 'completed');
 
   // ===== Paiement AVANT acceptation (le client paie directement, gérant n'a pas encore répondu) =====
   const dm2 = await req('POST', '/client/demandes', {

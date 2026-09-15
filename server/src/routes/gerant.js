@@ -1,6 +1,6 @@
 import { Router } from 'express';
 import { requireAuth, requireRole } from '../middleware/auth.js';
-import { demandesForGerant, gerantHistory, demandeSummary, decideDemande, markCompleted, subscriptionFor, paySubscription, publicProfile, gerantProfile, updateGerantProfile, notificationsFor, unreadCount, markNotificationRead, markAllNotificationsRead } from '../services/flowService.js';
+import { demandesForGerant, gerantHistory, demandeSummary, decideDemande, markCompleted, markReceived, subscriptionFor, paySubscription, publicProfile, gerantProfile, updateGerantProfile, notificationsFor, unreadCount, markNotificationRead, markAllNotificationsRead } from '../services/flowService.js';
 
 const router = Router();
 router.use(requireAuth, requireRole('gerant'));
@@ -20,6 +20,11 @@ router.post('/demandes/:id/accept', (req, res) => {
 
 router.post('/demandes/:id/decline', (req, res) => {
   res.json({ demande: decideDemande({ id: req.params.id, gerantUserId: req.user.id, decision: 'decline' }) });
+});
+
+// Le gérant confirme avoir reçu l'argent du client (sur son Wave)
+router.post('/demandes/:id/received', (req, res) => {
+  res.json({ demande: markReceived({ id: req.params.id, gerantUserId: req.user.id }) });
 });
 
 // Quand le gérant a servi le client (crédité les unités/minutes/internet)

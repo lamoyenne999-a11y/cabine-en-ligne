@@ -173,7 +173,9 @@ export default function ClientHistory() {
           </T>
         </Card>
       ) : visible.map((d) => {
-        const st = STATUS[d.status] || STATUS.pending;
+        const st = d.status === 'completed' && !d.moneyReceived
+          ? { label: 'Servie · à payer', color: colors.warn, bg: colors.warnBg, icon: 'alert-circle' }
+          : (STATUS[d.status] || STATUS.pending);
         return (
           <Card key={d.id} style={{ marginBottom: space.sm }}>
             <View style={{ flexDirection: 'row', alignItems: 'center' }}>
@@ -236,8 +238,29 @@ export default function ClientHistory() {
               </T>
             )}
             {d.status === 'paid' && (
-              <T size={font.sm} weight="600" color={colors.muted} style={{ marginTop: 12, textAlign: 'center' }}>
-                {d.gerantName} est en train de vous créditer {CREDIT_LABEL[d.type] || 'votre numéro'}.
+              <View style={s.timerBox}>
+                <Ionicons name={d.moneyReceived ? 'checkmark-circle' : 'time'} size={16} color={d.moneyReceived ? colors.success : colors.muted} />
+                <T size={font.sm} weight="600" color={colors.muted} style={{ marginLeft: 8, flex: 1 }}>
+                  {d.moneyReceived
+                    ? `${d.gerantName} a confirmé avoir reçu votre paiement et vous crédite ${CREDIT_LABEL[d.type] || 'votre numéro'}.`
+                    : `Paiement signalé. ${d.gerantName} vérifie la réception sur son Wave, puis vous crédite ${CREDIT_LABEL[d.type] || 'votre numéro'}.`}
+                </T>
+              </View>
+            )}
+            {d.status === 'completed' && !d.moneyReceived && (
+              <>
+                <View style={[s.timerBox, { backgroundColor: colors.warnBg }]}>
+                  <Ionicons name="alert-circle" size={16} color={colors.warn} />
+                  <T size={font.sm} weight="700" color={colors.warn} style={{ marginLeft: 8, flex: 1 }}>
+                    Vous avez été servi, mais {d.gerantName} n'a pas encore reçu votre paiement. Merci de régler {money(d.amount)} sur son Wave.
+                  </T>
+                </View>
+                <WavePayBox amount={d.amount} merchant={d.gerantWave} merchantName={d.gerantName} />
+              </>
+            )}
+            {d.status === 'completed' && d.moneyReceived && (
+              <T size={font.sm} weight="600" color={colors.success} style={{ marginTop: 12, textAlign: 'center' }}>
+                Réglée : paiement reçu par {d.gerantName} et {CREDIT_LABEL[d.type] || 'votre numéro'} crédité(s). Merci !
               </T>
             )}
             {d.status === 'canceled' && (

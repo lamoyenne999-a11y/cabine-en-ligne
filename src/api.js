@@ -74,6 +74,7 @@ export const api = {
     accept: (id) => request('POST', `/api/gerant/demandes/${id}/accept`),
     decline: (id) => request('POST', `/api/gerant/demandes/${id}/decline`),
     complete: (id) => request('POST', `/api/gerant/demandes/${id}/complete`),
+    received: (id) => request('POST', `/api/gerant/demandes/${id}/received`),
     profile: () => request('GET', '/api/gerant/profile'),
     updateProfile: (p) => request('POST', '/api/gerant/profile', p),
     notifications: () => request('GET', '/api/gerant/notifications'),

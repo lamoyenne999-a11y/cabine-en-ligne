@@ -36,6 +36,7 @@ export default function Admin({ onBack }) {
   // Liste utilisateurs : recherche + filtre + pagination (compacte).
   const [uSearch, setUSearch] = useState('');
   const [uFilter, setUFilter] = useState('all');
+  const [uRole, setURole] = useState('all'); // all | client | gerant — tri Clients / Gérants
   const [uSort, setUSort] = useState('recent'); // recent | old | name | status
   const [uExpanded, setUExpanded] = useState(null); // phone de la ligne dépliée
   const [uCount, setUCount] = useState(25); // nombre affiché (pagination)
@@ -253,6 +254,7 @@ export default function Admin({ onBack }) {
   const norm = (s) => (s || '').toString().toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '');
   const filteredUsers = users.filter((u) => {
     if (uSearch && !norm(`${u.name} ${u.phone}`).includes(norm(uSearch))) return false;
+    if (uRole !== 'all' && u.role !== uRole) return false;
     const st = u.subscription?.status;
     if (uFilter === 'active') return st === 'active';
     if (uFilter === 'trial') return st === 'trial';
@@ -386,7 +388,20 @@ export default function Admin({ onBack }) {
             </View>
           </Card>
 
-          <View style={{ flexDirection: 'row', flexWrap: 'wrap', marginBottom: 6 }}>
+          {/* Tri par profil : Tous / Clients / Gérants */}
+          <View style={{ flexDirection: 'row', flexWrap: 'wrap', alignItems: 'center', marginBottom: 6 }}>
+            <T size={font.xs} weight="700" color={colors.muted} style={{ marginRight: 8 }}>Profil :</T>
+            {[
+              { value: 'all', label: `Tous (${users.length})` },
+              { value: 'client', label: `Clients (${clientsCount})` },
+              { value: 'gerant', label: `Gérants (${gerantsCount})` },
+            ].map((r) => (
+              <Chip key={r.value} label={r.label} active={uRole === r.value} onPress={() => { setURole(r.value); setUCount(U_PAGE); }} />
+            ))}
+          </View>
+
+          <View style={{ flexDirection: 'row', flexWrap: 'wrap', alignItems: 'center', marginBottom: 6 }}>
+            <T size={font.xs} weight="700" color={colors.muted} style={{ marginRight: 8 }}>Abonnement :</T>
             {FILTERS.map((f) => (
               <Chip key={f.value} label={f.label} active={uFilter === f.value} onPress={() => { setUFilter(f.value); setUCount(U_PAGE); }} />
             ))}
