@@ -63,6 +63,12 @@ export default function GerantDemandes() {
   const [more, setMore] = useState(null);       // demande ouverte dans le panneau « ⋯ »
   const [unavailReason, setUnavailReason] = useState('away');
   const [showSub, setShowSub] = useState(false);
+  const [shownPhone, setShownPhone] = useState({}); // { [demandeId]: true } → numéro du client dévoilé
+  const [copiedId, setCopiedId] = useState(null);
+  const copyPhone = (id, phone) => {
+    if (typeof navigator !== 'undefined' && navigator.clipboard) navigator.clipboard.writeText(phone).catch(() => {});
+    setCopiedId(id); setTimeout(() => setCopiedId(null), 1800);
+  };
 
   // L'inbox ne montre que les demandes qui ATTENDENT UNE ACTION du gérant.
   const demandes = (state.gerantDemandes || []).filter((d) =>
@@ -107,12 +113,16 @@ export default function GerantDemandes() {
     ];
     return [];
   };
-  // Action affichée SOUS les 2 boutons principaux (pleine largeur, petite).
-  const secondaryAction = (d) => {
+  // Actions affichées SOUS les 2 boutons principaux (petites, directes).
+  const secondaryActions = (d) => {
+    const a = [];
     if ((d.status === 'paid' || d.status === 'completed') && !d.moneyReceived) {
-      return { key: 'partial', title: d.partialAt ? 'Toujours incomplet — relancer le client' : 'Reçu, mais incomplet (frais Wave)', icon: 'remove-circle-outline', color: colors.warn };
+      a.push({ key: 'partial', title: d.partialAt ? 'Toujours incomplet — relancer' : 'Reçu, mais incomplet (frais Wave)', icon: 'remove-circle-outline', color: colors.warn });
     }
-    return null;
+    if (d.status === 'pending' || d.status === 'paid') {
+      a.push({ key: 'unavailable', title: 'Pas disponible', icon: 'moon-outline', color: colors.warn });
+    }
+    return a;
   };
   // Actions SECONDAIRES (panneau « ⋯ »).
   const moreActions = (d) => {
@@ -121,7 +131,6 @@ export default function GerantDemandes() {
     if (d.moneyReceived && d.status !== 'completed') a.unshift({ key: 'complete', title: 'J\'ai servi le client', icon: 'checkmark-done', color: colors.primary });
     else if (canServe) a.push({ key: 'complete', title: 'J\'ai servi (sans attendre le paiement)', icon: 'checkmark-done-outline', color: colors.primary });
     if (d.status === 'pending' || d.status === 'accepted') a.push({ key: 'received', title: 'Argent déjà reçu ✓', icon: 'cash-outline', color: colors.success });
-    if (d.status === 'pending' || d.status === 'paid') a.push({ key: 'unavailable', title: 'Je ne suis pas disponible', icon: 'moon-outline', color: colors.warn });
     if (d.status === 'pending' || d.status === 'paid') a.push({ key: 'decline', title: 'Refuser la demande', icon: 'close-circle', color: colors.danger });
     return a;
   };
@@ -167,8 +176,9 @@ export default function GerantDemandes() {
         const st = STATUS[d.status] || STATUS.pending;
         const line = stateLine(d);
         const tone = TONES[line.tone] || TONES.muted;
+        const third = !!d.benefPhone && !!d.clientPhone && d.benefPhone !== d.clientPhone;
         const prim = primaryActions(d);
-        const sec = secondaryAction(d);
+        const sec = secondaryActions(d);
         const extra = moreActions(d);
         return (
           <Card key={d.id} style={s.card}>
@@ -181,11 +191,27 @@ export default function GerantDemandes() {
                   <T size={font.body} weight="800" color={colors.primary} style={{ marginLeft: 8 }}>{fmt(d.amount)} XOF</T>
                 </View>
                 <T size={font.xs} weight="600" color={colors.muted} numberOfLines={1} style={{ marginTop: 1 }}>
-                  {d.clientName} · pour {d.benefPhone || d.benefName}
+                  {third ? <>Créditer <T size={font.xs} weight="800" color={colors.text}>{d.benefPhone}</T></> : <>{d.clientName} · pour lui-même ({d.benefPhone})</>}
                 </T>
               </View>
               <Pill icon={st.icon} color={st.color} bg={st.bg}>{st.label}</Pill>
             </View>
+
+            {/* Demande pour une TIERCE personne : qui paie ≠ qui est crédité */}
+            {third && (
+              <View style={s.byRow}>
+                <Ionicons name="person-circle-outline" size={16} color={colors.primary} />
+                <T size={font.xs} weight="700" color={colors.text} style={{ marginLeft: 6, flex: 1 }} numberOfLines={1}>
+                  Demandé et payé par <T size={font.xs} weight="800" color={colors.primary}>{d.clientName}</T>
+                  {shownPhone[d.id] && d.clientPhone ? <T size={font.xs} weight="800" color={colors.primary}> · {d.clientPhone}</T> : null}
+                </T>
+                {d.clientPhone ? (
+                  shownPhone[d.id]
+                    ? <Pressable onPress={() => copyPhone(d.id, d.clientPhone)} hitSlop={6} style={s.byBtn}><Ionicons name={copiedId === d.id ? 'checkmark' : 'copy-outline'} size={14} color={colors.primary} /><T size={font.xs} weight="800" color={colors.primary} style={{ marginLeft: 3 }}>{copiedId === d.id ? 'Copié' : 'Copier'}</T></Pressable>
+                    : <Pressable onPress={() => setShownPhone((m) => ({ ...m, [d.id]: true }))} hitSlop={6} style={s.byBtn}><Ionicons name="eye-outline" size={14} color={colors.primary} /><T size={font.xs} weight="800" color={colors.primary} style={{ marginLeft: 3 }}>Voir son n°</T></Pressable>
+                ) : null}
+              </View>
+            )}
 
             {/* Ligne d'état (1 phrase) */}
             <View style={[s.stateLine, { backgroundColor: tone.bg }]}>
@@ -207,8 +233,13 @@ export default function GerantDemandes() {
                 )}
               </View>
             )}
-            {sec && (
-              <Btn title={sec.title} icon={sec.icon} size="sm" color={sec.color} outline onPress={() => ask(d.id, sec.key)} style={{ marginTop: 6 }} />
+            {sec.length > 0 && (
+              <View style={{ flexDirection: 'row', marginTop: 6 }}>
+                {sec.map((a, i) => (
+                  <Btn key={a.key} title={a.title} icon={a.icon} size="sm" color={a.color} outline
+                    onPress={() => ask(d.id, a.key)} style={[{ flex: 1 }, i < sec.length - 1 && { marginRight: 6 }]} />
+                ))}
+              </View>
             )}
           </Card>
         );
@@ -219,7 +250,7 @@ export default function GerantDemandes() {
         {more && (
           <>
             <T size={font.h3} weight="800" color={colors.text}>{TYPE_LABEL[more.type] || 'Demande'} · {fmt(more.amount)} XOF</T>
-            <T size={font.sm} weight="600" color={colors.muted} style={{ marginBottom: 10 }}>{more.clientName} · pour {more.benefPhone || more.benefName}</T>
+            <T size={font.sm} weight="600" color={colors.muted} style={{ marginBottom: 10 }}>Demandé par {more.clientName}{more.clientPhone ? ' (' + more.clientPhone + ')' : ''} · créditer {more.benefPhone || more.benefName}</T>
             {moreActions(more).map((a) => (
               <Pressable key={a.key} onPress={() => ask(more.id, a.key)} style={s.moreRow}>
                 <View style={[s.moreIcon, { backgroundColor: a.color + '18' }]}><Ionicons name={a.icon} size={18} color={a.color} /></View>
@@ -266,6 +297,8 @@ const s = StyleSheet.create({
   card: { marginBottom: space.sm, paddingVertical: 12 },
   icon: { width: 38, height: 38, borderRadius: 19, backgroundColor: colors.primarySoft, alignItems: 'center', justifyContent: 'center' },
   stateLine: { flexDirection: 'row', alignItems: 'center', borderRadius: radius.md, paddingHorizontal: 10, paddingVertical: 7, marginTop: 10 },
+  byRow: { flexDirection: 'row', alignItems: 'center', marginTop: 8, paddingHorizontal: 10, paddingVertical: 6, borderRadius: radius.md, backgroundColor: colors.primarySoft },
+  byBtn: { flexDirection: 'row', alignItems: 'center', paddingHorizontal: 8, paddingVertical: 4, borderRadius: radius.pill, backgroundColor: '#fff', marginLeft: 6 },
   actions: { flexDirection: 'row', alignItems: 'center', marginTop: 10 },
   moreBtn: { width: 38, height: 38, borderRadius: 19, backgroundColor: colors.primarySoft, alignItems: 'center', justifyContent: 'center', marginLeft: 6 },
   moreRow: { flexDirection: 'row', alignItems: 'center', paddingVertical: 12, borderBottomWidth: 1, borderBottomColor: colors.border },

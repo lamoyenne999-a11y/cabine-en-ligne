@@ -810,7 +810,8 @@ export function createDemande({ client, gerantId, gerantUserId, type, amount, be
     canceledAt: 0,
   });
   // Notifie le gérant qu'une nouvelle demande est arrivée
-  if (g.userId) createNotification({ userId: g.userId, type: 'new_demande', text: `Nouvelle demande de ${client.name} — ${TYPE_LABEL[type] || type}  ${d.amount} F`, demandeId: d.id });
+  const forOther = d.benefPhone && d.benefPhone !== client.phone;
+  if (g.userId) createNotification({ userId: g.userId, type: 'new_demande', text: `Nouvelle demande de ${client.name} (${client.phone}) — ${TYPE_LABEL[type] || type} ${d.amount} F${forOther ? ` à créditer sur ${d.benefPhone} (une autre personne). Le paiement Wave viendra de ${client.name}.` : ''}`, demandeId: d.id });
   return d;
 }
 
