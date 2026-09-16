@@ -117,7 +117,7 @@ export default function GerantDemandes() {
   const secondaryActions = (d) => {
     const a = [];
     if ((d.status === 'paid' || d.status === 'completed') && !d.moneyReceived) {
-      a.push({ key: 'partial', title: d.partialAt ? 'Toujours incomplet — relancer' : 'Reçu, mais incomplet (frais Wave)', icon: 'remove-circle-outline', color: colors.warn });
+      a.push({ key: 'partial', title: d.partialAt ? 'Toujours incomplet' : 'Montant incomplet', icon: 'remove-circle-outline', color: colors.warn });
     }
     if (d.status === 'pending' || d.status === 'paid') {
       a.push({ key: 'unavailable', title: 'Pas disponible', icon: 'moon-outline', color: colors.warn });

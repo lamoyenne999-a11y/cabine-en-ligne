@@ -35,7 +35,7 @@ export default function Signup({ role, onBack, onRegister, connecting, refCode }
 
   const submit = async () => {
     if (!name.trim() || !phone.trim()) { setErr('Veuillez remplir votre nom et votre numéro.'); return; }
-    if (pwd.length < 4) { setErr('Le mot de passe doit contenir au moins 4 caractères.'); return; }
+    if (pwd.length < 6) { setErr('Le mot de passe doit contenir au moins 6 caractères.'); return; }
     if (pwd !== confirmPwd) { setErr('Les mots de passe ne correspondent pas.'); return; }
     if (refCodeInput && refStatus === 'err') { setErr('Ce code de parrainage est invalide. Vérifiez-le ou laissez-le vide.'); return; }
     setErr('');
@@ -83,7 +83,7 @@ export default function Signup({ role, onBack, onRegister, connecting, refCode }
           {refStatus === 'err' && <T size={font.xs} weight="600" color={colors.danger} style={{ marginTop: 6 }}>Code invalide. Vérifiez-le ou laissez vide.</T>}
         </View>
 
-        <Field icon="lock-closed-outline" label="Mot de passe" placeholder="Au moins 4 caractères" value={pwd} onChangeText={setPwd} secure />
+        <Field icon="lock-closed-outline" label="Mot de passe" placeholder="Au moins 6 caractères" value={pwd} onChangeText={setPwd} secure />
         <Field icon="lock-closed-outline" label="Confirmer le mot de passe" placeholder="Reprenez le mot de passe" value={confirmPwd} onChangeText={setConfirmPwd} secure />
 
         {err ? (

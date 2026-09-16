@@ -3,16 +3,20 @@ import { findOne, insert } from '../db.js';
 import { signToken, hashPassword, verifyPassword, requireAuth } from '../middleware/auth.js';
 import { subscriptionFor, applyReferral, referralInfoFor, recordEvent, registerPushToken, removePushToken, isPhoneBlocked } from '../services/flowService.js';
 import { registerWebPushSubscription, removeWebPushSubscription } from '../services/pushService.js';
+import { rateLimit } from '../middleware/rateLimit.js';
 
 const router = Router();
 
 // POST /api/auth/register  (1 mois d'essai gratuit)
-router.post('/register', async (req, res, next) => {
+router.post('/register', rateLimit({ name: 'register', windowMs: 60 * 60 * 1000, max: 10, message: 'Trop d\'inscriptions depuis cet appareil. Réessayez plus tard.' }), async (req, res, next) => {
   try {
     const { role, name, phone, email, password, referrerCode } = req.body || {};
     if (role !== 'client' && role !== 'gerant') return res.status(400).json({ error: 'Rôle invalide' });
     if (!name?.trim() || !phone?.trim()) return res.status(400).json({ error: 'Nom et numéro requis' });
-    if (!password || password.length < 4) return res.status(400).json({ error: 'Mot de passe trop court (min. 4)' });
+    if (!password || password.length < 6) return res.status(400).json({ error: 'Mot de passe trop court (min. 6 caractères)' });
+    if (password.length > 128) return res.status(400).json({ error: 'Mot de passe trop long' });
+    if (name.trim().length > 60) return res.status(400).json({ error: 'Nom trop long (max. 60)' });
+    if (!/^[0-9+ ]{8,20}$/.test(phone.trim())) return res.status(400).json({ error: 'Numéro de téléphone invalide' });
     // Numéro bloqué : ce téléphone ne peut plus créer de compte.
     if (isPhoneBlocked(phone)) return res.status(403).json({ error: 'Ce numéro a été bloqué. Vous ne pouvez plus créer de compte avec ce numéro.', code: 'BLOCKED' });
     if (findOne('users', (u) => u.phone === phone)) return res.status(409).json({ error: 'Ce numéro est déjà utilisé' });
@@ -45,7 +49,7 @@ router.post('/register', async (req, res, next) => {
 });
 
 // POST /api/auth/login  (identifiant = numéro de téléphone)
-router.post('/login', async (req, res, next) => {
+router.post('/login', rateLimit({ name: 'login', windowMs: 15 * 60 * 1000, max: 10, keyFn: (r) => String(r.body?.phone || '').trim(), message: 'Trop de tentatives de connexion. Réessayez dans 15 minutes.' }), async (req, res, next) => {
   try {
     const { phone, password, role } = req.body || {};
     const phoneTrim = String(phone || '').trim();

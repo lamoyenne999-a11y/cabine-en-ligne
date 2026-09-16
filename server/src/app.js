@@ -26,8 +26,18 @@ export async function createApp(opts = {}) {
   wave.onEvent(async () => {});
 
   const app = express();
+  app.set('trust proxy', 1);           // derrière Render : vraie IP du client (pour le rate limit)
+  app.disable('x-powered-by');
   app.use(cors());
-  app.use(express.json());
+  app.use(express.json({ limit: '50kb' }));
+  // En-têtes de sécurité de base (sans dépendance)
+  app.use((req, res, next) => {
+    res.set('X-Content-Type-Options', 'nosniff');
+    res.set('X-Frame-Options', 'DENY');
+    res.set('Referrer-Policy', 'no-referrer');
+    if (req.secure || req.get('x-forwarded-proto') === 'https') res.set('Strict-Transport-Security', 'max-age=15552000; includeSubDomains');
+    next();
+  });
 
   app.get('/health', (req, res) => res.json({ status: 'ok', mode: config.waveMode }));
 

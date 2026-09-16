@@ -13,7 +13,7 @@ const router = express.Router();
 //  Accès : header `x-admin-key: <ADMIN_KEY>`.
 // ---------------------------------------------------------------
 function requireAdmin(req, res, next) {
-  const key = req.get('x-admin-key') || req.query.key || '';
+  const key = req.get('x-admin-key') || '';
   if (!config.adminKey || key !== config.adminKey) {
     return res.status(403).json({ error: 'Accès administrateur refusé' });
   }

@@ -53,7 +53,7 @@ export function Btn({
   title, onPress, color = colors.primary, textColor = colors.white,
   icon, outline = false, disabled = false, style, size = 'lg', loading = false,
 }) {
-  const height = size === 'lg' ? 54 : 44;
+  const height = size === 'lg' ? 54 : 42;
   return (
     <Pressable
       onPress={disabled ? null : onPress}
@@ -72,9 +72,9 @@ export function Btn({
       {loading ? (
         <Ionicons name="sync" size={20} color={textColor} style={{ transform: [{ rotate: '0deg' }] }} />
       ) : icon ? (
-        <Ionicons name={icon} size={20} color={textColor} style={{ marginRight: 8 }} />
+        <Ionicons name={icon} size={size === 'lg' ? 20 : 16} color={outline ? color : textColor} style={{ marginRight: size === 'lg' ? 8 : 5 }} />
       ) : null}
-      <T size={font.body} weight="800" color={outline ? color : textColor}>{title}</T>
+      <T size={size === 'lg' ? font.body : font.sm} weight="800" color={outline ? color : textColor} numberOfLines={1} style={{ flexShrink: 1 }}>{title}</T>
     </Pressable>
   );
 }
@@ -193,6 +193,8 @@ const base = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
     borderRadius: radius.md,
+    paddingHorizontal: 10,
+    overflow: 'hidden',
   },
   field: {
     flexDirection: 'row',

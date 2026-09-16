@@ -37,7 +37,7 @@ async function main() {
   // Inscription client (1 mois d'essai gratuit)
   const uniq = Date.now().toString().slice(-6);
   const reg = await req('POST', '/auth/register', {
-    role: 'client', name: 'Awa Cissé', phone: '07' + uniq, password: '1234',
+    role: 'client', name: 'Awa Cissé', phone: '07' + uniq, password: '123456',
   });
   check('Inscription client 201', reg.status === 201);
   check('Inscription : essai gratuit (status trial)', reg.json.subscription?.status === 'trial');
@@ -46,19 +46,19 @@ async function main() {
 
   // Inscription d'un vrai gérant (les comptes de démo ont été retirés)
   const gphone = '08' + uniq;
-  const greg = await req('POST', '/auth/register', { role: 'gerant', name: 'Gérant Test', phone: gphone, password: '1234' });
+  const greg = await req('POST', '/auth/register', { role: 'gerant', name: 'Gérant Test', phone: gphone, password: '123456' });
   check('Inscription gérant 201', greg.status === 201 && greg.json.user?.role === 'gerant');
   const gt = greg.json.token;
   const gid = greg.json.user.id;
 
   // ===== Séparation stricte des rôles à la connexion =====
-  const clientAsGerant = await req('POST', '/auth/login', { phone: '07' + uniq, password: '1234', role: 'gerant' });
+  const clientAsGerant = await req('POST', '/auth/login', { phone: '07' + uniq, password: '123456', role: 'gerant' });
   check('Un compte client ne peut PAS se connecter en gérant (403)', clientAsGerant.status === 403);
-  const gerantAsClient = await req('POST', '/auth/login', { phone: gphone, password: '1234', role: 'client' });
+  const gerantAsClient = await req('POST', '/auth/login', { phone: gphone, password: '123456', role: 'client' });
   check('Un compte gérant ne peut PAS se connecter en client (403)', gerantAsClient.status === 403);
-  const clientOk = await req('POST', '/auth/login', { phone: '07' + uniq, password: '1234', role: 'client' });
+  const clientOk = await req('POST', '/auth/login', { phone: '07' + uniq, password: '123456', role: 'client' });
   check('Le client se connecte bien en client (200)', clientOk.status === 200 && clientOk.json.user?.role === 'client');
-  const gerantOk = await req('POST', '/auth/login', { phone: gphone, password: '1234', role: 'gerant' });
+  const gerantOk = await req('POST', '/auth/login', { phone: gphone, password: '123456', role: 'gerant' });
   check('Le gérant se connecte bien en gérant (200)', gerantOk.status === 200 && gerantOk.json.user?.role === 'gerant');
 
   // Aucune notion de solde : le champ solde ne doit pas exister
@@ -251,6 +251,18 @@ async function main() {
   const rpBad = await req('POST', `/gerant/demandes/${rpId}/request-payment`, {}, gt);
   check('Demande de paiement refusée si déjà payée (400)', rpBad.status === 400);
 
+  // ===== Sécurité : limitation des tentatives de connexion =====
+  {
+    const victim = '05' + uniq;
+    let last = null;
+    for (let i = 0; i < 11; i++) last = await req('POST', '/auth/login', { phone: victim, password: 'mauvais' + i, role: 'client' });
+    check('Connexion bloquée (429) après 10 tentatives ratées sur un même numéro', last.status === 429);
+    const other = await req('POST', '/auth/login', { phone: '07' + uniq, password: '123456', role: 'client' });
+    check('Un autre numéro peut toujours se connecter', other.status === 200);
+  }
+  const weakPwd = await req('POST', '/auth/register', { role: 'client', name: 'Faible', phone: '0199' + uniq.slice(-6), password: '1234' });
+  check('Inscription refusée si mot de passe < 6 caractères', weakPwd.status === 400);
+
   // ===== Gérant indisponible (pas un refus) =====
   const dmU2 = await req('POST', '/client/demandes', { gerantId, gerantName: 'Gérant Test', gerantWave: gphone, type: 'unites', amount: 300, benefName: 'Awa', benefPhone: '07' + uniq }, ct);
   const unavailId = dmU2.json.demande?.id;
@@ -345,14 +357,14 @@ async function main() {
   check('Activation abonnement mensuel 100 FCFA', s1.json.subscription?.status === 'active' && s1.json.subscription?.price === 100 && s1.json.subscription?.periodLabel === 'mensuel');
 
   // Abonnement annuel 1000 FCFA (un autre utilisateur)
-  const reg2 = await req('POST', '/auth/register', { role: 'client', name: 'Binta', phone: '09' + uniq, password: '1234' });
+  const reg2 = await req('POST', '/auth/register', { role: 'client', name: 'Binta', phone: '09' + uniq, password: '123456' });
   const sA = await req('POST', '/client/subscribe', { plan: 'annual' }, reg2.json.token);
   check('Abonnement annuel 1000 FCFA', sA.json.subscription?.status === 'active' && sA.json.subscription?.price === 1000 && sA.json.subscription?.periodLabel === 'annuel');
 
   // Abonnement gérant : tarif supérieur (200 FCFA/mois, 2000 FCFA/an)
   const gph = '01' + uniq;
-  await req('POST', '/auth/register', { role: 'gerant', name: 'Gérant Pay', phone: gph, password: '1234' });
-  const gt2 = (await req('POST', '/auth/login', { phone: gph, password: '1234', role: 'gerant' })).json.token;
+  await req('POST', '/auth/register', { role: 'gerant', name: 'Gérant Pay', phone: gph, password: '123456' });
+  const gt2 = (await req('POST', '/auth/login', { phone: gph, password: '123456', role: 'gerant' })).json.token;
   const gm = await req('POST', '/gerant/subscribe', { plan: 'monthly' }, gt2);
   check('Abonnement gérant mensuel 200 FCFA', gm.json.subscription?.status === 'active' && gm.json.subscription?.price === 200 && gm.json.subscription?.periodLabel === 'mensuel');
   const ga = await req('POST', '/gerant/subscribe', { plan: 'annual' }, gt2);
@@ -360,7 +372,7 @@ async function main() {
 
   // ===== Parrainage / aide mutuelle (paliers 100 / 1000 / 10000 inscrits) =====
   const refPhoneA = '05' + uniq;
-  const refA = await req('POST', '/auth/register', { role: 'client', name: 'Parrain A', phone: refPhoneA, password: '1234' });
+  const refA = await req('POST', '/auth/register', { role: 'client', name: 'Parrain A', phone: refPhoneA, password: '123456' });
   // Plus de code auto-généré : l'utilisateur crée le sien.
   check('Parrain : aucun code attribué automatiquement', !refA.json.user?.referralCode);
   const refCodeA = 'REF' + uniq;
@@ -368,7 +380,7 @@ async function main() {
   check('Parrain : 0 inscrit au départ', refA.json.referral?.registeredCount === 0 && refA.json.referral?.rate === 0);
 
   const refPhoneB = '06' + uniq;
-  const refB = await req('POST', '/auth/register', { role: 'client', name: 'Invitée B', phone: refPhoneB, password: '1234', referrerCode: refCodeA });
+  const refB = await req('POST', '/auth/register', { role: 'client', name: 'Invitée B', phone: refPhoneB, password: '123456', referrerCode: refCodeA });
   check('Parrainage : inscrit rattaché au parrain', refB.json.user?.phone === refPhoneB);
 
   // Paiement avant 100 inscrits : aucune commission (part à 0 %).
@@ -378,7 +390,7 @@ async function main() {
 
   // On recrute jusqu'à 100 inscrits -> le taux passe à 5 %.
   for (let i = 0; i < 99; i++) {
-    await req('POST', '/auth/register', { role: 'client', name: 'Inscrit ' + i, phone: '07' + uniq + String(i).padStart(2, '0'), password: '1234', referrerCode: refCodeA });
+    await req('POST', '/auth/register', { role: 'client', name: 'Inscrit ' + i, phone: '07' + uniq + String(i).padStart(2, '0'), password: '123456', referrerCode: refCodeA });
   }
   const refASummary = await req('GET', '/referral/my', null, refA.json.token);
   check('Parrain : 100 inscrits → part de 5 %', refASummary.json.referral?.registeredCount === 100 && refASummary.json.referral?.rate === 5);

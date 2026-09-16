@@ -37,3 +37,9 @@ export const config = {
   // Jeton d'accès Expo (optionnel, pour un plus gros quota d'envoi).
   expoAccessToken: process.env.EXPO_ACCESS_TOKEN || '',
 };
+
+// Sécurité : en production, un secret JWT par défaut permettrait à n'importe qui
+// de forger des jetons et de se faire passer pour un utilisateur. On refuse de démarrer.
+if (config.env === 'production' && config.jwtSecret === 'dev-secret-change-me') {
+  throw new Error('JWT_SECRET manquant en production : définissez-le dans les variables d\'environnement.');
+}
