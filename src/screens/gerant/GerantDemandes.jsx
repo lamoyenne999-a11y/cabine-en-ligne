@@ -117,10 +117,10 @@ export default function GerantDemandes() {
   const secondaryActions = (d) => {
     const a = [];
     if ((d.status === 'paid' || d.status === 'completed') && !d.moneyReceived) {
-      a.push({ key: 'partial', title: d.partialAt ? 'Toujours incomplet' : 'Montant incomplet', icon: 'remove-circle-outline', color: colors.warn });
+      a.push({ key: 'partial', title: d.partialAt ? 'Toujours incomplet — relancer le client' : 'Montant reçu incomplet (frais Wave)', icon: 'remove-circle-outline', color: colors.warn });
     }
     if (d.status === 'pending' || d.status === 'paid') {
-      a.push({ key: 'unavailable', title: 'Pas disponible', icon: 'moon-outline', color: colors.warn });
+      a.push({ key: 'unavailable', title: 'Je ne suis pas disponible', icon: 'moon-outline', color: colors.warn });
     }
     return a;
   };
@@ -228,14 +228,10 @@ export default function GerantDemandes() {
                 )}
               </View>
             )}
-            {sec.length > 0 && (
-              <View style={{ flexDirection: 'row', marginTop: 6 }}>
-                {sec.map((a, i) => (
-                  <Btn key={a.key} title={a.title} icon={a.icon} size="sm" color={a.color} outline
-                    onPress={() => ask(d.id, a.key)} style={[{ flex: 1 }, i < sec.length - 1 && { marginRight: 6 }]} />
-                ))}
-              </View>
-            )}
+            {sec.map((a) => (
+              <Btn key={a.key} title={a.title} icon={a.icon} size="sm" color={a.color} outline
+                onPress={() => ask(d.id, a.key)} style={{ marginTop: 6 }} />
+            ))}
           </Card>
         );
       })}

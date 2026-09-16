@@ -53,14 +53,15 @@ export function Btn({
   title, onPress, color = colors.primary, textColor = colors.white,
   icon, outline = false, disabled = false, style, size = 'lg', loading = false,
 }) {
-  const height = size === 'lg' ? 54 : 42;
+  const height = size === 'lg' ? 54 : undefined;
+  const minHeight = size === 'lg' ? undefined : 42;
   return (
     <Pressable
       onPress={disabled ? null : onPress}
       disabled={disabled}
       style={({ pressed }) => [
         base.btn,
-        { height },
+        { height, minHeight, paddingVertical: size === 'lg' ? 0 : 6 },
         outline
           ? { backgroundColor: 'transparent', borderWidth: 1.6, borderColor: color }
           : { backgroundColor: color },
@@ -74,7 +75,7 @@ export function Btn({
       ) : icon ? (
         <Ionicons name={icon} size={size === 'lg' ? 20 : 16} color={outline ? color : textColor} style={{ marginRight: size === 'lg' ? 8 : 5 }} />
       ) : null}
-      <T size={size === 'lg' ? font.body : font.sm} weight="800" color={outline ? color : textColor} numberOfLines={1} style={{ flexShrink: 1 }}>{title}</T>
+      <T size={size === 'lg' ? font.body : font.sm} weight="800" color={outline ? color : textColor} numberOfLines={2} style={{ flexShrink: 1, textAlign: 'center' }}>{title}</T>
     </Pressable>
   );
 }
