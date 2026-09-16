@@ -63,7 +63,7 @@ export default function GerantDemandes() {
   const [more, setMore] = useState(null);       // demande ouverte dans le panneau « ⋯ »
   const [unavailReason, setUnavailReason] = useState('away');
   const [showSub, setShowSub] = useState(false);
-  const [shownPhone, setShownPhone] = useState({}); // { [demandeId]: true } → numéro du client dévoilé
+  const [profile, setProfile] = useState(null);    // demande dont on affiche le profil du client
   const [copiedId, setCopiedId] = useState(null);
   const copyPhone = (id, phone) => {
     if (typeof navigator !== 'undefined' && navigator.clipboard) navigator.clipboard.writeText(phone).catch(() => {});
@@ -190,28 +190,23 @@ export default function GerantDemandes() {
                   <T size={font.body} weight="800" color={colors.text}>{TYPE_LABEL[d.type] || 'Demande'}</T>
                   <T size={font.body} weight="800" color={colors.primary} style={{ marginLeft: 8 }}>{fmt(d.amount)} XOF</T>
                 </View>
-                <T size={font.xs} weight="600" color={colors.muted} numberOfLines={1} style={{ marginTop: 1 }}>
-                  {third ? <>Créditer <T size={font.xs} weight="800" color={colors.text}>{d.benefPhone}</T></> : <>{d.clientName} · pour lui-même ({d.benefPhone})</>}
-                </T>
               </View>
               <Pill icon={st.icon} color={st.color} bg={st.bg}>{st.label}</Pill>
             </View>
 
-            {/* Demande pour une TIERCE personne : qui paie ≠ qui est crédité */}
-            {third && (
-              <View style={s.byRow}>
-                <Ionicons name="person-circle-outline" size={16} color={colors.primary} />
-                <T size={font.xs} weight="700" color={colors.text} style={{ marginLeft: 6, flex: 1 }} numberOfLines={1}>
-                  Demandé et payé par <T size={font.xs} weight="800" color={colors.primary}>{d.clientName}</T>
-                  {shownPhone[d.id] && d.clientPhone ? <T size={font.xs} weight="800" color={colors.primary}> · {d.clientPhone}</T> : null}
+            {/* QUI demande, POUR QUI : le numéro à créditer est en grand */}
+            <View style={s.whoRow}>
+              <View style={{ flex: 1 }}>
+                <T size={font.xs} weight="700" color={colors.muted}>
+                  <T size={font.xs} weight="800" color={colors.text}>{d.clientName}</T>{third ? ' demande pour' : ' demande pour lui-même'}
                 </T>
-                {d.clientPhone ? (
-                  shownPhone[d.id]
-                    ? <Pressable onPress={() => copyPhone(d.id, d.clientPhone)} hitSlop={6} style={s.byBtn}><Ionicons name={copiedId === d.id ? 'checkmark' : 'copy-outline'} size={14} color={colors.primary} /><T size={font.xs} weight="800" color={colors.primary} style={{ marginLeft: 3 }}>{copiedId === d.id ? 'Copié' : 'Copier'}</T></Pressable>
-                    : <Pressable onPress={() => setShownPhone((m) => ({ ...m, [d.id]: true }))} hitSlop={6} style={s.byBtn}><Ionicons name="eye-outline" size={14} color={colors.primary} /><T size={font.xs} weight="800" color={colors.primary} style={{ marginLeft: 3 }}>Voir son n°</T></Pressable>
-                ) : null}
+                <T size={font.h3} weight="900" color={colors.text} style={{ marginTop: 1 }} numberOfLines={1}>{d.benefPhone || d.benefName}</T>
               </View>
-            )}
+              <Pressable onPress={() => setProfile(d)} hitSlop={6} style={s.profileBtn}>
+                <Ionicons name="person-outline" size={14} color={colors.primary} />
+                <T size={font.xs} weight="800" color={colors.primary} style={{ marginLeft: 4 }}>Profil client</T>
+              </Pressable>
+            </View>
 
             {/* Ligne d'état (1 phrase) */}
             <View style={[s.stateLine, { backgroundColor: tone.bg }]}>
@@ -244,6 +239,43 @@ export default function GerantDemandes() {
           </Card>
         );
       })}
+
+      {/* Fiche « Profil client » : qui demande, qui paie, qui est crédité */}
+      <BottomSheet visible={!!profile} onClose={() => setProfile(null)}>
+        {profile && (() => {
+          const third = !!profile.benefPhone && !!profile.clientPhone && profile.benefPhone !== profile.clientPhone;
+          const rows = [
+            { icon: 'person-circle-outline', label: 'Client (qui demande et paie)', value: profile.clientName, sub: profile.clientPhone, copy: profile.clientPhone, key: 'c' },
+            { icon: 'phone-portrait-outline', label: third ? 'Numéro à créditer (autre personne)' : 'Numéro à créditer (lui-même)', value: profile.benefPhone || profile.benefName, copy: profile.benefPhone, key: 'b' },
+            { icon: 'water-outline', label: 'Paiement Wave attendu de', value: profile.clientName + (profile.clientPhone ? ' · ' + profile.clientPhone : ''), key: 'w' },
+          ];
+          return (
+            <>
+              <T size={font.h3} weight="800" color={colors.text}>Profil client</T>
+              <T size={font.sm} weight="600" color={colors.muted} style={{ marginBottom: 6 }}>
+                {profile.clientName} demande {TYPE_LABEL[profile.type] || ''} {fmt(profile.amount)} XOF pour {third ? profile.benefPhone : 'lui-même'}.
+              </T>
+              {rows.map((r) => (
+                <View key={r.key} style={s.infoRow}>
+                  <View style={[s.moreIcon, { backgroundColor: colors.primarySoft }]}><Ionicons name={r.icon} size={18} color={colors.primary} /></View>
+                  <View style={{ flex: 1, marginLeft: 12 }}>
+                    <T size={font.xs} weight="700" color={colors.muted}>{r.label}</T>
+                    <T size={font.body} weight="800" color={colors.text}>{r.value}</T>
+                    {r.sub ? <T size={font.sm} weight="700" color={colors.text}>{r.sub}</T> : null}
+                  </View>
+                  {r.copy ? (
+                    <Pressable onPress={() => copyPhone(r.key, r.copy)} hitSlop={6} style={s.byBtn}>
+                      <Ionicons name={copiedId === r.key ? 'checkmark' : 'copy-outline'} size={14} color={colors.primary} />
+                      <T size={font.xs} weight="800" color={colors.primary} style={{ marginLeft: 3 }}>{copiedId === r.key ? 'Copié' : 'Copier'}</T>
+                    </Pressable>
+                  ) : null}
+                </View>
+              ))}
+              <Btn title="Fermer" outline onPress={() => setProfile(null)} style={{ marginTop: space.md }} />
+            </>
+          );
+        })()}
+      </BottomSheet>
 
       {/* Panneau « ⋯ » : actions secondaires */}
       <BottomSheet visible={!!more} onClose={() => setMore(null)}>
@@ -297,8 +329,11 @@ const s = StyleSheet.create({
   card: { marginBottom: space.sm, paddingVertical: 12 },
   icon: { width: 38, height: 38, borderRadius: 19, backgroundColor: colors.primarySoft, alignItems: 'center', justifyContent: 'center' },
   stateLine: { flexDirection: 'row', alignItems: 'center', borderRadius: radius.md, paddingHorizontal: 10, paddingVertical: 7, marginTop: 10 },
+  whoRow: { flexDirection: 'row', alignItems: 'center', marginTop: 8 },
+  profileBtn: { flexDirection: 'row', alignItems: 'center', paddingHorizontal: 10, paddingVertical: 6, borderRadius: radius.pill, backgroundColor: colors.primarySoft, marginLeft: 8 },
+  infoRow: { flexDirection: 'row', alignItems: 'center', paddingVertical: 10, borderBottomWidth: 1, borderBottomColor: colors.border },
   byRow: { flexDirection: 'row', alignItems: 'center', marginTop: 8, paddingHorizontal: 10, paddingVertical: 6, borderRadius: radius.md, backgroundColor: colors.primarySoft },
-  byBtn: { flexDirection: 'row', alignItems: 'center', paddingHorizontal: 8, paddingVertical: 4, borderRadius: radius.pill, backgroundColor: '#fff', marginLeft: 6 },
+  byBtn: { flexDirection: 'row', alignItems: 'center', paddingHorizontal: 8, paddingVertical: 4, borderRadius: radius.pill, backgroundColor: colors.primarySoft, marginLeft: 6 },
   actions: { flexDirection: 'row', alignItems: 'center', marginTop: 10 },
   moreBtn: { width: 38, height: 38, borderRadius: 19, backgroundColor: colors.primarySoft, alignItems: 'center', justifyContent: 'center', marginLeft: 6 },
   moreRow: { flexDirection: 'row', alignItems: 'center', paddingVertical: 12, borderBottomWidth: 1, borderBottomColor: colors.border },
