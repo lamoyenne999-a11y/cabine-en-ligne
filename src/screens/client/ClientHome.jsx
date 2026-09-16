@@ -7,6 +7,7 @@ import { Header } from '../../components/Shell';
 import { BottomSheet, Dialog, DialogButtons } from '../../components/modals';
 import { WavePaySheet, WavePayBox } from '../../components/WavePay';
 import { useStore } from '../../store';
+import SuspendedBanner from '../../components/SuspendedBanner';
 
 const money = (n) => `${(n || 0).toLocaleString('fr-FR').replace(/\u202f/g, ' ')} F`;
 
@@ -113,6 +114,7 @@ export default function ClientHome() {
         contentContainerStyle={s.content}
         showsVerticalScrollIndicator={false}
       >
+        <SuspendedBanner style={{ marginTop: 4 }} />
         <SectionTitle style={{ marginTop: 4 }}>Nouvelle demande</SectionTitle>
         <T size={font.sm} weight="600" color={colors.textSoft} style={{ marginTop: 2, marginBottom: 6 }}>
           Pas besoin de vous déplacer : choisissez un gérant, payez par Wave, on vous crédite à distance. ⚡

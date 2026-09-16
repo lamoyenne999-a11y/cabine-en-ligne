@@ -7,6 +7,7 @@ import { Page } from '../../components/Shell';
 import { WavePaySheet, WavePayBox } from '../../components/WavePay';
 import { Dialog, DialogButtons } from '../../components/modals';
 import { useStore } from '../../store';
+import SuspendedBanner from '../../components/SuspendedBanner';
 import ReportButton from '../../components/ReportButton';
 
 // Pour mettre à jour le compte à rebours d'un délai toutes les secondes
@@ -108,6 +109,7 @@ export default function ClientHistory() {
 
   return (
     <Page title="Historique">
+      <SuspendedBanner />
       {/* Synthèse */}
       <Card style={s.sumCard}>
         <View style={s.sumTop}>

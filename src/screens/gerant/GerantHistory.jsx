@@ -5,6 +5,7 @@ import { colors, radius, space, font } from '../../theme';
 import { T, Card, Pill, Chip } from '../../components/ui';
 import { Page } from '../../components/Shell';
 import { useStore } from '../../store';
+import SuspendedBanner from '../../components/SuspendedBanner';
 import ReportButton from '../../components/ReportButton';
 
 const STATUS = {
@@ -79,6 +80,7 @@ export default function GerantHistory() {
 
   return (
     <Page title="Historique">
+      <SuspendedBanner />
       <Card style={s.sumCard}>
         <View style={s.sumTop}>
           <View>

@@ -534,7 +534,7 @@ export function blockUser({ phone, reason = '' }) {
     blockedAt: Date.now(),
   });
   // On suspend aussi les activités du compte s'il existe.
-  if (u) update('users', (x) => x.id === u.id, { frozen: true });
+  if (u) update('users', (x) => x.id === u.id, { frozen: true, frozenAt: Date.now(), frozenReason: 'other', frozenNote: String(reason || '').slice(0, 200) });
   recordEvent({ type: 'user_blocked', name: u?.name || '', phone: p, role: u?.role || '' });
   return { ok: true, phone: p, name: u?.name || '', role: u?.role || '' };
 }
@@ -546,7 +546,7 @@ export function unblockUser({ phone }) {
   remove('blocked', (x) => x.phone === p);
   // On réactive le compte s'il existe encore.
   const u = findOne('users', (x) => x.phone === p);
-  if (u) update('users', (x) => x.id === u.id, { frozen: false });
+  if (u) update('users', (x) => x.id === u.id, { frozen: false, frozenAt: 0, frozenReason: '', frozenNote: '' });
   recordEvent({ type: 'user_unblocked', name: b.name || u?.name || '', phone: p, role: b.role || u?.role || '' });
   return { ok: true, phone: p };
 }
