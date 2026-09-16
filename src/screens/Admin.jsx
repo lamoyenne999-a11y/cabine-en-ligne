@@ -100,6 +100,7 @@ export default function Admin({ onBack }) {
   }
 
   const payments = data?.payments || [];
+  const pendingPayments = data?.pendingPayments || [];
   const totals = data?.totals || {};
   const referral = data?.referral || { totalCommission: 0, count: 0, referrers: [] };
   const referralCodes = data?.referralCodes || { registeredWithCode: 0, registeredWithoutCode: 0, uniqueCodesUsed: 0, byCode: [] };
@@ -114,7 +115,8 @@ export default function Admin({ onBack }) {
 
   const EVENT_META = {
     user_registered: { label: 'Nouvel utilisateur', icon: 'person-add-outline', color: colors.primary, bg: colors.primarySoft },
-    subscription_paid: { label: 'Abonnement payé', icon: 'cash-outline', color: colors.success, bg: colors.successBg },
+    subscription_declared: { label: 'Paiement déclaré (à vérifier)', icon: 'hourglass-outline', color: colors.warn, bg: colors.warnBg },
+    subscription_paid: { label: 'Abonnement confirmé', icon: 'cash-outline', color: colors.success, bg: colors.successBg },
     subscription_expired: { label: 'Abonnement expiré', icon: 'alert-circle-outline', color: colors.danger, bg: colors.dangerBg },
     user_deleted: { label: 'Compte supprimé', icon: 'trash-outline', color: colors.warn, bg: '#FDF0E0' },
     user_blocked: { label: 'Compte bloqué', icon: 'ban-outline', color: colors.danger, bg: colors.dangerBg },
@@ -195,6 +197,21 @@ export default function Admin({ onBack }) {
     const msg = `Cabine En Ligne — votre nouveau mot de passe temporaire : ${pwdResult?.tempPassword}. Connectez-vous avec le numéro ${pwdResult?.phone}.`;
     if (typeof navigator !== 'undefined' && navigator.clipboard) navigator.clipboard.writeText(msg).catch(() => {});
     setPwdCopied(true); setTimeout(() => setPwdCopied(false), 1800);
+  };
+
+  // Validation manuelle d'un paiement d'abonnement déclaré.
+  const [rejectTarget, setRejectTarget] = useState(null);
+  const doConfirmPayment = async (p) => {
+    setBusy(p.id);
+    try { await api.admin.confirmPayment(key, p.id); await reload(); }
+    catch (e) { setErr(e?.message || 'Erreur.'); }
+    finally { setBusy(null); }
+  };
+  const doRejectPayment = async (p) => {
+    setBusy(p.id); setRejectTarget(null);
+    try { await api.admin.rejectPayment(key, p.id, ''); await reload(); }
+    catch (e) { setErr(e?.message || 'Erreur.'); }
+    finally { setBusy(null); }
   };
 
   // Certifie / retire la certification d'un gérant.
@@ -343,7 +360,7 @@ export default function Admin({ onBack }) {
     { key: 'deblocages', label: 'Déblocages', icon: 'lock-open-outline', filled: 'lock-open', badge: unblockRequests.length },
     { key: 'activite', label: 'Activité', icon: 'pulse-outline', filled: 'pulse', badge: events.length },
     { key: 'parrainage', label: 'Parrainage', icon: 'gift-outline', filled: 'gift', badge: referral.referrers.length },
-    { key: 'paiements', label: 'Paiements', icon: 'cash-outline', filled: 'cash', badge: payments.length },
+    { key: 'paiements', label: 'Paiements', icon: 'cash-outline', filled: 'cash', badge: pendingPayments.length || payments.length },
     { key: 'systeme', label: 'Système', icon: 'server-outline', filled: 'server' },
   ];
 
@@ -792,7 +809,33 @@ export default function Admin({ onBack }) {
       {/* ===== Paiements ===== */}
       {adminTab === 'paiements' && (
         <>
-          <T size={font.h3} weight="800" color={colors.text} style={{ marginBottom: space.sm }}>Historique des paiements</T>
+          <T size={font.h3} weight="800" color={colors.text} style={{ marginBottom: 4 }}>À vérifier ({pendingPayments.length})</T>
+          <T size={font.xs} weight="600" color={colors.muted} style={{ marginBottom: space.sm }}>
+            Ces utilisateurs déclarent avoir payé sur votre Wave. Vérifiez la réception (montant + numéro), puis confirmez : l'abonnement s'active et l'utilisateur est notifié.
+          </T>
+          {pendingPayments.length === 0 ? (
+            <Card style={{ alignItems: 'center', paddingVertical: 18, marginBottom: space.lg }}>
+              <Ionicons name="checkmark-done-outline" size={30} color={colors.success} />
+              <T size={font.sm} weight="600" color={colors.muted} style={{ marginTop: 6 }}>Aucun paiement en attente.</T>
+            </Card>
+          ) : pendingPayments.map((p) => (
+            <Card key={p.id} style={{ marginBottom: space.sm, borderWidth: 1.5, borderColor: colors.warn }}>
+              <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' }}>
+                <View style={{ flex: 1 }}>
+                  <T size={font.body} weight="800" color={colors.text}>{p.name}</T>
+                  <T size={font.xs} weight="600" color={colors.muted} style={{ marginTop: 2 }}>{p.phone} · {p.role === 'gerant' ? 'Gérant' : 'Client'} · {p.plan === 'annual' ? 'Annuel' : 'Mensuel'}</T>
+                </View>
+                <T size={font.h3} weight="900" color={colors.warn}>{money(p.amount)}</T>
+              </View>
+              <View style={s.row}><T size={font.xs} weight="600" color={colors.muted}>Déclaré le</T><T size={font.xs} weight="700" color={colors.text}>{fmtDate(p.declaredAt)}</T></View>
+              <View style={s.row}><T size={font.xs} weight="600" color={colors.muted}>Référence</T><T size={font.xs} weight="700" color={colors.text}>{p.reference}</T></View>
+              <View style={{ flexDirection: 'row', marginTop: 10 }}>
+                <Btn title="Argent reçu — activer" icon="checkmark" color={colors.success} size="sm" loading={busy === p.id} onPress={() => doConfirmPayment(p)} style={{ flex: 1, marginRight: 8 }} />
+                <Btn title="Rien reçu" icon="close" color={colors.danger} outline size="sm" loading={busy === p.id} onPress={() => setRejectTarget(p)} style={{ flex: 1 }} />
+              </View>
+            </Card>
+          ))}
+          <T size={font.h3} weight="800" color={colors.text} style={{ marginBottom: space.sm, marginTop: space.md }}>Paiements confirmés</T>
           {payments.length === 0 ? (
             <Card style={{ alignItems: 'center', paddingVertical: 26 }}>
               <Ionicons name="receipt-outline" size={36} color={colors.muted2} />
@@ -885,6 +928,15 @@ export default function Admin({ onBack }) {
           L'utilisateur recevra une notification l'informant du cadeau.
         </T>
         <DialogButtons cancel="Annuler" confirm={`Offrir ${giftCustom ? giftCustom + ' j' : ({ 7: '1 sem.', 14: '2 sem.', 30: '1 mois', 60: '2 mois', 90: '3 mois', 180: '6 mois' }[giftDays] || giftDays + ' j')}`} onCancel={() => setGiftTarget(null)} onConfirm={doGift} />
+      </Dialog>
+
+      {/* Rejet d'un paiement déclaré */}
+      <Dialog visible={!!rejectTarget}>
+        <T size={font.h3} weight="800" color={colors.text} style={{ textAlign: 'center' }}>Rien reçu de {rejectTarget?.name} ?</T>
+        <T size={font.sm} weight="600" color={colors.muted} style={{ textAlign: 'center', marginTop: 6, marginBottom: 6 }}>
+          La déclaration de {rejectTarget?.amount} F (réf. {rejectTarget?.reference}) sera rejetée. L'utilisateur sera prévenu et invité à vérifier son transfert Wave, puis à déclarer à nouveau. Son abonnement ne change pas.
+        </T>
+        <DialogButtons cancel="Annuler" confirm="Rejeter" onCancel={() => setRejectTarget(null)} onConfirm={() => doRejectPayment(rejectTarget)} />
       </Dialog>
 
       {/* Réinitialisation du mot de passe */}

@@ -486,7 +486,7 @@ export function StoreProvider({ children }) {
     try {
       const r = await (state.role === 'gerant' ? api.gerant.subscribe(plan) : api.client.subscribe(plan));
       if (r?.subscription) dispatch({ type: 'SET_SUBSCRIPTION', payload: r.subscription });
-      return { ...(r?.subscription || {}), payment: r?.payment || null };
+      return { ...(r?.subscription || {}), payment: r?.payment || null, pending: !!r?.pending, duplicate: !!r?.duplicate };
     } catch (e) {
       if (e && e.status) throw e;
       throw Object.assign(new Error('Impossible de valider le paiement. Vérifiez votre connexion internet ou réessayez.'), { status: 0 });

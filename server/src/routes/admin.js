@@ -1,7 +1,7 @@
 import express from 'express';
 import { hashPassword } from '../middleware/auth.js';
 import { config } from '../config.js';
-import { setUserCertified, grantFreeTime, giftsForAdmin, subscriptionPayments, subscriptionTotals, subscriptionFor, referralSummary, referredUsersCount, referralPaymentCount, referralRateFor, deleteAccountAll, setUserFrozen, eventsForAdmin, eventsCounters, referralCodeStats, expiredUsers, reconcileExpiredEvents, isPhoneBlocked, blockUser, unblockUser, blockedList, unblockRequestsPending, resolveUnblockRequest } from '../services/flowService.js';
+import { pendingSubscriptionPayments, confirmSubscriptionPayment, rejectSubscriptionPayment, setUserCertified, grantFreeTime, giftsForAdmin, subscriptionPayments, subscriptionTotals, subscriptionFor, referralSummary, referredUsersCount, referralPaymentCount, referralRateFor, deleteAccountAll, setUserFrozen, eventsForAdmin, eventsCounters, referralCodeStats, expiredUsers, reconcileExpiredEvents, isPhoneBlocked, blockUser, unblockUser, blockedList, unblockRequestsPending, resolveUnblockRequest } from '../services/flowService.js';
 import { find, findOne, update, dbStats } from '../db.js';
 
 const router = express.Router();
@@ -44,6 +44,7 @@ router.get('/summary', requireAdmin, (req, res) => {
     eventCounters: eventsCounters(),
     expired: expiredUsers(),
     dbStats: dbStats(),
+    pendingPayments: pendingSubscriptionPayments(),
     unblockRequests: unblockRequestsPending(),
     blocked: blockedList(),
   });
@@ -114,6 +115,19 @@ router.post('/reset-password', requireAdmin, async (req, res) => {
   const tempPassword = String(Math.floor(100000 + Math.random() * 900000));
   update('users', (u) => u.id === user.id, { passwordHash: await hashPassword(tempPassword), passwordResetAt: Date.now() });
   res.json({ ok: true, name: user.name, phone: user.phone, tempPassword });
+});
+
+// Validation manuelle des abonnements : le propriétaire confirme (argent vu sur
+// Wave) ou rejette (rien reçu) une déclaration de paiement. Body : { id, note? }.
+router.post('/confirm-payment', requireAdmin, (req, res) => {
+  const out = confirmSubscriptionPayment(String(req.body?.id || ''));
+  if (!out.ok) return res.status(400).json(out);
+  res.json(out);
+});
+router.post('/reject-payment', requireAdmin, (req, res) => {
+  const out = rejectSubscriptionPayment(String(req.body?.id || ''), String(req.body?.note || '').slice(0, 200));
+  if (!out.ok) return res.status(400).json(out);
+  res.json(out);
 });
 
 // Offre du temps gratuit à un utilisateur. Body : { phone, days, note }.

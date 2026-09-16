@@ -51,7 +51,11 @@ export default function SubBanner({ sub, onSubscribe }) {
             : offer(state.role)}
         </T>
       </View>
-      {showReminder && (
+      {sub?.pendingPayment && !isActive ? (
+        <View style={[s.payBtn, { backgroundColor: colors.warn }]}>
+          <T size={font.xs} weight="800" color="#fff">En vérification</T>
+        </View>
+      ) : showReminder && (
         <Pressable onPress={onSubscribe} style={s.payBtn}>
           <T size={font.xs} weight="800" color="#fff">S'abonner</T>
         </Pressable>

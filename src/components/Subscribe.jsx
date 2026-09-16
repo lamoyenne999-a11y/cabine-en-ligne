@@ -47,7 +47,7 @@ export default function SubscribeSheet({ visible, onClose, onSubscribe, subtitle
       const sub = res.payment ? res : res.subscription || res;
       setPaying(false);
       setPaid({
-        plan,
+        plan, duplicate: !!res?.duplicate,
         price: res?.price || res?.payment?.amount || current.price,
         label: res?.periodLabel || (plan === 'annual' ? 'annuel' : 'mensuel'),
         validUntil: res?.subscribedUntil || res?.payment?.validUntil || null,
@@ -63,6 +63,7 @@ export default function SubscribeSheet({ visible, onClose, onSubscribe, subtitle
     setPaid(null);
     onClose();
   };
+  const pendingPay = state.subscription?.pendingPayment || null;
 
   return (
     <>
@@ -98,9 +99,17 @@ export default function SubscribeSheet({ visible, onClose, onSubscribe, subtitle
           </View>
         ) : null}
 
-        <Btn title={`Payer ${current.priceLabel}`} icon="water" onPress={() => setPaying(true)} style={{ marginTop: space.lg }} />
+        {pendingPay ? (
+          <View style={s.pendingBox}>
+            <Ionicons name="hourglass-outline" size={18} color={colors.warn} />
+            <T size={font.sm} weight="700" color={colors.warn} style={{ marginLeft: 8, flex: 1 }}>
+              Paiement de {pendingPay.amount} F déclaré (réf. {pendingPay.reference}) — en cours de vérification. Votre abonnement sera activé dès confirmation.
+            </T>
+          </View>
+        ) : null}
+        <Btn title={pendingPay ? 'Déclarer un autre paiement' : `Payer ${current.priceLabel}`} icon="water" outline={!!pendingPay} onPress={() => setPaying(true)} style={{ marginTop: space.lg }} />
         <T size={font.xs} weight="600" color={colors.muted2} style={{ textAlign: 'center', marginTop: 8 }}>
-          Aucun argent n'est stocké sur l'app. Le paiement se fait via Wave.
+          Paiement via Wave, puis vérification par Cabine En Ligne avant activation. Aucun argent n'est stocké sur l'app.
         </T>
       </BottomSheet>
 
@@ -118,34 +127,29 @@ export default function SubscribeSheet({ visible, onClose, onSubscribe, subtitle
         subtitle={current.priceLabel}
       />
 
-      {/* Confirmation de paiement = reçu */}
+      {/* Déclaration envoyée : en attente de vérification par le propriétaire */}
       <Dialog visible={!!paid}>
         <View style={{ alignItems: 'center', paddingVertical: 8 }}>
-          <Ionicons name="checkmark-circle" size={72} color={colors.success} />
+          <Ionicons name="hourglass" size={64} color={colors.warn} />
           <T size={font.h3} weight="900" color={colors.text} style={{ marginTop: 12, textAlign: 'center' }}>
-            Abonnement {paid?.label} payé !
+            Paiement déclaré — en vérification
           </T>
           <T size={font.body} weight="800" color={colors.primary} style={{ marginTop: 6, textAlign: 'center' }}>
             {paid?.price ? `${paid.price.toLocaleString('fr-FR').replace(/\u202f/g, ' ')} FCFA` : ''}
           </T>
-
-          {/* Reçu : montant + validité + référence */}
           <View style={s.receipt}>
-            <View style={s.receiptRow}><T size={font.sm} weight="600" color={colors.muted}>Montant payé</T><T size={font.sm} weight="800" color={colors.text}>{paid?.price ? `${paid.price.toLocaleString('fr-FR').replace(/\u202f/g, ' ')} FCFA` : '—'}</T></View>
             <View style={s.receiptRow}><T size={font.sm} weight="600" color={colors.muted}>Abonnement</T><T size={font.sm} weight="800" color={colors.text}>{paid?.label}</T></View>
-            {paid?.validUntil ? (
-              <View style={s.receiptRow}><T size={font.sm} weight="600" color={colors.muted}>Valable jusqu'au</T><T size={font.sm} weight="800" color={colors.text}>{fmtDate(paid.validUntil)}</T></View>
-            ) : null}
             {paid?.reference ? (
               <View style={s.receiptRow}><T size={font.sm} weight="600" color={colors.muted}>Référence</T><T size={font.sm} weight="800" color={colors.text}>{paid.reference}</T></View>
             ) : null}
           </View>
-
           <T size={font.sm} weight="600" color={colors.muted} style={{ marginTop: 10, textAlign: 'center' }}>
-            Votre abonnement est maintenant actif. Merci ! 🎉
+            {paid?.duplicate
+              ? 'Votre déclaration précédente est toujours en cours de vérification. Inutile de payer une seconde fois.'
+              : "Nous vérifions la réception de votre paiement Wave. Votre abonnement sera activé dès confirmation (généralement dans l'heure) et vous recevrez une notification. Vous pouvez continuer à utiliser l'app en attendant."}
           </T>
         </View>
-        <Btn title="Terminé" onPress={closeAll} style={{ marginTop: 16 }} />
+        <Btn title="Compris" onPress={closeAll} style={{ marginTop: 16 }} />
       </Dialog>
     </>
   );
@@ -157,6 +161,7 @@ const s = StyleSheet.create({
   radio: { width: 22, height: 22, borderRadius: 11, borderWidth: 2, borderColor: colors.muted2, alignItems: 'center', justifyContent: 'center' },
   radioOn: { borderColor: colors.primary },
   radioDot: { width: 10, height: 10, borderRadius: 5, backgroundColor: colors.primary },
+  pendingBox: { flexDirection: 'row', alignItems: 'center', backgroundColor: colors.warnBg, borderRadius: radius.sm, padding: 10, marginTop: space.md },
   errBox: { flexDirection: 'row', alignItems: 'center', backgroundColor: colors.dangerBg, borderRadius: radius.sm, padding: 10, marginTop: space.md },
   receipt: { alignSelf: 'stretch', backgroundColor: colors.successBg, borderRadius: radius.md, padding: 12, marginTop: space.md },
   receiptRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingVertical: 5 },

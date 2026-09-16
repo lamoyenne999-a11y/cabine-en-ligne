@@ -46,11 +46,14 @@ export function subscriptionFor(user) {
   const periodLabel = plans[plan].label;
   const now = Date.now();
   // Dernier paiement d'abonnement enregistré (reçu affiché à l'utilisateur).
-  const lastPayment = find('subscriptions', (p) => p.userId === user.id).sort((a, b) => b.paidAt - a.paidAt)[0] || null;
+  const lastPayment = find('subscriptions', (p) => p.userId === user.id && (!p.status || p.status === 'confirmed')).sort((a, b) => b.paidAt - a.paidAt)[0] || null;
+  // Déclaration de paiement en attente de vérification par le propriétaire.
+  const pending = findOne('subscriptions', (p) => p.userId === user.id && p.status === 'pending');
   const base = {
     plan, price, periodLabel, priceLabel: plans[plan].priceLabel,
     trialEndsAt: s.trialEndsAt, subscribedUntil: s.subscribedUntil,
     lastPayment: lastPayment ? { reference: lastPayment.reference, amount: lastPayment.amount, priceLabel: lastPayment.priceLabel, paidAt: lastPayment.paidAt, validUntil: lastPayment.validUntil, plan: lastPayment.plan } : null,
+    pendingPayment: pending ? { reference: pending.reference, amount: pending.amount, priceLabel: pending.priceLabel, plan: pending.plan, declaredAt: pending.declaredAt } : null,
   };
   if (s.status === 'active' && s.subscribedUntil > now) {
     return { ...base, status: 'active', daysLeft: Math.ceil((s.subscribedUntil - now) / 86400000) };
@@ -85,46 +88,79 @@ function makeSubscriptionReference() {
   return 'SUB-' + Date.now().toString(36).toUpperCase() + Math.random().toString(36).slice(2, 8).toUpperCase();
 }
 
+// ÉTAPE 1 (utilisateur) : « J'ai payé » → on enregistre une DÉCLARATION de paiement,
+// en attente de vérification. L'abonnement n'est PAS activé ici : le propriétaire
+// vérifie la réception sur son Wave puis confirme depuis l'Espace propriétaire.
+// (Évite qu'un utilisateur s'attribue un abonnement sans payer.)
 export function paySubscription(user, plan = SUB_DEFAULT_PLAN) {
   const plans = plansFor(user.role);
   const now = Date.now();
   const conf = plans[plan] || plans[SUB_DEFAULT_PLAN];
-  // Détermine la nouvelle date de fin (cumul si déjà actif).
-  const s = user.subscription || {};
-  const prev = s.subscribedUntil > now ? s.subscribedUntil : now;
-  const validUntil = prev + conf.ms;
+  const planKey = conf === plans[plan] ? plan : SUB_DEFAULT_PLAN;
 
-  // 1) Active l'abonnement côté utilisateur.
-  const fresh = { status: 'active', plan: conf === plans[plan] ? plan : SUB_DEFAULT_PLAN, price: conf.price, trialEndsAt: s.trialEndsAt || now + MONTH_MS, subscribedUntil: validUntil, expiryNotified: false };
-  update('users', (u) => u.id === user.id, { subscription: fresh });
+  // Une déclaration déjà en attente pour cet utilisateur ? On la renvoie (pas de doublon).
+  const existing = findOne('subscriptions', (p) => p.userId === user.id && p.status === 'pending');
+  if (existing) {
+    return { subscription: subscriptionFor(user), payment: existing, pending: true, duplicate: true };
+  }
 
-  // 2) Enregistre le paiement (traçabilité propriétaire).
   const reference = makeSubscriptionReference();
   const payment = insert('subscriptions', {
     id: 'sub_' + Date.now().toString(36) + Math.random().toString(36).slice(2, 6),
     reference,
+    status: 'pending',        // pending | confirmed | rejected
     userId: user.id,
     role: user.role,
     name: user.name,
     phone: user.phone,
-    plan: conf === plans[plan] ? plan : SUB_DEFAULT_PLAN,
+    plan: planKey,
     amount: conf.price,
     priceLabel: conf.priceLabel,
-    paidAt: now,
-    validUntil,
+    declaredAt: now,
+    paidAt: 0,                // renseigné à la confirmation
+    validUntil: 0,            // renseigné à la confirmation
   });
+  recordEvent({ type: 'subscription_declared', name: user.name, phone: user.phone, role: user.role, amount: conf.price, plan: planKey, reference });
+  return { subscription: subscriptionFor(user), payment, pending: true };
+}
 
-  // 3) Crédite la commission du parrain (si l'utilisateur a été parrainé).
+// ÉTAPE 2 (propriétaire) : confirme la réception → active l'abonnement, crédite le
+// parrain, journalise et notifie l'utilisateur.
+export function confirmSubscriptionPayment(paymentId) {
+  const p = findOne('subscriptions', (x) => x.id === paymentId || x.reference === paymentId);
+  if (!p) return { ok: false, error: 'Paiement introuvable.' };
+  if (p.status === 'confirmed') return { ok: false, error: 'Déjà confirmé.' };
+  const user = findOne('users', (u) => u.id === p.userId);
+  if (!user) return { ok: false, error: 'Utilisateur introuvable.' };
+  const plans = plansFor(user.role);
+  const conf = plans[p.plan] || plans[SUB_DEFAULT_PLAN];
+  const now = Date.now();
+  const s = user.subscription || {};
+  const prev = s.subscribedUntil > now ? s.subscribedUntil : now;
+  const validUntil = prev + conf.ms;
+  const fresh = { status: 'active', plan: p.plan, price: conf.price, trialEndsAt: s.trialEndsAt || now + MONTH_MS, subscribedUntil: validUntil, expiryNotified: false };
+  update('users', (u) => u.id === user.id, { subscription: fresh });
+  const payment = update('subscriptions', (x) => x.id === p.id, { status: 'confirmed', paidAt: now, validUntil, confirmedAt: now });
   const referralCommission = recordReferralCommission(user, payment);
+  recordEvent({ type: 'subscription_paid', name: user.name, phone: user.phone, role: user.role, amount: conf.price, plan: p.plan, reference: p.reference });
+  createNotification({
+    userId: user.id, type: 'subscription_confirmed',
+    text: `Paiement reçu, merci ! Votre abonnement ${conf.label} (${conf.priceLabel}) est actif jusqu'au ${new Date(validUntil).toLocaleDateString('fr-FR')}. Réf. ${p.reference}.`,
+  });
+  return { ok: true, payment, subscription: subscriptionFor({ ...user, subscription: fresh }), referralCommission };
+}
 
-  // 4) Journal : signale le paiement dans l'Espace propriétaire.
-  recordEvent({ type: 'subscription_paid', name: user.name, phone: user.phone, role: user.role, amount: conf.price, plan: conf === plans[plan] ? plan : SUB_DEFAULT_PLAN, reference });
-
-  return {
-    subscription: subscriptionFor({ ...user, subscription: fresh }),
-    payment,
-    referralCommission,
-  };
+// Le propriétaire n'a rien reçu : la déclaration est rejetée, l'utilisateur est prévenu.
+export function rejectSubscriptionPayment(paymentId, note) {
+  const p = findOne('subscriptions', (x) => x.id === paymentId || x.reference === paymentId);
+  if (!p) return { ok: false, error: 'Paiement introuvable.' };
+  if (p.status !== 'pending') return { ok: false, error: 'Ce paiement n\'est plus en attente.' };
+  const payment = update('subscriptions', (x) => x.id === p.id, { status: 'rejected', rejectedAt: Date.now(), rejectNote: note || '' });
+  createNotification({
+    userId: p.userId, type: 'subscription_rejected',
+    text: `Nous n'avons pas trouvé votre paiement de ${p.amount} F (réf. ${p.reference}). Vérifiez votre transfert Wave puis déclarez-le à nouveau depuis « S'abonner ».${note ? ' Message : ' + note : ''}`,
+  });
+  return { ok: true, payment };
 }
 
 // Le service est autorisé si l'abonnement est en ESSAI (pas expiré) ou ACTIF.
@@ -135,7 +171,12 @@ export function serviceAllowed(subscription) {
 
 // ---- Vue propriétaire : tous les paiements d'abonnement déclarés ----
 export function subscriptionPayments() {
-  return find('subscriptions', () => true).sort((a, b) => b.paidAt - a.paidAt);
+  // Paiements CONFIRMÉS (les anciens enregistrements sans `status` datent d'avant la
+  // validation manuelle : ils étaient activés directement, on les garde comme confirmés).
+  return find('subscriptions', (p) => !p.status || p.status === 'confirmed').sort((a, b) => b.paidAt - a.paidAt);
+}
+export function pendingSubscriptionPayments() {
+  return find('subscriptions', (p) => p.status === 'pending').sort((a, b) => b.declaredAt - a.declaredAt);
 }
 export function subscriptionTotals() {
   const rows = subscriptionPayments();
@@ -489,7 +530,7 @@ export function eventsForAdmin(limit = 100) {
 export function eventsCounters() {
   const rows = find('events', () => true);
   const c = { total: rows.length };
-  for (const type of ['user_registered', 'user_deleted', 'subscription_paid', 'subscription_expired', 'user_blocked', 'user_unblocked', 'unblock_request', 'free_time_granted', 'gerant_certified']) {
+  for (const type of ['user_registered', 'user_deleted', 'subscription_declared', 'subscription_paid', 'subscription_expired', 'user_blocked', 'user_unblocked', 'unblock_request', 'free_time_granted', 'gerant_certified']) {
     c[type] = rows.filter((r) => r.type === type).length;
   }
   return c;

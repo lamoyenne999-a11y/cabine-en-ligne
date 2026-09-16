@@ -363,20 +363,50 @@ async function main() {
   const s0 = await req('GET', '/client/subscription', null, ct);
   check('Abonnement client en essai', s0.json.subscription?.status === 'trial');
   const s1 = await req('POST', '/client/subscribe', { plan: 'monthly' }, ct);
-  check('Activation abonnement mensuel 100 FCFA', s1.json.subscription?.status === 'active' && s1.json.subscription?.price === 100 && s1.json.subscription?.periodLabel === 'mensuel');
+  check('Déclaration de paiement : abonnement PAS encore actif (validation manuelle)', s1.json.pending === true && s1.json.subscription?.status === 'trial' && s1.json.payment?.status === 'pending' && s1.json.subscription?.pendingPayment?.reference === s1.json.payment?.reference);
+  const s1b = await req('POST', '/client/subscribe', { plan: 'monthly' }, ct);
+  check('Seconde déclaration = pas de doublon', s1b.json.duplicate === true && s1b.json.payment?.id === s1.json.payment?.id);
+  const noKey = await req('POST', '/admin/confirm-payment', { id: s1.json.payment.id }, null);
+  check('Confirmation impossible sans clé admin (403)', noKey.status === 403);
+  const adminSum = await req('GET', '/admin/summary', null, null, { 'x-admin-key': 'testkey' });
+  check('Espace propriétaire liste le paiement à vérifier', (adminSum.json.pendingPayments || []).some((p) => p.id === s1.json.payment.id));
+  const cfPay = await req('POST', '/admin/confirm-payment', { id: s1.json.payment.id }, null, { 'x-admin-key': 'testkey' });
+  check('Propriétaire confirme → abonnement mensuel 100 FCFA actif', cfPay.status === 200 && cfPay.json.subscription?.status === 'active' && cfPay.json.subscription?.price === 100 && cfPay.json.subscription?.periodLabel === 'mensuel');
+  const s1c = await req('GET', '/client/subscription', null, ct);
+  check('Côté client : actif, plus de paiement en attente', s1c.json.subscription?.status === 'active' && !s1c.json.subscription?.pendingPayment);
+  const cnSub = await req('GET', '/client/notifications', null, ct);
+  check('Client notifié « paiement reçu, abonnement actif »', (cnSub.json.notifications || []).some((n) => n.type === 'subscription_confirmed'));
+  const cf2 = await req('POST', '/admin/confirm-payment', { id: s1.json.payment.id }, null, { 'x-admin-key': 'testkey' });
+  check('Double confirmation refusée (400)', cf2.status === 400);
+
+  // Helper : déclare puis fait confirmer par l'admin (retourne la réponse de confirmation).
+  const subscribeConfirmed = async (path, plan, token) => {
+    const d = await req('POST', path, { plan }, token);
+    if (!d.json.payment?.id) return d;
+    return req('POST', '/admin/confirm-payment', { id: d.json.payment.id }, null, { 'x-admin-key': 'testkey' });
+  };
 
   // Abonnement annuel 1000 FCFA (un autre utilisateur)
   const reg2 = await req('POST', '/auth/register', { role: 'client', name: 'Binta', phone: '09' + uniq, password: '123456' });
-  const sA = await req('POST', '/client/subscribe', { plan: 'annual' }, reg2.json.token);
+  const sA = await subscribeConfirmed('/client/subscribe', 'annual', reg2.json.token);
   check('Abonnement annuel 1000 FCFA', sA.json.subscription?.status === 'active' && sA.json.subscription?.price === 1000 && sA.json.subscription?.periodLabel === 'annuel');
+
+  // Rejet : le propriétaire n'a rien reçu
+  const reg3 = await req('POST', '/auth/register', { role: 'client', name: 'Rejet', phone: '0899' + uniq.slice(-6), password: '123456' });
+  const dR = await req('POST', '/client/subscribe', { plan: 'monthly' }, reg3.json.token);
+  const rj = await req('POST', '/admin/reject-payment', { id: dR.json.payment.id, note: 'Aucun transfert trouvé' }, null, { 'x-admin-key': 'testkey' });
+  const s3 = await req('GET', '/client/subscription', null, reg3.json.token);
+  check('Rejet : abonnement inchangé (essai), plus rien en attente', rj.status === 200 && s3.json.subscription?.status === 'trial' && !s3.json.subscription?.pendingPayment);
+  const cn3 = await req('GET', '/client/notifications', null, reg3.json.token);
+  check('Client notifié du rejet', (cn3.json.notifications || []).some((n) => n.type === 'subscription_rejected'));
 
   // Abonnement gérant : tarif supérieur (200 FCFA/mois, 2000 FCFA/an)
   const gph = '01' + uniq;
   await req('POST', '/auth/register', { role: 'gerant', name: 'Gérant Pay', phone: gph, password: '123456' });
   const gt2 = (await req('POST', '/auth/login', { phone: gph, password: '123456', role: 'gerant' })).json.token;
-  const gm = await req('POST', '/gerant/subscribe', { plan: 'monthly' }, gt2);
+  const gm = await subscribeConfirmed('/gerant/subscribe', 'monthly', gt2);
   check('Abonnement gérant mensuel 200 FCFA', gm.json.subscription?.status === 'active' && gm.json.subscription?.price === 200 && gm.json.subscription?.periodLabel === 'mensuel');
-  const ga = await req('POST', '/gerant/subscribe', { plan: 'annual' }, gt2);
+  const ga = await subscribeConfirmed('/gerant/subscribe', 'annual', gt2);
   check('Abonnement gérant annuel 2000 FCFA', ga.json.subscription?.status === 'active' && ga.json.subscription?.price === 2000 && ga.json.subscription?.periodLabel === 'annuel');
 
   // ===== Parrainage / aide mutuelle (paliers 100 / 1000 / 10000 inscrits) =====
@@ -393,7 +423,7 @@ async function main() {
   check('Parrainage : inscrit rattaché au parrain', refB.json.user?.phone === refPhoneB);
 
   // Paiement avant 100 inscrits : aucune commission (part à 0 %).
-  const refBSub = await req('POST', '/client/subscribe', { plan: 'monthly' }, refB.json.token);
+  const refBSub = await subscribeConfirmed('/client/subscribe', 'monthly', refB.json.token);
   check('Inscrit peut s\'abonner', refBSub.json.subscription?.status === 'active');
   check('Paiement avant 100 inscrits : aucune commission', refBSub.json.referralCommission?.commission === 0 && refBSub.json.referralCommission?.rate === 0);
 
@@ -405,7 +435,7 @@ async function main() {
   check('Parrain : 100 inscrits → part de 5 %', refASummary.json.referral?.registeredCount === 100 && refASummary.json.referral?.rate === 5);
 
   // Après 100 inscrits, un paiement annuel (1000 F) -> 5 % = 50 FCFA.
-  const refBSub2 = await req('POST', '/client/subscribe', { plan: 'annual' }, refB.json.token);
+  const refBSub2 = await subscribeConfirmed('/client/subscribe', 'annual', refB.json.token);
   check('Paiement après 100 inscrits : 5 % de 1000 = 50 F', refBSub2.json.referralCommission?.rate === 5 && refBSub2.json.referralCommission?.commission === 50);
 
   const refASummary2 = await req('GET', '/referral/my', null, refA.json.token);
