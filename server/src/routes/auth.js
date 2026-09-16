@@ -1,7 +1,7 @@
 import { Router } from 'express';
 import { findOne, insert } from '../db.js';
 import { signToken, hashPassword, verifyPassword, requireAuth } from '../middleware/auth.js';
-import { subscriptionFor, applyReferral, referralInfoFor, recordEvent, registerPushToken, removePushToken, isPhoneBlocked } from '../services/flowService.js';
+import { suspendReasonText, subscriptionFor, applyReferral, referralInfoFor, recordEvent, registerPushToken, removePushToken, isPhoneBlocked } from '../services/flowService.js';
 import { registerWebPushSubscription, removeWebPushSubscription } from '../services/pushService.js';
 import { rateLimit } from '../middleware/rateLimit.js';
 
@@ -123,7 +123,8 @@ router.post('/push-token/remove', requireAuth, (req, res) => {
 });
 
 function publicUser(u) {
-  return { id: u.id, role: u.role, name: u.name, phone: u.phone, email: u.email, waveNumber: u.waveNumber, payLink: u.payLink || '', referralCode: u.referralCode || '' };
+  return { id: u.id, role: u.role, name: u.name, phone: u.phone, email: u.email, waveNumber: u.waveNumber, payLink: u.payLink || '', referralCode: u.referralCode || '',
+    frozen: !!u.frozen, frozenReason: u.frozenReason || '', frozenText: u.frozen ? suspendReasonText(u, u.frozenReason, u.frozenNote) : '' };
 }
 
 export default router;

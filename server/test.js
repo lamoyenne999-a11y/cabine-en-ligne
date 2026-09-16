@@ -292,6 +292,50 @@ async function main() {
     check('Après réception confirmée, plus de déclaration possible (400)', say3.status === 400);
   }
 
+  // ===== Signalements + suspension motivée =====
+  {
+    const A = { 'x-admin-key': 'testkey' };
+    // Gérant signale un client : servi non payé
+    const dm = await req('POST', '/client/demandes', { gerantId, gerantName: 'Gérant Test', gerantWave: gphone, type: 'unites', amount: 150, benefName: 'Moi', benefPhone: '07' + uniq }, ct);
+    const id = dm.json.demande?.id;
+    const early = await req('POST', '/gerant/reports', { demandeId: id, reason: 'served_not_paid' }, gt);
+    check('Signalement refusé si l\'état ne correspond pas (pas encore servi) → 400', early.status === 400);
+    await req('POST', `/gerant/demandes/${id}/complete`, {}, gt);
+    const rep = await req('POST', '/gerant/reports', { demandeId: id, reason: 'served_not_paid', message: 'Servi hier, toujours rien' }, gt);
+    check('Gérant signale un client servi non payé', rep.status === 201 && rep.json.report?.status === 'open' && rep.json.report?.targetRole === 'client');
+    const rep2 = await req('POST', '/gerant/reports', { demandeId: id, reason: 'served_not_paid' }, gt);
+    check('Second signalement identique = doublon', rep2.json.duplicate === true);
+    const cnR = await req('GET', '/client/notifications', null, ct);
+    check('Client prévenu qu\'il a été signalé', (cnR.json.notifications || []).some((n) => n.type === 'reported' && n.demandeId === id));
+    const wrong = await req('POST', '/client/reports', { demandeId: id, reason: 'served_not_paid' }, ct);
+    check('Un client ne peut pas utiliser un motif réservé au gérant (400)', wrong.status === 400);
+    const sum = await req('GET', '/admin/summary', null, null, A);
+    check('Espace propriétaire liste le signalement', (sum.json.reports || []).some((r) => r.id === rep.json.report.id));
+    // Client signale un gérant : payé (réception confirmée) mais pas servi
+    const dm2 = await req('POST', '/client/demandes', { gerantId, gerantName: 'Gérant Test', gerantWave: gphone, type: 'internet', amount: 500, benefName: 'Moi', benefPhone: '07' + uniq }, ct);
+    const id2 = dm2.json.demande?.id;
+    await req('POST', `/client/demandes/${id2}/paid`, {}, ct);
+    await req('POST', `/gerant/demandes/${id2}/received`, {}, gt);
+    const repC = await req('POST', '/client/reports', { demandeId: id2, reason: 'paid_not_served' }, ct);
+    check('Client signale un gérant payé mais pas servi', repC.status === 201 && repC.json.report?.targetRole === 'gerant');
+    const gnR = await req('GET', '/gerant/notifications', null, gt);
+    check('Gérant prévenu du signalement', (gnR.json.notifications || []).some((n) => n.type === 'reported' && n.demandeId === id2));
+    // Suspension motivée + notification + réactivation
+    const susp = await req('POST', '/admin/set-frozen', { phone: '07' + uniq, frozen: true, reason: 'client_unpaid_demandes', note: 'Demande 150 F du 16/09' }, null, A);
+    check('Suspension avec motif enregistrée', susp.status === 200 && susp.json.frozenReason === 'client_unpaid_demandes');
+    const meS = await req('GET', '/auth/me', null, ct);
+    check('Le client voit son statut suspendu + motif', meS.json.user?.frozen === true && /Demandes traitées non payées/.test(meS.json.user?.frozenText || '') && /150 F/.test(meS.json.user?.frozenText || ''));
+    const cnS = await req('GET', '/client/notifications', null, ct);
+    check('Client notifié de la suspension', (cnS.json.notifications || []).some((n) => n.type === 'account_suspended'));
+    const blocked = await req('POST', '/client/demandes', { gerantId, gerantName: 'Gérant Test', gerantWave: gphone, type: 'unites', amount: 100, benefName: 'Moi', benefPhone: '07' + uniq }, ct);
+    check('Client suspendu ne peut plus envoyer de demande (403)', blocked.status === 403);
+    const res1 = await req('POST', '/admin/resolve-report', { id: rep.json.report.id, decision: 'resolve' }, null, A);
+    check('Propriétaire clôture le signalement', res1.status === 200 && res1.json.report?.status === 'resolved');
+    const react = await req('POST', '/admin/set-frozen', { phone: '07' + uniq, frozen: false }, null, A);
+    const meR = await req('GET', '/auth/me', null, ct);
+    check('Réactivation : plus suspendu, notifié', react.status === 200 && meR.json.user?.frozen === false && (await req('GET', '/client/notifications', null, ct)).json.notifications.some((n) => n.type === 'account_reactivated'));
+  }
+
   // ===== Gérant indisponible (pas un refus) =====
   const dmU2 = await req('POST', '/client/demandes', { gerantId, gerantName: 'Gérant Test', gerantWave: gphone, type: 'unites', amount: 300, benefName: 'Awa', benefPhone: '07' + uniq }, ct);
   const unavailId = dmU2.json.demande?.id;

@@ -356,11 +356,104 @@ export function deleteAccountAll(phone) {
 // Suspend / réactive un compte (bloque les activités sans supprimer les données).
 // Réservé au propriétaire : utile pour stopper un utilisateur qui ne paie pas,
 // mais réversible (on peut le réactiver ensuite).
-export function setUserFrozen(phone, frozen) {
+// Motifs de suspension (affichés à l'utilisateur suspendu).
+export const SUSPEND_REASONS = {
+  unpaid_subscription: { label: 'Non-paiement de l\'abonnement', client: true, gerant: true },
+  client_unpaid_demandes: { label: 'Demandes traitées non payées (signalé par un gérant)', client: true, gerant: false },
+  gerant_not_served: { label: 'Paiement reçu sans traiter la demande ni rembourser (signalé par un client)', client: false, gerant: true },
+  other: { label: 'Autre manquement aux règles', client: true, gerant: true },
+};
+export function suspendReasonText(user, reason, note) {
+  const r = SUSPEND_REASONS[reason] || SUSPEND_REASONS.other;
+  let how;
+  if (reason === 'unpaid_subscription') how = 'Renouvelez votre abonnement depuis votre Profil, puis demandez la réactivation.';
+  else if (reason === 'client_unpaid_demandes') how = 'Réglez les demandes en attente de paiement dans votre Historique (bloc Wave du gérant), puis contactez-nous pour la réactivation.';
+  else if (reason === 'gerant_not_served') how = 'Servez ou remboursez le client concerné, puis contactez-nous pour la réactivation.';
+  else how = 'Contactez-nous pour en discuter.';
+  return `Votre compte a été suspendu. Motif : ${r.label}.${note ? ' Précision : ' + note + '.' : ''} ${how} Vous pouvez toujours consulter votre historique et vos notifications.`;
+}
+
+export function setUserFrozen(phone, frozen, reason = 'other', note = '') {
   const u = findOne('users', (x) => x.phone === String(phone).trim());
   if (!u) return { ok: false, error: 'Compte introuvable' };
-  update('users', (x) => x.id === u.id, { frozen: !!frozen });
-  return { ok: true, phone: u.phone, name: u.name, role: u.role, frozen: !!frozen };
+  const patch = frozen
+    ? { frozen: true, frozenAt: Date.now(), frozenReason: SUSPEND_REASONS[reason] ? reason : 'other', frozenNote: String(note || '').slice(0, 200) }
+    : { frozen: false, frozenAt: 0, frozenReason: '', frozenNote: '' };
+  update('users', (x) => x.id === u.id, patch);
+  recordEvent({ type: frozen ? 'user_suspended' : 'user_reactivated', name: u.name, phone: u.phone, role: u.role, reason: patch.frozenReason || '' });
+  createNotification({
+    userId: u.id,
+    type: frozen ? 'account_suspended' : 'account_reactivated',
+    text: frozen ? suspendReasonText(u, patch.frozenReason, patch.frozenNote) : 'Bonne nouvelle : votre compte a été réactivé. Vous pouvez de nouveau utiliser Cabine En Ligne normalement.',
+  });
+  return { ok: true, phone: u.phone, name: u.name, role: u.role, frozen: !!frozen, frozenReason: patch.frozenReason, frozenNote: patch.frozenNote };
+}
+
+// ---------- Signalements (client → gérant, gérant → client) ----------
+// Motifs autorisés selon qui signale. Le signalement est rattaché à UNE demande,
+// et l'état de la demande doit rendre le motif plausible (pas de signalement gratuit).
+export const REPORT_REASONS = {
+  // Client signale un gérant
+  paid_not_served: { by: 'client', label: 'J\'ai payé, le gérant ne m\'a pas servi (ni remboursé)' },
+  paid_declined_no_refund: { by: 'client', label: 'J\'ai payé, le gérant a refusé / était indisponible mais ne m\'a pas remboursé' },
+  // Gérant signale un client
+  served_not_paid: { by: 'gerant', label: 'J\'ai servi le client, il n\'a pas payé' },
+};
+export function createReport({ reporter, demandeId, reason, message = '' }) {
+  const r = REPORT_REASONS[reason];
+  if (!r || r.by !== reporter.role) throw Object.assign(new Error('Motif de signalement invalide'), { status: 400 });
+  const d = findOne('demandes', (x) => x.id === demandeId && (reporter.role === 'client' ? x.clientId === reporter.id : x.gerantUserId === reporter.id));
+  if (!d) throw Object.assign(new Error('Demande introuvable'), { status: 404 });
+  // Cohérence avec l'état réel de la demande
+  if (reason === 'paid_not_served' && !(d.moneyReceived && d.status !== 'completed')) {
+    throw Object.assign(new Error('Ce motif ne s\'applique que si le gérant a confirmé avoir reçu votre argent sans vous servir.'), { status: 400 });
+  }
+  if (reason === 'paid_declined_no_refund' && !(d.paidAt && ['declined', 'unavailable'].includes(d.status))) {
+    throw Object.assign(new Error('Ce motif ne s\'applique que si vous aviez payé une demande refusée ou indisponible.'), { status: 400 });
+  }
+  if (reason === 'served_not_paid' && !(d.status === 'completed' && !d.moneyReceived)) {
+    throw Object.assign(new Error('Ce motif ne s\'applique que si vous avez servi le client sans recevoir son paiement.'), { status: 400 });
+  }
+  const dup = findOne('reports', (x) => x.demandeId === d.id && x.reporterId === reporter.id && x.status === 'open');
+  if (dup) return { report: dup, duplicate: true };
+  const targetId = reporter.role === 'client' ? d.gerantUserId : d.clientId;
+  const target = findOne('users', (u) => u.id === targetId);
+  const report = insert('reports', {
+    status: 'open',            // open | resolved | dismissed
+    reason, reasonLabel: r.label,
+    message: String(message || '').slice(0, 300),
+    demandeId: d.id, demandeType: d.type, amount: d.amount, demandeStatus: d.status,
+    reporterId: reporter.id, reporterName: reporter.name, reporterPhone: reporter.phone, reporterRole: reporter.role,
+    targetId, targetName: target?.name || (reporter.role === 'client' ? d.gerantName : d.clientName), targetPhone: target?.phone || '', targetRole: reporter.role === 'client' ? 'gerant' : 'client',
+    createdAt: Date.now(),
+  });
+  update('demandes', (x) => x.id === d.id, { reportedAt: Date.now(), reportedBy: reporter.role });
+  recordEvent({ type: 'report_created', name: reporter.name, phone: reporter.phone, role: reporter.role, reason, targetName: report.targetName, targetPhone: report.targetPhone });
+  // La personne signalée est prévenue (transparence + chance de régulariser avant sanction).
+  if (targetId) createNotification({
+    userId: targetId, type: 'reported', demandeId: d.id,
+    text: reporter.role === 'client'
+      ? `${reporter.name} vous a signalé à Cabine En Ligne pour la demande ${TYPE_LABEL[d.type] || d.type} ${d.amount} F : « ${r.label} ». Servez-le ou remboursez-le rapidement ; sans régularisation, votre compte pourra être suspendu.`
+      : `${reporter.name} vous a signalé à Cabine En Ligne pour la demande ${TYPE_LABEL[d.type] || d.type} ${d.amount} F : « ${r.label} ». Réglez cette demande rapidement ; sans régularisation, votre compte pourra être suspendu.`,
+  });
+  return { report, duplicate: false };
+}
+export function reportsForAdmin() {
+  return find('reports', () => true).sort((a, b) => (a.status === 'open' ? 0 : 1) - (b.status === 'open' ? 0 : 1) || b.createdAt - a.createdAt).slice(0, 200);
+}
+export function openReportsCountFor(userId) {
+  return find('reports', (r) => r.targetId === userId && r.status === 'open').length;
+}
+// Le propriétaire clôture un signalement : 'resolved' (fondé / régularisé) ou 'dismissed' (non fondé).
+export function resolveReport(id, decision) {
+  const r = findOne('reports', (x) => x.id === id);
+  if (!r) return { ok: false, error: 'Signalement introuvable' };
+  if (r.status !== 'open') return { ok: false, error: 'Déjà traité' };
+  const status = decision === 'dismiss' ? 'dismissed' : 'resolved';
+  const upd = update('reports', (x) => x.id === id, { status, resolvedAt: Date.now() });
+  createNotification({ userId: r.reporterId, type: 'report_update', demandeId: r.demandeId,
+    text: status === 'resolved' ? `Votre signalement concernant ${r.targetName} a été traité par Cabine En Ligne. Merci de contribuer à la confiance sur l'app.` : `Votre signalement concernant ${r.targetName} a été examiné et classé sans suite.` });
+  return { ok: true, report: upd };
 }
 
 // Disponibilité du gérant (En ligne / Hors ligne), visible par les clients.
@@ -530,7 +623,7 @@ export function eventsForAdmin(limit = 100) {
 export function eventsCounters() {
   const rows = find('events', () => true);
   const c = { total: rows.length };
-  for (const type of ['user_registered', 'user_deleted', 'subscription_declared', 'subscription_paid', 'subscription_expired', 'user_blocked', 'user_unblocked', 'unblock_request', 'free_time_granted', 'gerant_certified']) {
+  for (const type of ['user_registered', 'user_deleted', 'subscription_declared', 'subscription_paid', 'user_suspended', 'user_reactivated', 'report_created', 'subscription_expired', 'user_blocked', 'user_unblocked', 'unblock_request', 'free_time_granted', 'gerant_certified']) {
     c[type] = rows.filter((r) => r.type === type).length;
   }
   return c;

@@ -7,6 +7,7 @@ import { Page } from '../../components/Shell';
 import { WavePaySheet, WavePayBox } from '../../components/WavePay';
 import { Dialog, DialogButtons } from '../../components/modals';
 import { useStore } from '../../store';
+import ReportButton from '../../components/ReportButton';
 
 // Pour mettre à jour le compte à rebours d'un délai toutes les secondes
 function useNow(interval = 1000) {
@@ -74,7 +75,7 @@ function matches(d, q) {
 }
 
 export default function ClientHistory() {
-  const { state, markPaid, cancelDemande, paymentReply, notServedDemande, confirmServedDemande } = useStore();
+  const { state, markPaid, cancelDemande, paymentReply, notServedDemande, confirmServedDemande, refresh } = useStore();
   const [notServedTarget, setNotServedTarget] = useState(null);
   const [paying, setPaying] = useState(null);
   const [canceling, setCanceling] = useState(null);
@@ -349,6 +350,7 @@ export default function ClientHistory() {
                 </T>
               </View>
             )}
+            <ReportButton role="client" demande={d} otherName={d.gerantName} onDone={refresh} style={{ marginTop: 10 }} />
             {d.notServedAt && d.status !== 'completed' && !['declined', 'canceled'].includes(d.status) && (
               <View style={[s.timerBox, { backgroundColor: colors.dangerBg }]}>
                 <Ionicons name="alert-circle" size={16} color={colors.danger} />

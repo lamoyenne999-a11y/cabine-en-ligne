@@ -37,6 +37,19 @@ export default function SubBanner({ sub, onSubscribe }) {
     ? `Valable jusqu'au ${untilLabel || '—'}`
     : isExpired ? 'Réabonnez-vous pour continuer à effectuer vos transactions.' : `${daysLeft} jour${daysLeft > 1 ? 's' : ''} d'essai restant${daysLeft > 1 ? 's' : ''}`;
 
+  if (state.user?.frozen) {
+    return (
+      <Card style={[s.subBanner, { borderWidth: 1.5, borderColor: colors.danger }]}>
+        <View style={[s.subIcon, { backgroundColor: colors.dangerBg }]}>
+          <Ionicons name="ban" size={22} color={colors.danger} />
+        </View>
+        <View style={{ flex: 1, marginLeft: 12 }}>
+          <T size={font.xs} weight="700" color={colors.danger}>COMPTE SUSPENDU</T>
+          <T size={font.sm} weight="700" color={colors.text} style={{ marginTop: 2 }}>{state.user.frozenText || 'Votre compte a été suspendu par Cabine En Ligne.'}</T>
+        </View>
+      </Card>
+    );
+  }
   return (
     <Card style={[s.subBanner, isActive && s.subBannerActive]}>
       <View style={[s.subIcon, isActive && s.subIconActive]}>

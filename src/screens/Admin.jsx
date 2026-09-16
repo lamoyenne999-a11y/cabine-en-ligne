@@ -38,6 +38,9 @@ export default function Admin({ onBack }) {
   const [pwdResult, setPwdResult] = useState(null);         // { name, phone, tempPassword }
   const [pwdCopied, setPwdCopied] = useState(false);
   const [rejectTarget, setRejectTarget] = useState(null);   // paiement déclaré à rejeter
+  const [suspendReason, setSuspendReason] = useState('other');
+  const [suspendNote, setSuspendNote] = useState('');
+  const [reportTarget, setReportTarget] = useState(null);   // {report, decision}
   const [deleteTarget, setDeleteTarget] = useState(null); // user
   const [blockTarget, setBlockTarget] = useState(null); // user à bloquer
   const [unblockTarget, setUnblockTarget] = useState(null); // user à débloquer
@@ -102,6 +105,8 @@ export default function Admin({ onBack }) {
 
   const payments = data?.payments || [];
   const pendingPayments = data?.pendingPayments || [];
+  const reports = data?.reports || [];
+  const openReports = reports.filter((r) => r.status === 'open');
   const totals = data?.totals || {};
   const referral = data?.referral || { totalCommission: 0, count: 0, referrers: [] };
   const referralCodes = data?.referralCodes || { registeredWithCode: 0, registeredWithoutCode: 0, uniqueCodesUsed: 0, byCode: [] };
@@ -116,6 +121,9 @@ export default function Admin({ onBack }) {
 
   const EVENT_META = {
     user_registered: { label: 'Nouvel utilisateur', icon: 'person-add-outline', color: colors.primary, bg: colors.primarySoft },
+    report_created: { label: 'Signalement', icon: 'flag-outline', color: colors.danger, bg: colors.dangerBg },
+    user_suspended: { label: 'Compte suspendu', icon: 'ban-outline', color: colors.danger, bg: colors.dangerBg },
+    user_reactivated: { label: 'Compte réactivé', icon: 'checkmark-circle-outline', color: colors.success, bg: colors.successBg },
     subscription_declared: { label: 'Paiement déclaré (à vérifier)', icon: 'hourglass-outline', color: colors.warn, bg: colors.warnBg },
     subscription_paid: { label: 'Abonnement confirmé', icon: 'cash-outline', color: colors.success, bg: colors.successBg },
     subscription_expired: { label: 'Abonnement expiré', icon: 'alert-circle-outline', color: colors.danger, bg: colors.dangerBg },
@@ -163,8 +171,9 @@ export default function Admin({ onBack }) {
   const doSetFrozen = async (user, frozen) => {
     setBusy(user.phone); setSuspendTarget(null);
     try {
-      const out = await api.admin.setFrozen(key, user.phone, frozen);
-      setUsers((prev) => prev.map((u) => u.phone === user.phone ? { ...u, frozen: !!out.frozen } : u));
+      const out = await api.admin.setFrozen(key, user.phone, frozen, suspendReason, suspendNote);
+      setUsers((prev) => prev.map((u) => u.phone === user.phone ? { ...u, frozen: !!out.frozen, frozenReason: out.frozenReason || '', frozenNote: out.frozenNote || '' } : u));
+      setSuspendNote('');
     } catch (e) { setErr(e?.message || 'Erreur.'); }
     finally { setBusy(null); }
   };
@@ -357,6 +366,7 @@ export default function Admin({ onBack }) {
   const ADMIN_TABS = [
     { key: 'apercu', label: 'Aperçu', icon: 'grid-outline', filled: 'grid' },
     { key: 'utilisateurs', label: 'Utilisateurs', icon: 'people-outline', filled: 'people', badge: users.length },
+    { key: 'signalements', label: 'Signalements', icon: 'flag-outline', filled: 'flag', badge: openReports.length },
     { key: 'deblocages', label: 'Déblocages', icon: 'lock-open-outline', filled: 'lock-open', badge: unblockRequests.length },
     { key: 'activite', label: 'Activité', icon: 'pulse-outline', filled: 'pulse', badge: events.length },
     { key: 'parrainage', label: 'Parrainage', icon: 'gift-outline', filled: 'gift', badge: referral.referrers.length },
@@ -526,7 +536,7 @@ export default function Admin({ onBack }) {
                           ) : null}
                           {u.blocked ? (
                             <View style={s.blockedBadge}><T size={font.xs} weight="800" color="#fff">Bloqué</T></View>
-                          ) : (u.frozen ? <View style={s.frozenBadge}><T size={font.xs} weight="800" color={colors.warn}>Suspendu</T></View> : null)}
+                          ) : (u.frozen ? <View style={s.frozenBadge}><T size={font.xs} weight="800" color={colors.warn}>Suspendu{u.frozenReason === 'unpaid_subscription' ? ' · abonnement' : u.frozenReason === 'client_unpaid_demandes' || u.frozenReason === 'gerant_not_served' ? ' · comportement' : ''}</T></View> : null)}{u.openReports > 0 ? <View style={[s.frozenBadge, { backgroundColor: colors.dangerBg }]}><T size={font.xs} weight="800" color={colors.danger}>⚑ {u.openReports} signalement{u.openReports > 1 ? 's' : ''}</T></View> : null}
                         </View>
                         <T size={font.sm} weight="600" color={colors.muted} style={{ marginTop: 1 }}>
                           {u.phone} · {u.role === 'gerant' ? 'Gérant' : 'Client'}
@@ -598,7 +608,7 @@ export default function Admin({ onBack }) {
                             outline
                             color={u.frozen ? colors.success : colors.warn}
                             size="sm"
-                            onPress={() => setSuspendTarget({ user: u, frozen: !u.frozen })}
+                            onPress={() => { setSuspendReason(u.role === 'gerant' ? 'gerant_not_served' : 'client_unpaid_demandes'); setSuspendNote(''); setSuspendTarget({ user: u, frozen: !u.frozen }); }}
                             loading={busy === u.phone}
                             style={{ flex: 1, marginRight: 8 }}
                           />
@@ -639,6 +649,42 @@ export default function Admin({ onBack }) {
       )}
 
       {/* ===== Déblocages (demandes + numéros bloqués) ===== */}
+      {adminTab === 'signalements' && (
+        <>
+          <T size={font.h3} weight="800" color={colors.text} style={{ marginBottom: 4 }}>Signalements ({openReports.length} à traiter)</T>
+          <T size={font.xs} weight="600" color={colors.muted} style={{ marginBottom: space.sm }}>
+            Un client signale un gérant (payé sans être servi / remboursé) ; un gérant signale un client (servi sans payer). La personne signalée a été prévenue. Vérifiez (appelez les deux si besoin), puis : suspendez le fautif depuis Utilisateurs, et clôturez le signalement ici.
+          </T>
+          {reports.length === 0 ? (
+            <Card style={{ alignItems: 'center', paddingVertical: 22 }}>
+              <Ionicons name="flag-outline" size={32} color={colors.muted2} />
+              <T size={font.sm} weight="600" color={colors.muted} style={{ marginTop: 8 }}>Aucun signalement.</T>
+            </Card>
+          ) : reports.map((r) => (
+            <Card key={r.id} style={[{ marginBottom: space.sm }, r.status === 'open' && { borderWidth: 1.5, borderColor: colors.danger }]}>
+              <View style={{ flexDirection: 'row', alignItems: 'center' }}>
+                <Ionicons name="flag" size={16} color={r.status === 'open' ? colors.danger : colors.muted2} />
+                <T size={font.xs} weight="800" color={r.status === 'open' ? colors.danger : colors.muted} style={{ marginLeft: 6, flex: 1 }}>
+                  {r.status === 'open' ? 'À TRAITER' : r.status === 'resolved' ? 'TRAITÉ' : 'SANS SUITE'} · {fmtDate(r.createdAt)}
+                </T>
+                <T size={font.body} weight="900" color={colors.text}>{money(r.amount)}</T>
+              </View>
+              <T size={font.sm} weight="800" color={colors.text} style={{ marginTop: 8 }}>{r.reasonLabel}</T>
+              <View style={s.row}><T size={font.xs} weight="600" color={colors.muted}>Signalé par</T><T size={font.xs} weight="700" color={colors.text}>{r.reporterName} · {r.reporterPhone} ({r.reporterRole === 'gerant' ? 'gérant' : 'client'})</T></View>
+              <View style={s.row}><T size={font.xs} weight="600" color={colors.muted}>Personne signalée</T><T size={font.xs} weight="700" color={colors.danger}>{r.targetName} · {r.targetPhone} ({r.targetRole === 'gerant' ? 'gérant' : 'client'})</T></View>
+              <View style={s.row}><T size={font.xs} weight="600" color={colors.muted}>Demande</T><T size={font.xs} weight="700" color={colors.text}>{r.demandeType} · statut {r.demandeStatus}</T></View>
+              {r.message ? <View style={s.msgBox}><T size={font.sm} weight="600" color={colors.text} style={{ fontStyle: 'italic' }}>« {r.message} »</T></View> : null}
+              {r.status === 'open' && (
+                <View style={{ flexDirection: 'row', marginTop: 10 }}>
+                  <Btn title="Suspendre le signalé" icon="pause-circle-outline" color={colors.warn} size="sm" onPress={() => { const u = users.find((x) => x.phone === r.targetPhone); if (u) { setSuspendReason(u.role === 'gerant' ? 'gerant_not_served' : 'client_unpaid_demandes'); setSuspendNote(''); setSuspendTarget({ user: u, frozen: true }); } else setErr('Utilisateur introuvable (peut-être supprimé).'); }} style={{ flex: 1, marginRight: 8 }} />
+                  <Btn title="Clôturer" icon="checkmark" outline color={colors.success} size="sm" loading={busy === r.id} onPress={() => setReportTarget({ report: r })} style={{ flex: 1 }} />
+                </View>
+              )}
+            </Card>
+          ))}
+        </>
+      )}
+
       {adminTab === 'deblocages' && (
         <>
           <T size={font.h3} weight="800" color={colors.text} style={{ marginBottom: space.sm }}>Demandes de déblocage</T>
@@ -930,6 +976,17 @@ export default function Admin({ onBack }) {
         <DialogButtons cancel="Annuler" confirm={`Offrir ${giftCustom ? giftCustom + ' j' : ({ 7: '1 sem.', 14: '2 sem.', 30: '1 mois', 60: '2 mois', 90: '3 mois', 180: '6 mois' }[giftDays] || giftDays + ' j')}`} onCancel={() => setGiftTarget(null)} onConfirm={doGift} />
       </Dialog>
 
+      {/* Clôture d'un signalement */}
+      <Dialog visible={!!reportTarget}>
+        <T size={font.h3} weight="800" color={colors.text} style={{ textAlign: 'center' }}>Clôturer ce signalement</T>
+        <T size={font.sm} weight="600" color={colors.muted} style={{ textAlign: 'center', marginTop: 6, marginBottom: 10 }}>
+          « Fondé / régularisé » si le problème était réel (que vous ayez suspendu ou que la personne ait régularisé). « Sans suite » si le signalement n'était pas justifié. La personne qui a signalé sera informée.
+        </T>
+        <Btn title="Fondé / régularisé" icon="checkmark-done" color={colors.success} size="sm" onPress={async () => { const r = reportTarget.report; setReportTarget(null); setBusy(r.id); try { await api.admin.resolveReport(key, r.id, 'resolve'); await reload(); } catch (e) { setErr(e?.message || 'Erreur.'); } finally { setBusy(null); } }} style={{ marginBottom: 8 }} />
+        <Btn title="Sans suite" icon="close" outline color={colors.muted} size="sm" onPress={async () => { const r = reportTarget.report; setReportTarget(null); setBusy(r.id); try { await api.admin.resolveReport(key, r.id, 'dismiss'); await reload(); } catch (e) { setErr(e?.message || 'Erreur.'); } finally { setBusy(null); } }} style={{ marginBottom: 8 }} />
+        <Btn title="Retour" outline size="sm" onPress={() => setReportTarget(null)} />
+      </Dialog>
+
       {/* Rejet d'un paiement déclaré */}
       <Dialog visible={!!rejectTarget}>
         <T size={font.h3} weight="800" color={colors.text} style={{ textAlign: 'center' }}>Rien reçu de {rejectTarget?.name} ?</T>
@@ -986,9 +1043,27 @@ export default function Admin({ onBack }) {
                 ? `Ce gérant retrouvera le droit de recevoir et traiter des demandes, et réapparaîtra dans le choix des clients.`
                 : `${suspendTarget?.user?.name} (${suspendTarget?.user?.phone}) retrouvera le droit d'envoyer des demandes.`)}
         </T>
+        {suspendTarget?.frozen && !suspendTarget?.user?.frozen ? (
+          <View style={{ marginTop: 6 }}>
+            <T size={font.xs} weight="800" color={colors.muted} style={{ marginBottom: 4 }}>MOTIF (sera communiqué à l'utilisateur)</T>
+            {(suspendTarget?.user?.role === 'gerant'
+              ? [['gerant_not_served', 'Paiement reçu sans traiter la demande ni rembourser (signalé par un client)'], ['unpaid_subscription', 'Non-paiement de l\'abonnement'], ['other', 'Autre manquement']]
+              : [['client_unpaid_demandes', 'Demandes traitées non payées (signalé par un gérant)'], ['unpaid_subscription', 'Non-paiement de l\'abonnement'], ['other', 'Autre manquement']]
+            ).map(([v, l]) => {
+              const on = suspendReason === v;
+              return (
+                <Pressable key={v} onPress={() => setSuspendReason(v)} style={[s.reasonRow, on && s.reasonRowOn]}>
+                  <Ionicons name={on ? 'radio-button-on' : 'radio-button-off'} size={18} color={on ? colors.primary : colors.muted2} />
+                  <T size={font.sm} weight={on ? '800' : '600'} color={on ? colors.primary : colors.text} style={{ marginLeft: 8, flex: 1 }}>{l}</T>
+                </Pressable>
+              );
+            })}
+            <TextInput value={suspendNote} onChangeText={setSuspendNote} placeholder="Précision (facultatif, visible par l'utilisateur)" placeholderTextColor={colors.muted2} maxLength={200} style={s.noteInput} />
+          </View>
+        ) : null}
         <DialogButtons
           cancel="Retour"
-          confirm={suspendTarget?.frozen && !suspendTarget?.user?.frozen ? 'Suspendre' : 'Réactiver'}
+          confirm={suspendTarget?.frozen && !suspendTarget?.user?.frozen ? 'Suspendre et notifier' : 'Réactiver'}
           onCancel={() => setSuspendTarget(null)}
           onConfirm={() => doSetFrozen(suspendTarget.user, suspendTarget.frozen)}
         />
@@ -1080,6 +1155,9 @@ const s = StyleSheet.create({
   uLine: { flexDirection: 'row', alignItems: 'center' },
   uIconSm: { width: 32, height: 32, borderRadius: 16, backgroundColor: colors.primarySoft, alignItems: 'center', justifyContent: 'center' },
   uActions: { marginTop: 12, paddingTop: 12, borderTopWidth: 1, borderTopColor: colors.border },
+  reasonRow: { flexDirection: 'row', alignItems: 'center', paddingVertical: 8, paddingHorizontal: 8, borderRadius: radius.md },
+  reasonRowOn: { backgroundColor: colors.primarySoft },
+  noteInput: { marginTop: 6, borderWidth: 1.4, borderColor: colors.border, borderRadius: radius.md, padding: 10, fontSize: font.sm, color: colors.text, backgroundColor: colors.bg },
   frozenBadge: { backgroundColor: '#FDF0E0', borderRadius: radius.pill, paddingHorizontal: 8, paddingVertical: 2, marginLeft: 8 },
   blockedBadge: { backgroundColor: colors.danger, borderRadius: radius.pill, paddingHorizontal: 8, paddingVertical: 2, marginLeft: 8 },
   msgBox: { backgroundColor: colors.bg, borderRadius: radius.sm, padding: 10, marginTop: 8 },

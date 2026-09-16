@@ -1,7 +1,7 @@
 import express from 'express';
 import { hashPassword } from '../middleware/auth.js';
 import { config } from '../config.js';
-import { pendingSubscriptionPayments, confirmSubscriptionPayment, rejectSubscriptionPayment, setUserCertified, grantFreeTime, giftsForAdmin, subscriptionPayments, subscriptionTotals, subscriptionFor, referralSummary, referredUsersCount, referralPaymentCount, referralRateFor, deleteAccountAll, setUserFrozen, eventsForAdmin, eventsCounters, referralCodeStats, expiredUsers, reconcileExpiredEvents, isPhoneBlocked, blockUser, unblockUser, blockedList, unblockRequestsPending, resolveUnblockRequest } from '../services/flowService.js';
+import { reportsForAdmin, resolveReport, openReportsCountFor, SUSPEND_REASONS, pendingSubscriptionPayments, confirmSubscriptionPayment, rejectSubscriptionPayment, setUserCertified, grantFreeTime, giftsForAdmin, subscriptionPayments, subscriptionTotals, subscriptionFor, referralSummary, referredUsersCount, referralPaymentCount, referralRateFor, deleteAccountAll, setUserFrozen, eventsForAdmin, eventsCounters, referralCodeStats, expiredUsers, reconcileExpiredEvents, isPhoneBlocked, blockUser, unblockUser, blockedList, unblockRequestsPending, resolveUnblockRequest } from '../services/flowService.js';
 import { find, findOne, update, dbStats } from '../db.js';
 
 const router = express.Router();
@@ -45,6 +45,8 @@ router.get('/summary', requireAdmin, (req, res) => {
     expired: expiredUsers(),
     dbStats: dbStats(),
     pendingPayments: pendingSubscriptionPayments(),
+    reports: reportsForAdmin(),
+    suspendReasons: SUSPEND_REASONS,
     unblockRequests: unblockRequestsPending(),
     blocked: blockedList(),
   });
@@ -69,6 +71,9 @@ router.get('/users', requireAdmin, (req, res) => {
       rate: referralRateFor(referredUsersCount(u.id)),
       subscription: subscriptionFor(u),
       frozen: !!u.frozen,
+      frozenReason: u.frozenReason || '',
+      frozenNote: u.frozenNote || '',
+      openReports: openReportsCountFor(u.id),
       certified: !!u.certified,
       lastGift: u.lastGift || null,
       blocked: isPhoneBlocked(u.phone),
@@ -130,6 +135,13 @@ router.post('/reject-payment', requireAdmin, (req, res) => {
   res.json(out);
 });
 
+// Signalements : clôture par le propriétaire. Body : { id, decision: 'resolve'|'dismiss' }.
+router.post('/resolve-report', requireAdmin, (req, res) => {
+  const out = resolveReport(String(req.body?.id || ''), String(req.body?.decision || 'resolve'));
+  if (!out.ok) return res.status(400).json(out);
+  res.json(out);
+});
+
 // Offre du temps gratuit à un utilisateur. Body : { phone, days, note }.
 router.post('/grant-free-time', requireAdmin, (req, res) => {
   const phone = String(req.body?.phone || '').trim();
@@ -148,7 +160,7 @@ router.post('/set-frozen', requireAdmin, (req, res) => {
   const phone = String(req.body?.phone || '').trim();
   if (!phone) return res.status(400).json({ error: 'Téléphone requis' });
   try {
-    const out = setUserFrozen(phone, !!req.body?.frozen);
+    const out = setUserFrozen(phone, !!req.body?.frozen, String(req.body?.reason || 'other'), String(req.body?.note || ''));
     if (!out.ok) return res.status(404).json(out);
     res.json(out);
   } catch (e) {

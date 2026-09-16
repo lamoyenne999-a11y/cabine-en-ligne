@@ -65,6 +65,7 @@ export const api = {
     cancelDemande: (id) => request('POST', `/api/client/demandes/${id}/cancel`),
     subscription: () => request('GET', '/api/client/subscription'),
     subscribe: (plan) => request('POST', '/api/client/subscribe', { plan }),
+    report: (demandeId, reason, message) => request('POST', '/api/client/reports', { demandeId, reason, message }),
     notifications: () => request('GET', '/api/client/notifications'),
     markNotificationRead: (id) => request('POST', `/api/client/notifications/${id}/read`),
     markAllNotificationsRead: () => request('POST', '/api/client/notifications/read-all'),
@@ -90,6 +91,7 @@ export const api = {
     markAllNotificationsRead: () => request('POST', '/api/gerant/notifications/read-all'),
     subscription: () => request('GET', '/api/gerant/subscription'),
     subscribe: (plan) => request('POST', '/api/gerant/subscribe', { plan }),
+    report: (demandeId, reason, message) => request('POST', '/api/gerant/reports', { demandeId, reason, message }),
   },
 
   // ---- Parrainage / commission ----
@@ -103,7 +105,8 @@ export const api = {
   admin: {
     summary: (key) => request('GET', '/api/admin/summary', null, { 'x-admin-key': key }),
     users: (key) => request('GET', '/api/admin/users', null, { 'x-admin-key': key }),
-    setFrozen: (key, phone, frozen) => request('POST', '/api/admin/set-frozen', { phone, frozen }, { 'x-admin-key': key }),
+    setFrozen: (key, phone, frozen, reason, note) => request('POST', '/api/admin/set-frozen', { phone, frozen, reason, note }, { 'x-admin-key': key }),
+    resolveReport: (key, id, decision) => request('POST', '/api/admin/resolve-report', { id, decision }, { 'x-admin-key': key }),
     confirmPayment: (key, id) => request('POST', '/api/admin/confirm-payment', { id }, { 'x-admin-key': key }),
     rejectPayment: (key, id, note) => request('POST', '/api/admin/reject-payment', { id, note }, { 'x-admin-key': key }),
     resetPassword: (key, phone) => request('POST', '/api/admin/reset-password', { phone }, { 'x-admin-key': key }),

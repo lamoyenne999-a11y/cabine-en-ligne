@@ -1,6 +1,6 @@
 import { Router } from 'express';
 import { requireAuth, requireRole } from '../middleware/auth.js';
-import { gerantsFor, addGerant, removeGerant, createDemande, demandesForClient, clientHistory, demandeSummary, subscriptionFor, paySubscription, publicProfile, markPaid, cancelDemande, clientPaymentReply, clientNotServed, clientConfirmServed, notificationsFor, unreadCount, markNotificationRead, markAllNotificationsRead, availableGerants } from '../services/flowService.js';
+import { gerantsFor, addGerant, removeGerant, createDemande, demandesForClient, clientHistory, demandeSummary, subscriptionFor, paySubscription, publicProfile, markPaid, cancelDemande, clientPaymentReply, clientNotServed, clientConfirmServed, notificationsFor, unreadCount, markNotificationRead, markAllNotificationsRead, availableGerants  , createReport, suspendReasonText } from '../services/flowService.js';
 
 const router = Router();
 router.use(requireAuth, requireRole('client'));
@@ -97,6 +97,13 @@ router.get('/public/:id', (req, res) => {
   const p = publicProfile(req.params.id);
   if (!p) return res.status(404).json({ error: 'Profil introuvable' });
   res.json({ profile: p });
+});
+
+
+// Signalement d'un gérant (par le client) à propos d'une demande. Body : { demandeId, reason, message? }
+router.post('/reports', (req, res, next) => {
+  try { res.status(201).json(createReport({ reporter: req.user, demandeId: String(req.body?.demandeId || ''), reason: String(req.body?.reason || ''), message: req.body?.message })); }
+  catch (e) { next(e); }
 });
 
 export default router;

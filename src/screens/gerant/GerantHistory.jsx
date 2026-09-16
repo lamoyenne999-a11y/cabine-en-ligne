@@ -5,6 +5,7 @@ import { colors, radius, space, font } from '../../theme';
 import { T, Card, Pill, Chip } from '../../components/ui';
 import { Page } from '../../components/Shell';
 import { useStore } from '../../store';
+import ReportButton from '../../components/ReportButton';
 
 const STATUS = {
   pending: { label: 'En attente', color: colors.warn, bg: colors.warnBg, icon: 'time' },
@@ -48,7 +49,7 @@ function matches(d, q) {
 }
 
 export default function GerantHistory() {
-  const { state } = useStore();
+  const { state, refresh } = useStore();
   const [q, setQ] = useState('');
   const [group, setGroup] = useState('all');
   const demandes = state.gerantDemandes || [];
@@ -181,6 +182,7 @@ export default function GerantHistory() {
                 }[d.status] || 'Payé en direct via Wave.'
               )}
             </T>
+            <ReportButton role="gerant" demande={d} otherName={d.clientName} onDone={refresh} style={{ marginTop: 10 }} />
           </Card>
         );
       })}

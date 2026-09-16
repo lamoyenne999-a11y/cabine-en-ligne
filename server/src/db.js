@@ -22,7 +22,7 @@ const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
 const DATA_FILE = process.env.DB_FILE || path.join(__dirname, '..', 'data', 'db.json');
 const DATABASE_URL = process.env.DATABASE_URL || '';
-const COLLECTIONS = ['users', 'gerants', 'demandes', 'notifications', 'subscriptions', 'referrals', 'events', 'gifts', 'push_tokens', 'push_subscriptions', 'blocked', 'unblock_requests'];
+const COLLECTIONS = ['users', 'gerants', 'demandes', 'notifications', 'subscriptions', 'referrals', 'events', 'gifts', 'push_tokens', 'push_subscriptions', 'blocked', 'unblock_requests', 'reports'];
 
 const now = Date.now();
 const seed = () => ({
@@ -56,6 +56,10 @@ const seed = () => ({
   // d'être connecté). Le propriétaire les analyse puis débloque ou supprime
   // définitivement. Entrée : { id, phone, name, role, message, status, createdAt }.
   unblock_requests: [],
+
+  // Signalements entre utilisateurs (client → gérant, gérant → client), rattachés
+  // à une demande. Le propriétaire les traite (suspension éventuelle) puis les clôture.
+  reports: [],
 });
 
 // S'assure que toutes les collections existent (utile pour une base Postgres

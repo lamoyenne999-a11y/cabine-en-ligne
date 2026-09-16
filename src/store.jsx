@@ -228,6 +228,11 @@ export function StoreProvider({ children }) {
       const sub = await (state.role === 'gerant' ? api.gerant.subscription() : api.client.subscription()).catch(safe);
       if (sub) dispatch({ type: 'SET_SUBSCRIPTION', payload: sub.subscription });
 
+      // Profil (état de suspension, motif) : rafraîchi à chaque cycle pour que
+      // l'utilisateur voie immédiatement une suspension ou une réactivation.
+      const me = await api.me().catch(safe);
+      if (me?.user) dispatch({ type: 'SET_USER_PATCH', payload: { frozen: !!me.user.frozen, frozenReason: me.user.frozenReason || '', frozenText: me.user.frozenText || '' } });
+
       // Parrainage : code, invités, taux et gains.
       const ref = await api.referral.my().catch(safe);
       if (ref?.referral) dispatch({ type: 'SET_REFERRAL', payload: ref.referral });
