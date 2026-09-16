@@ -40,6 +40,8 @@ function stateLine(d) {
   if (d.partialAt && d.partialCompletedAt > d.partialAt) return { tone: 'info', icon: 'add-circle', text: `Le client dit avoir complété ${fmt(d.partialMissing)} XOF. Vérifiez votre Wave.` };
   if (d.partialAt) return { tone: 'warn', icon: 'remove-circle', text: `Incomplet : ${fmt(d.partialReceived)} reçus / ${amt}. Client invité à compléter ${fmt(d.partialMissing)} XOF.` };
   if (d.status === 'paid') return { tone: 'info', icon: 'water', text: `Le client déclare avoir payé ${amt}. Vérifiez votre Wave.` };
+  if (d.status === 'completed' && d.clientPaidDeclaredAt && !d.notReceivedAt) return { tone: 'info', icon: 'water', text: `Client servi. Il affirme avoir payé ${amt}${d.clientPaidDeclaredCount > 1 ? ' (' + d.clientPaidDeclaredCount + 'e fois)' : ''}. Vérifiez votre Wave : « Argent reçu » clôture la demande.` };
+  if (d.status === 'completed' && d.notReceivedAt) return { tone: 'danger', icon: 'warning', text: `Client servi — vous avez signalé « Pas reçu » (${amt}). En attente de sa réponse.` };
   if (d.status === 'completed') return { tone: 'warn', icon: 'time', text: `Client servi — paiement de ${amt} pas encore reçu.` };
   if (d.status === 'accepted' && d.notReceivedAt) return { tone: 'danger', icon: 'warning', text: 'Vous avez signalé « non reçu ». Le client vérifie son transfert.' };
   if (d.status === 'accepted' && d.paymentRequestedAt) return { tone: 'info', icon: 'card', text: 'Paiement demandé au client. En attente de son transfert Wave.' };

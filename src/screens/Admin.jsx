@@ -37,6 +37,7 @@ export default function Admin({ onBack }) {
   const [pwdTarget, setPwdTarget] = useState(null);         // user dont on réinitialise le mot de passe
   const [pwdResult, setPwdResult] = useState(null);         // { name, phone, tempPassword }
   const [pwdCopied, setPwdCopied] = useState(false);
+  const [rejectTarget, setRejectTarget] = useState(null);   // paiement déclaré à rejeter
   const [deleteTarget, setDeleteTarget] = useState(null); // user
   const [blockTarget, setBlockTarget] = useState(null); // user à bloquer
   const [unblockTarget, setUnblockTarget] = useState(null); // user à débloquer
@@ -200,7 +201,6 @@ export default function Admin({ onBack }) {
   };
 
   // Validation manuelle d'un paiement d'abonnement déclaré.
-  const [rejectTarget, setRejectTarget] = useState(null);
   const doConfirmPayment = async (p) => {
     setBusy(p.id);
     try { await api.admin.confirmPayment(key, p.id); await reload(); }

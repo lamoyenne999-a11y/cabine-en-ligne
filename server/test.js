@@ -272,6 +272,26 @@ async function main() {
   check('Connexion avec le mot de passe temporaire', newLogin.status === 200);
   if (newLogin.json?.token) ct = newLogin.json.token;
 
+  // ===== Désaccord de paiement sur une demande déjà servie =====
+  {
+    const dm = await req('POST', '/client/demandes', { gerantId, gerantName: 'Gérant Test', gerantWave: gphone, type: 'unites', amount: 300, benefName: 'Moi', benefPhone: '07' + uniq }, ct);
+    const id = dm.json.demande?.id;
+    await req('POST', `/gerant/demandes/${id}/complete`, {}, gt);              // servi sans paiement
+    const nr1 = await req('POST', `/gerant/demandes/${id}/not-received`, {}, gt);
+    check('Gérant « Pas reçu » sur demande servie', nr1.status === 200 && nr1.json.demande?.status === 'completed' && nr1.json.demande?.notReceivedAt > 0);
+    const say = await req('POST', `/client/demandes/${id}/paid`, {}, ct);
+    check('Client « J\'ai bien payé » sur demande servie → reste servie, déclaration tracée', say.status === 200 && say.json.demande?.status === 'completed' && say.json.demande?.clientPaidDeclaredCount === 1 && !say.json.demande?.notReceivedAt);
+    const gn = await req('GET', '/gerant/notifications', null, gt);
+    check('Gérant notifié « client affirme avoir payé »', (gn.json.notifications || []).some((n) => n.type === 'client_says_paid' && n.demandeId === id));
+    const nr2 = await req('POST', `/gerant/demandes/${id}/not-received`, {}, gt);
+    const say2 = await req('POST', `/client/demandes/${id}/paid`, {}, ct);
+    check('Boucle possible : 2e déclaration comptée', nr2.status === 200 && say2.json.demande?.clientPaidDeclaredCount === 2);
+    const rc = await req('POST', `/gerant/demandes/${id}/received`, {}, gt);
+    check('Gérant « Argent reçu » → réglée', rc.status === 200 && rc.json.demande?.moneyReceived === true && rc.json.demande?.status === 'completed');
+    const say3 = await req('POST', `/client/demandes/${id}/paid`, {}, ct);
+    check('Après réception confirmée, plus de déclaration possible (400)', say3.status === 400);
+  }
+
   // ===== Gérant indisponible (pas un refus) =====
   const dmU2 = await req('POST', '/client/demandes', { gerantId, gerantName: 'Gérant Test', gerantWave: gphone, type: 'unites', amount: 300, benefName: 'Awa', benefPhone: '07' + uniq }, ct);
   const unavailId = dmU2.json.demande?.id;

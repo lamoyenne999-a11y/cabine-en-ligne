@@ -296,13 +296,32 @@ export default function ClientHistory() {
             )}
             {d.status === 'completed' && !d.moneyReceived && (
               <>
-                <View style={[s.timerBox, { backgroundColor: colors.warnBg }]}>
-                  <Ionicons name="alert-circle" size={16} color={colors.warn} />
-                  <T size={font.sm} weight="700" color={colors.warn} style={{ marginLeft: 8, flex: 1 }}>
-                    Vous avez été servi, mais {d.gerantName} n'a pas encore reçu votre paiement. Merci de régler {money(d.amount)} sur son Wave.
-                  </T>
-                </View>
-                <WavePayBox amount={d.amount} merchant={d.gerantWave} merchantName={d.gerantName} />
+                {d.clientPaidDeclaredAt && !d.notReceivedAt ? (
+                  <View style={[s.timerBox, { backgroundColor: '#E7F0FE' }]}>
+                    <Ionicons name="hourglass" size={16} color="#2E7BF6" />
+                    <T size={font.sm} weight="700" color="#2E7BF6" style={{ marginLeft: 8, flex: 1 }}>
+                      Vous avez déclaré avoir payé {money(d.amount)}. {d.gerantName} vérifie sur son Wave ; la demande sera clôturée dès sa confirmation.
+                    </T>
+                  </View>
+                ) : (
+                  <>
+                    <View style={[s.timerBox, { backgroundColor: d.notReceivedAt ? colors.dangerBg : colors.warnBg }]}>
+                      <Ionicons name="alert-circle" size={16} color={d.notReceivedAt ? colors.danger : colors.warn} />
+                      <T size={font.sm} weight="700" color={d.notReceivedAt ? colors.danger : colors.warn} style={{ marginLeft: 8, flex: 1 }}>
+                        {d.notReceivedAt
+                          ? `${d.gerantName} indique ne PAS avoir reçu votre paiement de ${money(d.amount)}. Ouvrez votre app Wave : si le transfert vers ${d.gerantWave || 'son numéro'} est « Réussi », appuyez sur « J'ai bien payé » ; sinon, payez maintenant.`
+                          : `Vous avez été servi, mais ${d.gerantName} n'a pas encore reçu votre paiement. Merci de régler ${money(d.amount)} sur son Wave.`}
+                      </T>
+                    </View>
+                    <WavePayBox amount={d.amount} merchant={d.gerantWave} merchantName={d.gerantName} />
+                    <Btn title={d.notReceivedAt ? "J'ai bien payé — demander une revérification" : "J'ai payé (Wave)"} icon="checkmark" onPress={() => markPaid(d.id)} style={{ marginTop: 8 }} />
+                    {d.gerantPhone ? (
+                      <T size={font.xs} weight="600" color={colors.muted2} style={{ textAlign: 'center', marginTop: 6 }}>
+                        Désaccord persistant ? Appelez {d.gerantName} au {d.gerantPhone}.
+                      </T>
+                    ) : null}
+                  </>
+                )}
               </>
             )}
             {d.status === 'completed' && d.moneyReceived && (

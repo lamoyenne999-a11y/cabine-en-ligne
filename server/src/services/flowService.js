@@ -976,16 +976,31 @@ export function decideDemande({ id, gerantUserId, decision, reason }) {
 export function markPaid({ id, clientId }) {
   const d = findOne('demandes', (x) => x.id === id && x.clientId === clientId);
   if (!d) throw Object.assign(new Error('Demande introuvable'), { status: 404 });
+  if (d.moneyReceived) throw Object.assign(new Error('Le gérant a déjà confirmé la réception de ce paiement'), { status: 400 });
+  const now = Date.now();
+  if (d.status === 'completed') {
+    // Déjà SERVI mais le gérant n'a pas (encore) vu l'argent : le client (re)déclare son
+    // paiement. La demande reste « completed » ; on trace la déclaration et on relance
+    // le gérant, qui doit trancher : « Argent reçu » (clôture) ou « Pas reçu » (relance).
+    const patch = { paidAt: now, clientPaidDeclaredAt: now, clientPaidDeclaredCount: (d.clientPaidDeclaredCount || 0) + 1, notReceivedAt: 0 };
+    update('demandes', (x) => x.id === id, patch);
+    const upd = findOne('demandes', (x) => x.id === id);
+    if (upd && upd.gerantUserId) createNotification({
+      userId: upd.gerantUserId, type: 'client_says_paid', demandeId: upd.id,
+      text: `${upd.clientName} affirme avoir payé ${upd.amount} F (${TYPE_LABEL[upd.type] || upd.type}, déjà servi)${upd.clientPaidDeclaredCount > 1 ? ' — ' + upd.clientPaidDeclaredCount + 'e fois' : ''}. Vérifiez votre Wave (numéro ${upd.clientPhone || 'du client'}) puis confirmez « Argent reçu » pour clôturer, ou « Pas reçu ».`,
+    });
+    return upd;
+  }
   // Le client peut payer AVANT que le gérant accepte (pending) ou APRÈS (accepted)
   if (!['pending', 'accepted'].includes(d.status)) throw Object.assign(new Error('Cette demande ne peut plus être payée'), { status: 400 });
-  update('demandes', (x) => x.id === id, { status: 'paid', paidAt: Date.now() });
+  update('demandes', (x) => x.id === id, { status: 'paid', paidAt: now, notReceivedAt: 0 });
   const updated = findOne('demandes', (x) => x.id === id);
   // Notifie le gérant que le client a payé
   if (updated && updated.gerantUserId) {
     createNotification({
       userId: updated.gerantUserId,
       type: 'demande_paid',
-      text: `${updated.clientName} a payé ${updated.amount} F pour sa demande ${TYPE_LABEL[updated.type] || updated.type}`,
+      text: `${updated.clientName} a payé ${updated.amount} F pour sa demande ${TYPE_LABEL[updated.type] || updated.type}${updated.notReceivedCount ? ' (nouvelle déclaration après votre « Pas reçu » — vérifiez à nouveau votre Wave)' : ''}`,
       demandeId: updated.id,
     });
   }
@@ -1036,7 +1051,7 @@ export function markNotReceived({ id, gerantUserId }) {
     createNotification({
       userId: upd.clientId,
       type: 'demande_not_received',
-      text: `${upd.gerantName} n'a PAS reçu votre paiement de ${upd.amount} F — ${TYPE_LABEL[upd.type] || upd.type}. Vérifiez votre transfert Wave (numéro ${upd.gerantWave || 'du gérant'}, montant) puis appuyez à nouveau sur « J'ai payé », ou contactez ${upd.gerantName}.`,
+      text: `${upd.gerantName} n'a PAS reçu votre paiement de ${upd.amount} F — ${TYPE_LABEL[upd.type] || upd.type}${upd.notReceivedCount > 1 ? ' (' + upd.notReceivedCount + 'e vérification)' : ''}. Vérifiez dans votre app Wave que le transfert vers ${upd.gerantWave || 'son numéro'} est bien « Réussi » et du bon montant. Si oui, appuyez sur « J'ai bien payé » pour qu'il revérifie ; sinon, payez maintenant. En cas de désaccord persistant, contactez ${upd.gerantName} au ${upd.gerantPhone || upd.gerantWave || ''}.`,
       demandeId: upd.id,
     });
   }
