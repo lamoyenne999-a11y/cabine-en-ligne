@@ -60,6 +60,18 @@ export default function ClientHome() {
 
   // Efface l'erreur d'un champ dès que le client le corrige.
   const clearErr = (key) => setErrors((prev) => { if (!prev[key]) return prev; const n = { ...prev }; delete n[key]; return n; });
+  // Dès que le formulaire est complet, les indications rouges disparaissent d'elles-mêmes
+  // (sans attendre un nouvel appui sur « Envoyer »). On ne fait que RETIRER des erreurs ici,
+  // jamais en ajouter : les erreurs n'apparaissent qu'après un appui sur « Envoyer ».
+  useEffect(() => {
+    setErrors((prev) => {
+      if (Object.keys(prev).length === 0) return prev;
+      const now = validate();
+      const kept = {};
+      for (const k of Object.keys(prev)) if (now[k]) kept[k] = prev[k];
+      return Object.keys(kept).length === Object.keys(prev).length ? prev : kept;
+    });
+  }, [amount, benefPhone, who, sel]);
 
   const submit = async () => {
     const e = validate();
