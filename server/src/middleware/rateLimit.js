@@ -1,11 +1,14 @@
 // Limiteur de débit minimaliste (en mémoire, sans dépendance).
 // Protège les routes sensibles (connexion, inscription, demandes de déblocage)
 // contre les essais en rafale : devinette de mot de passe, spam d'inscriptions.
-// Clé = IP (+ numéro de téléphone pour le login, afin qu'un attaquant ne puisse
-// pas tester des centaines de mots de passe sur UN compte depuis plusieurs IP).
+// Connexion : clé = numéro de téléphone uniquement (10 essais / 15 min par compte).
+// Inscription / déblocage : clé = IP, avec des plafonds très hauts (300 / 10 min) qui
+// n'arrêtent que des robots, jamais un quartier entier derrière la même IP opérateur.
 const buckets = new Map();
 
-export function rateLimit({ windowMs = 15 * 60 * 1000, max = 20, keyFn, message, name } = {}) {
+// perIp=false : la clé ne dépend PAS de l'adresse IP (utile car des milliers d'abonnés
+// mobiles partagent la même IP publique : on ne veut jamais les bloquer en bloc).
+export function rateLimit({ windowMs = 15 * 60 * 1000, max = 20, keyFn, message, name, perIp = true } = {}) {
   // RATE_LIMIT_DISABLED=true désactive tout ; RATE_LIMIT_SKIP=register,unblock désactive certaines limites (tests).
   const skip = String(process.env.RATE_LIMIT_SKIP || '').split(',').map((x) => x.trim()).filter(Boolean);
   const disabled = process.env.RATE_LIMIT_DISABLED === 'true' || (name && skip.includes(name));
@@ -14,7 +17,7 @@ export function rateLimit({ windowMs = 15 * 60 * 1000, max = 20, keyFn, message,
     const now = Date.now();
     const ip = req.ip || req.socket?.remoteAddress || 'ip';
     const extra = keyFn ? keyFn(req) : '';
-    const key = `${req.baseUrl}${req.path}|${ip}|${extra}`;
+    const key = `${req.baseUrl}${req.path}|${perIp ? ip : ''}|${extra}`;
     let b = buckets.get(key);
     if (!b || now > b.resetAt) { b = { count: 0, resetAt: now + windowMs }; buckets.set(key, b); }
     b.count += 1;

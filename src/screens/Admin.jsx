@@ -34,6 +34,9 @@ export default function Admin({ onBack }) {
   const [giftNote, setGiftNote] = useState('');
   const [giftDone, setGiftDone] = useState('');
   const [certTarget, setCertTarget] = useState(null);       // {user, certified}
+  const [pwdTarget, setPwdTarget] = useState(null);         // user dont on réinitialise le mot de passe
+  const [pwdResult, setPwdResult] = useState(null);         // { name, phone, tempPassword }
+  const [pwdCopied, setPwdCopied] = useState(false);
   const [deleteTarget, setDeleteTarget] = useState(null); // user
   const [blockTarget, setBlockTarget] = useState(null); // user à bloquer
   const [unblockTarget, setUnblockTarget] = useState(null); // user à débloquer
@@ -177,6 +180,21 @@ export default function Admin({ onBack }) {
       setTimeout(() => setGiftDone(''), 4000);
     } catch (e) { setErr(e?.message || 'Erreur.'); }
     finally { setBusy(null); }
+  };
+
+  // Réinitialise le mot de passe (l'utilisateur l'a oublié) → mot de passe temporaire à lui transmettre.
+  const doResetPassword = async (user) => {
+    setBusy(user.phone); setPwdTarget(null);
+    try {
+      const out = await api.admin.resetPassword(key, user.phone);
+      setPwdResult(out);
+    } catch (e) { setErr(e?.message || 'Erreur.'); }
+    finally { setBusy(null); }
+  };
+  const copyTempPwd = () => {
+    const msg = `Cabine En Ligne — votre nouveau mot de passe temporaire : ${pwdResult?.tempPassword}. Connectez-vous avec le numéro ${pwdResult?.phone}.`;
+    if (typeof navigator !== 'undefined' && navigator.clipboard) navigator.clipboard.writeText(msg).catch(() => {});
+    setPwdCopied(true); setTimeout(() => setPwdCopied(false), 1800);
   };
 
   // Certifie / retire la certification d'un gérant.
@@ -523,6 +541,16 @@ export default function Admin({ onBack }) {
                             🎁 Dernier cadeau : {u.lastGift.days} jour{u.lastGift.days > 1 ? 's' : ''} le {fmtDate(u.lastGift.at)}{u.lastGift.note ? ` — ${u.lastGift.note}` : ''}
                           </T>
                         ) : null}
+                        <Btn
+                          title="Mot de passe oublié → réinitialiser"
+                          icon="key-outline"
+                          outline
+                          color={colors.primary}
+                          size="sm"
+                          onPress={() => setPwdTarget(u)}
+                          loading={busy === u.phone}
+                          style={{ marginBottom: 8 }}
+                        />
                         <View style={{ flexDirection: 'row', marginBottom: 8 }}>
                           <Btn
                             title="Offrir du temps"
@@ -857,6 +885,27 @@ export default function Admin({ onBack }) {
           L'utilisateur recevra une notification l'informant du cadeau.
         </T>
         <DialogButtons cancel="Annuler" confirm={`Offrir ${giftCustom ? giftCustom + ' j' : ({ 7: '1 sem.', 14: '2 sem.', 30: '1 mois', 60: '2 mois', 90: '3 mois', 180: '6 mois' }[giftDays] || giftDays + ' j')}`} onCancel={() => setGiftTarget(null)} onConfirm={doGift} />
+      </Dialog>
+
+      {/* Réinitialisation du mot de passe */}
+      <Dialog visible={!!pwdTarget}>
+        <T size={font.h3} weight="800" color={colors.text} style={{ textAlign: 'center' }}>Réinitialiser le mot de passe ?</T>
+        <T size={font.sm} weight="600" color={colors.muted} style={{ textAlign: 'center', marginTop: 6, marginBottom: 6 }}>
+          Les mots de passe ne sont jamais stockés en clair : on ne peut pas retrouver l'ancien. Un nouveau mot de passe temporaire (6 chiffres) sera créé pour {pwdTarget?.name} ({pwdTarget?.phone}) ; l'ancien ne marchera plus. Vous le lui transmettrez par appel ou WhatsApp.
+        </T>
+        <DialogButtons cancel="Annuler" confirm="Réinitialiser" onCancel={() => setPwdTarget(null)} onConfirm={() => doResetPassword(pwdTarget)} />
+      </Dialog>
+      <Dialog visible={!!pwdResult}>
+        <T size={font.h3} weight="800" color={colors.text} style={{ textAlign: 'center' }}>Nouveau mot de passe</T>
+        <T size={font.sm} weight="600" color={colors.muted} style={{ textAlign: 'center', marginTop: 6 }}>{pwdResult?.name} · {pwdResult?.phone}</T>
+        <View style={{ alignSelf: 'center', marginVertical: 14, paddingHorizontal: 22, paddingVertical: 12, borderRadius: radius.md, backgroundColor: colors.primarySoft }}>
+          <T size={32} weight="900" color={colors.primary} style={{ letterSpacing: 6 }}>{pwdResult?.tempPassword}</T>
+        </View>
+        <T size={font.xs} weight="600" color={colors.muted} style={{ textAlign: 'center', marginBottom: 8 }}>
+          Communiquez-le à l'utilisateur. Il pourra se connecter immédiatement avec ce code.
+        </T>
+        <Btn title={pwdCopied ? 'Message copié ✓' : 'Copier le message à envoyer'} icon="copy-outline" outline size="sm" onPress={copyTempPwd} style={{ marginBottom: 8 }} />
+        <Btn title="Fermer" onPress={() => setPwdResult(null)} />
       </Dialog>
 
       {/* Certification */}

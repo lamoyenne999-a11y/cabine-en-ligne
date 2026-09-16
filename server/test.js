@@ -42,7 +42,7 @@ async function main() {
   check('Inscription client 201', reg.status === 201);
   check('Inscription : essai gratuit (status trial)', reg.json.subscription?.status === 'trial');
   check('Inscription : 30 jours d\'essai', reg.json.subscription?.daysLeft === 30 || reg.json.subscription?.daysLeft === 29);
-  const ct = reg.json.token;
+  let ct = reg.json.token;
 
   // Inscription d'un vrai gérant (les comptes de démo ont été retirés)
   const gphone = '08' + uniq;
@@ -262,6 +262,15 @@ async function main() {
   }
   const weakPwd = await req('POST', '/auth/register', { role: 'client', name: 'Faible', phone: '0199' + uniq.slice(-6), password: '1234' });
   check('Inscription refusée si mot de passe < 6 caractères', weakPwd.status === 400);
+
+  // ===== Admin : réinitialisation de mot de passe =====
+  const rst = await req('POST', '/admin/reset-password', { phone: '07' + uniq }, null, { 'x-admin-key': 'testkey' });
+  check('Admin réinitialise le mot de passe → code temporaire 6 chiffres', rst.status === 200 && /^\d{6}$/.test(rst.json.tempPassword || ''));
+  const oldLogin = await req('POST', '/auth/login', { phone: '07' + uniq, password: '123456', role: 'client' });
+  check('Ancien mot de passe refusé', oldLogin.status === 401);
+  const newLogin = await req('POST', '/auth/login', { phone: '07' + uniq, password: rst.json.tempPassword, role: 'client' });
+  check('Connexion avec le mot de passe temporaire', newLogin.status === 200);
+  if (newLogin.json?.token) ct = newLogin.json.token;
 
   // ===== Gérant indisponible (pas un refus) =====
   const dmU2 = await req('POST', '/client/demandes', { gerantId, gerantName: 'Gérant Test', gerantWave: gphone, type: 'unites', amount: 300, benefName: 'Awa', benefPhone: '07' + uniq }, ct);

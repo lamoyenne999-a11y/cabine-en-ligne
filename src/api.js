@@ -104,6 +104,7 @@ export const api = {
     summary: (key) => request('GET', '/api/admin/summary', null, { 'x-admin-key': key }),
     users: (key) => request('GET', '/api/admin/users', null, { 'x-admin-key': key }),
     setFrozen: (key, phone, frozen) => request('POST', '/api/admin/set-frozen', { phone, frozen }, { 'x-admin-key': key }),
+    resetPassword: (key, phone) => request('POST', '/api/admin/reset-password', { phone }, { 'x-admin-key': key }),
     setCertified: (key, phone, certified) => request('POST', '/api/admin/set-certified', { phone, certified }, { 'x-admin-key': key }),
     grantFreeTime: (key, phone, days, note) => request('POST', '/api/admin/grant-free-time', { phone, days, note }, { 'x-admin-key': key }),
     gifts: (key) => request('GET', '/api/admin/gifts', null, { 'x-admin-key': key }),

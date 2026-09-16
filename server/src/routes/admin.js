@@ -1,4 +1,5 @@
 import express from 'express';
+import { hashPassword } from '../middleware/auth.js';
 import { config } from '../config.js';
 import { setUserCertified, grantFreeTime, giftsForAdmin, subscriptionPayments, subscriptionTotals, subscriptionFor, referralSummary, referredUsersCount, referralPaymentCount, referralRateFor, deleteAccountAll, setUserFrozen, eventsForAdmin, eventsCounters, referralCodeStats, expiredUsers, reconcileExpiredEvents, isPhoneBlocked, blockUser, unblockUser, blockedList, unblockRequestsPending, resolveUnblockRequest } from '../services/flowService.js';
 import { find, findOne, update, dbStats } from '../db.js';
@@ -97,6 +98,22 @@ router.post('/set-certified', requireAdmin, (req, res) => {
     if (!out.ok) return res.status(400).json(out);
     res.json(out);
   } catch (e) { res.status(e.status || 500).json({ error: e.message }); }
+});
+
+// Réinitialise le mot de passe d'un utilisateur qui l'a oublié.
+// Les mots de passe ne sont JAMAIS stockés en clair (seulement une empreinte
+// bcrypt) : on ne peut pas les « relire ». On en génère donc un nouveau,
+// temporaire, que le propriétaire communique à l'utilisateur (appel/WhatsApp).
+// Body : { phone }. Réponse : { ok, tempPassword }.
+router.post('/reset-password', requireAdmin, async (req, res) => {
+  const phone = String(req.body?.phone || '').trim();
+  if (!phone) return res.status(400).json({ error: 'Téléphone requis' });
+  const user = findOne('users', (u) => u.phone === phone);
+  if (!user) return res.status(404).json({ error: 'Utilisateur introuvable' });
+  // 6 chiffres : simple à dicter au téléphone, l'utilisateur pourra le changer.
+  const tempPassword = String(Math.floor(100000 + Math.random() * 900000));
+  update('users', (u) => u.id === user.id, { passwordHash: await hashPassword(tempPassword), passwordResetAt: Date.now() });
+  res.json({ ok: true, name: user.name, phone: user.phone, tempPassword });
 });
 
 // Offre du temps gratuit à un utilisateur. Body : { phone, days, note }.

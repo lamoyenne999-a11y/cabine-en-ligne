@@ -8,7 +8,7 @@ import { rateLimit } from '../middleware/rateLimit.js';
 const router = Router();
 
 // POST /api/auth/register  (1 mois d'essai gratuit)
-router.post('/register', rateLimit({ name: 'register', windowMs: 60 * 60 * 1000, max: 10, message: 'Trop d\'inscriptions depuis cet appareil. Réessayez plus tard.' }), async (req, res, next) => {
+router.post('/register', rateLimit({ name: 'register', windowMs: 10 * 60 * 1000, max: 300, message: 'Trop d\'inscriptions en peu de temps. Réessayez dans quelques minutes.' }), async (req, res, next) => {
   try {
     const { role, name, phone, email, password, referrerCode } = req.body || {};
     if (role !== 'client' && role !== 'gerant') return res.status(400).json({ error: 'Rôle invalide' });
@@ -49,7 +49,7 @@ router.post('/register', rateLimit({ name: 'register', windowMs: 60 * 60 * 1000,
 });
 
 // POST /api/auth/login  (identifiant = numéro de téléphone)
-router.post('/login', rateLimit({ name: 'login', windowMs: 15 * 60 * 1000, max: 10, keyFn: (r) => String(r.body?.phone || '').trim(), message: 'Trop de tentatives de connexion. Réessayez dans 15 minutes.' }), async (req, res, next) => {
+router.post('/login', rateLimit({ name: 'login', windowMs: 15 * 60 * 1000, max: 10, perIp: false, keyFn: (r) => String(r.body?.phone || '').trim(), message: 'Trop de tentatives sur ce numéro. Réessayez dans 15 minutes.' }), async (req, res, next) => {
   try {
     const { phone, password, role } = req.body || {};
     const phoneTrim = String(phone || '').trim();

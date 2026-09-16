@@ -26,7 +26,7 @@ router.get('/push-key', (req, res) => {
 // POST /api/public/unblock-request — un utilisateur BLOQUÉ (non connecté)
 // dépose une demande de déblocage. Le propriétaire la reçoit dans l'Espace
 // propriétaire et décide : débloquer ou supprimer définitivement.
-router.post('/unblock-request', rateLimit({ windowMs: 60 * 60 * 1000, max: 5 }), (req, res) => {
+router.post('/unblock-request', rateLimit({ windowMs: 10 * 60 * 1000, max: 100 }), (req, res) => {
   try {
     const { phone, message } = req.body || {};
     const out = createUnblockRequest({ phone, message });
