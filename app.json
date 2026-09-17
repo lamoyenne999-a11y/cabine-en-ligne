@@ -9,7 +9,7 @@
     "scheme": "cabineenligne",
     "splash": {
       "backgroundColor": "#7B1FA2",
-      "image": "./assets/cabine-logo.png"
+      "image": "./assets/splash-icon.png"
     },
     "ios": {
       "supportsTablet": true,
@@ -18,7 +18,7 @@
     "android": {
       "adaptiveIcon": {
         "backgroundColor": "#7B1FA2",
-        "foregroundImage": "./assets/cabine-logo.png"
+        "foregroundImage": "./assets/android-icon-foreground.png"
       },
       "package": "com.cabineenligne.app"
     },

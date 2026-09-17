@@ -17,7 +17,7 @@ export default function Welcome({ onSelect, onAdmin }) {
       showsVerticalScrollIndicator={false}
     >
       <View style={s.hero}>
-        <Logo size={104} />
+        <Logo size={150} />
         <T size={32} weight="900" color="#fff" style={{ marginTop: 20 }}>Cabine En Ligne</T>
         <T size={font.body} weight="600" color="rgba(255,255,255,0.85)" style={{ marginTop: 6, textAlign: 'center', paddingHorizontal: 20 }}>
           Rechargez vos unités, minutes et internet en direct, par un gérant de cabine.

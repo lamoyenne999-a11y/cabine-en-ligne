@@ -47,7 +47,7 @@ export default function Login({ role, onBack, onLogin, onSignup, connecting }) {
       </Pressable>
 
       <View style={s.center}>
-        <Logo size={96} />
+        <Logo size={120} />
         <T size={32} weight="900" color="#fff" style={{ marginTop: 18 }}>Connexion</T>
         <T size={font.body} weight="600" color="rgba(255,255,255,0.85)" style={{ marginTop: 4 }}>
           Espace {isGerant ? 'Gérant' : 'Client'}
