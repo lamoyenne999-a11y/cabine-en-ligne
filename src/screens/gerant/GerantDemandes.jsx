@@ -49,6 +49,7 @@ function stateLine(d) {
   const amt = `${fmt(d.amount)} XOF`;
   if (d.notServedAt && d.status !== 'completed') return { tone: 'danger', icon: 'alert-circle', text: `PAS une nouvelle demande : demande de ${fmtDT(d.createdAt)} (${ago(d.createdAt)}). Le client dit NE PAS avoir reçu sa recharge (${d.benefPhone}) — signalé ${ago(d.notServedAt)}. Vérifiez le numéro, servez-le puis « J'ai servi ».` };
   if (d.moneyReceived && d.status === 'completed' && d.clientConfirmedAt) return { tone: 'success', icon: 'checkmark-done-circle', text: 'Terminée — le client a confirmé la réception.' };
+  if (d.moneyReceived && d.status === 'completed') return { tone: 'success', icon: 'checkmark-circle', text: `Servie et payée (${amt}). En attente de la confirmation du client.` };
   if (d.moneyReceived) return { tone: 'success', icon: 'checkmark-circle', text: `Argent reçu (${amt}). Reste à servir le client.` };
   if (d.clientDisputedAt) return { tone: 'warn', icon: 'help-circle', text: `Le client affirme avoir payé la totalité (${amt}). Revérifiez votre Wave.` };
   if (d.partialAt && d.partialCompletedAt > d.partialAt) return { tone: 'info', icon: 'add-circle', text: `Le client dit avoir complété ${fmt(d.partialMissing)} XOF. Vérifiez votre Wave.` };
@@ -87,9 +88,12 @@ export default function GerantDemandes() {
   };
 
   // L'inbox ne montre que les demandes qui ATTENDENT UNE ACTION du gérant.
+  // Servie + argent reçu = clôturée pour le gérant → Historique (même si le client
+  // n'a pas encore appuyé sur « Bien reçu »). Si le client conteste, la demande
+  // repasse en « paid » côté serveur et revient donc ici automatiquement.
   const demandes = (state.gerantDemandes || []).filter((d) =>
     d.status === 'pending' || d.status === 'accepted' || d.status === 'paid' ||
-    (d.status === 'completed' && (!d.moneyReceived || !d.clientConfirmedAt)));
+    (d.status === 'completed' && !d.moneyReceived));
 
   const ask = (id, action) => { setMore(null); setConfirm({ id, action }); };
   const doAction = () => {
