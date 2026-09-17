@@ -15,7 +15,7 @@ const dur = (sec) => (sec == null ? '—' : sec < 60 ? `${sec} s` : sec < 3600 ?
 export default function GerantStats() {
   const [stats, setStats] = useState(null);
   const [period, setPeriod] = useState('week');
-  useEffect(() => { let on = true; api.gerantStats().then((r) => on && setStats(r.stats)).catch(() => {}); return () => { on = false; }; }, []);
+  useEffect(() => { let on = true; api.gerant.stats().then((r) => on && setStats(r.stats)).catch(() => {}); return () => { on = false; }; }, []);
   if (!stats) return null;
   const p = stats[period] || {};
   const Tile = ({ icon, label, value, color = colors.primary }) => (

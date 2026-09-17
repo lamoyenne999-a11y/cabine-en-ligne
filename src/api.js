@@ -36,8 +36,6 @@ export const api = {
   register: (p) => request('POST', '/api/auth/register', p),
   login: (p) => request('POST', '/api/auth/login', p),
   me: () => request('GET', '/api/auth/me'),
-  rateDemande: (id, stars) => request('POST', `/api/client/demandes/${id}/rate`, { stars }),
-  gerantStats: () => request('GET', '/api/gerant/stats'),
   changePassword: (currentPassword, newPassword) => request('POST', '/api/auth/change-password', { currentPassword, newPassword }),
   pushToken: (token) => request('POST', '/api/auth/push-token', { token }),
   pushTokenRemove: (token) => request('POST', '/api/auth/push-token/remove', { token }),
@@ -63,6 +61,7 @@ export const api = {
     history: () => request('GET', '/api/client/history'),
     markPaid: (id) => request('POST', `/api/client/demandes/${id}/paid`),
     confirmServed: (id) => request('POST', `/api/client/demandes/${id}/confirm-served`),
+    rateDemande: (id, stars) => request('POST', `/api/client/demandes/${id}/rate`, { stars }),
     notServed: (id) => request('POST', `/api/client/demandes/${id}/not-served`),
     paymentReply: (id, kind) => request('POST', `/api/client/demandes/${id}/payment-reply`, { kind }),
     cancelDemande: (id) => request('POST', `/api/client/demandes/${id}/cancel`),
@@ -76,6 +75,7 @@ export const api = {
 
   // ---- gérant ----
   gerant: {
+    stats: () => request('GET', '/api/gerant/stats'),
     demandes: () => request('GET', '/api/gerant/demandes'),
     history: () => request('GET', '/api/gerant/history'),
     accept: (id) => request('POST', `/api/gerant/demandes/${id}/accept`),

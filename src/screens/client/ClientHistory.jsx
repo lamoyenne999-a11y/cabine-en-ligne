@@ -8,7 +8,6 @@ import { WavePaySheet, WavePayBox } from '../../components/WavePay';
 import { Dialog, DialogButtons } from '../../components/modals';
 import { useStore } from '../../store';
 import SuspendedBanner from '../../components/SuspendedBanner';
-import { RateDemande } from '../../components/Rating';
 import ReportButton from '../../components/ReportButton';
 
 // Pour mettre à jour le compte à rebours d'un délai toutes les secondes
@@ -265,7 +264,7 @@ export default function ClientHistory() {
               </View>
             )}
             {/* Montant incomplet signalé par le gérant : compléter ou affirmer avoir tout payé */}
-            {d.partialAt && !d.moneyReceived && ['paid', 'accepted', 'completed'].includes(d.status) && (
+            {!!d.partialAt && !d.moneyReceived && ['paid', 'accepted', 'completed'].includes(d.status) && (
               <View style={[s.timerBox, { backgroundColor: colors.warnBg, flexDirection: 'column', alignItems: 'stretch' }]}>
                 <View style={{ flexDirection: 'row', alignItems: 'center' }}>
                   <Ionicons name="remove-circle" size={16} color={colors.warn} />
@@ -353,11 +352,8 @@ export default function ClientHistory() {
                 </T>
               </View>
             )}
-            {d.status === 'completed' && d.clientConfirmedAt && (
-              <RateDemande demande={d} onRated={(upd) => dispatch({ type: 'CLIENT_UPDATE_DEMANDE', payload: upd })} style={{ marginTop: 8 }} />
-            )}
             <ReportButton role="client" demande={d} otherName={d.gerantName} onDone={refresh} style={{ marginTop: 10 }} />
-            {d.notServedAt && d.status !== 'completed' && !['declined', 'canceled'].includes(d.status) && (
+            {!!d.notServedAt && d.status !== 'completed' && !['declined', 'canceled'].includes(d.status) && (
               <View style={[s.timerBox, { backgroundColor: colors.dangerBg }]}>
                 <Ionicons name="alert-circle" size={16} color={colors.danger} />
                 <T size={font.sm} weight="700" color={colors.danger} style={{ marginLeft: 8, flex: 1 }}>
