@@ -35,10 +35,6 @@ Texte : Quand votre crédit arrive, appuyez sur « Bien reçu ». Cela clôture 
 Titre : Ajoutez 2 ou 3 gérants
 Texte : Ajoutez plusieurs gérants à votre liste. Si l'un est hors ligne ou indisponible, vous en avez un autre sous la main. Vous pouvez ajouter un gérant grâce au lien qu'il vous partage.
 
-**8. Parrainage**
-Titre : Gagnez avec le parrainage
-Texte : Partagez votre code de parrainage (dans Profil). Chaque personne qui s'inscrit et s'abonne grâce à vous vous rapporte une commission. Plus vous partagez, plus vous gagnez.
-
 **9. Abonnement annuel**
 Titre : L'abonnement annuel, plus malin
 Texte : 1 000 F pour toute une année, c'est 2 mois offerts par rapport au mensuel (100 F/mois). Une seule opération Wave et vous êtes tranquille 12 mois.
@@ -154,3 +150,163 @@ Texte : Félicitations ! Votre sérieux a été remarqué : vous portez désorma
 **34. Merci client fidèle**
 Titre : Merci pour votre fidélité
 Texte : Vous faites partie de nos utilisateurs les plus actifs. Merci ! Pour vous remercier, nous vous offrons des jours d'abonnement supplémentaires. Bonne continuation sur Cabine En Ligne.
+
+---
+
+# COMPLÉMENT — messages par fonction de l'app
+
+À vous de choisir, couper, corriger. Tous ≤ 60 car. (titre) et ≤ 400 car. (texte).
+
+## 🤝 PARRAINAGE (règles réelles : 0 % avant 100 filleuls inscrits, 5 % dès 100, 10 % dès 1 000, 20 % dès 10 000 — sur chaque abonnement payé par vos filleuls)
+
+**P1. Découvrir (Tous)**
+Titre : Votre code de parrainage
+Texte : Dans Profil → Mes parrainages, vous avez un code personnel. Chaque personne qui s'inscrit avec votre code devient votre filleul. Quand vous atteignez 100 filleuls, vous touchez une commission sur chaque abonnement qu'ils paient, à vie.
+
+**P2. Comment ça rapporte (Tous)**
+Titre : Parrainage : ce que vous gagnez
+Texte : À partir de 100 filleuls inscrits : 5 % de chaque abonnement payé par vos filleuls. Dès 1 000 filleuls : 10 %. Dès 10 000 : 20 %. Exemple : 150 filleuls qui paient 1 000 F/an = 7 500 F par an pour vous, sans rien faire de plus.
+
+**P3. Comment partager (Tous)**
+Titre : Partagez votre code en 10 secondes
+Texte : Profil → Mes parrainages → « Partager ». Envoyez le lien dans vos groupes WhatsApp, à votre famille, vos collègues. La personne s'inscrit, votre code est déjà rempli. Suivez vos inscrits en temps réel dans la même page.
+
+**P4. Gérants : parrainez vos clients (Gérants)**
+Titre : Gérants : vos clients = vos filleuls
+Texte : Vous avez déjà des dizaines de clients qui passent à votre cabine. Donnez-leur votre code de parrainage : ils s'inscrivent, vous ajoutent comme gérant, et chaque abonnement qu'ils paieront vous rapportera une commission dès 100 filleuls.
+
+**P5. Choisir son code (Tous)**
+Titre : Personnalisez votre code
+Texte : Vous pouvez modifier votre code de parrainage dans Profil → Mes parrainages : choisissez un mot facile à retenir (votre prénom, le nom de votre cabine). Plus il est simple, plus on l'utilisera.
+
+**P6. Objectif 100 (Tous)**
+Titre : Où en êtes-vous ?
+Texte : Votre page Mes parrainages affiche le nombre de filleuls inscrits et le palier suivant. Le premier palier est à 100 : c'est là que les commissions commencent. Chaque inscription compte, même celles qui n'ont pas encore payé.
+
+**P7. Paiement des commissions (Tous)**
+Titre : Comment sont versées les commissions
+Texte : Vos commissions s'accumulent dans Mes parrainages. Elles vous sont versées sur votre Wave par Cabine En Ligne. Vous voyez le détail : quel filleul, quel abonnement, quel montant.
+
+## 📱 DEMANDES (Clients)
+
+**D1. Faire une demande**
+Titre : Une demande en 30 secondes
+Texte : Accueil → Nouvelle demande : choisissez le gérant, le type (unités, minutes, internet, appel + internet), le montant et le numéro à créditer. Le gérant reçoit une notification immédiatement.
+
+**D2. Les 4 types de recharge**
+Titre : Unités, minutes, internet ou forfait ?
+Texte : Unités = crédit simple. Minutes = forfait appels. Internet = données. Appel + Internet = forfait combiné. Choisissez le bon type pour que le gérant vous crédite exactement ce que vous voulez.
+
+**D3. Suivre l'état**
+Titre : Où en est ma demande ?
+Texte : Dans Historique, chaque demande montre son état : En attente, Acceptée, Payée, Servie, Terminée. Le gérant a 5 minutes pour répondre. Vous êtes notifié à chaque étape.
+
+**D4. Annuler**
+Titre : Annuler une demande
+Texte : Tant que vous n'avez pas payé, vous pouvez annuler une demande depuis Historique. Après paiement, l'annulation n'est plus possible : contactez le gérant ou utilisez « Rien reçu » s'il ne vous sert pas.
+
+**D5. Gérant indisponible**
+Titre : « Pas disponible » n'est pas un refus
+Texte : Si un gérant indique « Pas disponible », il n'a simplement pas de stock ou est occupé pour le moment. Renvoyez votre demande à un autre gérant « En ligne » de votre liste.
+
+**D6. Demande sans réponse**
+Titre : Pas de réponse en 5 minutes ?
+Texte : Si le gérant ne répond pas dans les 5 minutes, la demande est marquée « sans réponse ». Vous n'avez rien payé, rien perdu. Choisissez un autre gérant, de préférence « En ligne ».
+
+## 💳 PAIEMENT (Clients)
+
+**W1. Payer par Wave**
+Titre : Comment payer le gérant
+Texte : Sur la demande acceptée, appuyez sur « Payer par Wave » : le numéro Wave du gérant et le montant exact (frais inclus) s'affichent. Copiez le numéro, payez dans votre app Wave, revenez et appuyez sur « J'ai payé ».
+
+**W2. Montant incomplet**
+Titre : « Montant incomplet » : que faire ?
+Texte : Si le gérant reçoit moins que prévu (frais Wave oubliés), l'app vous indique le complément à envoyer, en général quelques francs. Envoyez-le, puis appuyez sur « J'ai complété ». Le gérant vous sert ensuite.
+
+**W3. Le gérant dit « pas reçu »**
+Titre : Vous avez payé mais il dit « non reçu » ?
+Texte : Vérifiez dans Wave que le transfert est bien parti vers le bon numéro (celui affiché dans l'app). S'il est parti, appuyez sur « J'ai bien payé — demander une revérification ». En cas de désaccord persistant, signalez.
+
+## 🏪 GÉRANTS (Clients)
+
+**G1. Trouver un gérant**
+Titre : Ajouter un gérant
+Texte : Onglet Gérants → « Ajouter ». Choisissez parmi les gérants inscrits (les « Certifiés » sont vérifiés par nous) ou tapez le numéro d'un gérant que vous connaissez. Il doit être inscrit sur l'app.
+
+**G2. Lien d'un gérant**
+Titre : Votre gérant vous a envoyé un lien ?
+Texte : Ouvrez-le : sa fiche s'affiche avec son numéro Wave, son statut En ligne et son badge éventuel. Un clic sur « Ajouter » et il est dans votre liste, prêt à recevoir vos demandes.
+
+**G3. Certifié**
+Titre : Que veut dire « Certifié » ?
+Texte : Le badge Certifié est donné uniquement par Cabine En Ligne à des gérants dont nous avons vérifié le sérieux : réponses rapides, aucun litige. C'est un gage de confiance, pas une obligation.
+
+## 🛠️ GÉRANTS (Gérants)
+
+**M1. Profil complet**
+Titre : Complétez votre Profil
+Texte : Nom de votre cabine, numéro Wave, lien de paiement marchand si vous en avez un : plus votre profil est complet, plus les clients ont confiance. Tout se règle dans Profil.
+
+**M2. Montant incomplet**
+Titre : Argent reçu mais pas le bon montant ?
+Texte : Utilisez « Montant reçu incomplet » : indiquez ce que vous avez reçu, l'app calcule le manque et le réclame au client pour vous. Pas de discussion, pas de calcul de tête.
+
+**M3. Pas disponible**
+Titre : Plutôt « Pas disponible » que « Refuser »
+Texte : Si vous n'avez pas le stock ou êtes occupé, choisissez « Pas disponible » avec un motif : le client comprend et revient plus tard. Un refus sec fait fuir un client.
+
+**M4. Client servi non payé**
+Titre : Vous avez servi mais pas été payé ?
+Texte : Marquez « J'ai servi » quand même : le client reçoit un rappel de paiement avec votre numéro Wave. S'il ne paie toujours pas, utilisez « Signaler » : nous intervenons.
+
+**M5. Relance ≠ nouvelle demande**
+Titre : Une relance n'est pas une nouvelle demande
+Texte : Quand un client dit « Rien reçu », la demande d'origine réapparaît en rouge avec sa date (« demande du 17 sept. 09:12 »). Ne créditez pas deux fois : vérifiez le numéro, servez si nécessaire, puis « J'ai servi ».
+
+**M6. Mon activité**
+Titre : Suivez votre activité
+Texte : Dans Profil → Mon activité : demandes servies, montant crédité, temps de réponse et taux de clients satisfaits sur 7 ou 30 jours. Un bon temps de réponse attire plus de clients.
+
+**M7. Client fiable**
+Titre : Le badge « Client fiable »
+Texte : Sur une demande, le badge « Client fiable » signale un client qui a déjà payé et confirmé au moins 5 recharges sans aucun litige. Vous pouvez le servir en confiance, sans passer par « Payer d'abord ».
+
+## 🔔 NOTIFICATIONS & COMPTE (Tous)
+
+**N1. La cloche**
+Titre : Tout se passe dans la cloche
+Texte : La cloche en haut à droite regroupe tout : Tout, Alertes (important, à traiter) et Astuces (conseils, nouveautés). Un point violet = non lu. « Tout marquer lu » pour faire le ménage.
+
+**N2. Changer le mot de passe**
+Titre : Changez votre mot de passe
+Texte : Profil → Changer mon mot de passe : ancien mot de passe, nouveau (6 caractères minimum), confirmation. Faites-le si vous avez partagé votre téléphone ou au moindre doute.
+
+**N3. Fin d'essai**
+Titre : Votre essai gratuit
+Texte : Vous avez 30 jours gratuits. Nous vous prévenons 5 jours avant la fin, puis la veille. Ensuite, l'abonnement se prend en 1 minute depuis Profil, paiement Wave, activation après notre vérification.
+
+**N4. Compte suspendu**
+Titre : Pourquoi un compte peut être suspendu
+Texte : Abonnement impayé, demandes payées non servies, ou paiements non honorés : le compte est suspendu avec le motif affiché en clair. L'historique reste consultable. Contactez-nous pour régulariser : la suspension est levée dès que c'est réglé.
+
+**N5. Signaler**
+Titre : Signaler, c'est protéger tout le monde
+Texte : Sur une demande, « Signaler » alerte Cabine En Ligne. Client : payé mais pas servi. Gérant : servi mais pas payé. La personne signalée est prévenue et a une chance de régulariser avant toute sanction.
+
+## 🎁 OFFRES & OCCASIONS (modèles à adapter)
+
+**O1. Cadeau de bienvenue (Un utilisateur)**
+Titre : Un cadeau pour vous
+Texte : Pour vous remercier de votre confiance, nous vous offrons 7 jours d'abonnement supplémentaires. Ils sont déjà ajoutés à votre compte. Bonne utilisation de Cabine En Ligne !
+
+**O2. Relance douce inactif (Un utilisateur)**
+Titre : On ne vous a pas vu depuis un moment
+Texte : Votre compte Cabine En Ligne est toujours actif. Vos gérants et votre historique vous attendent. Une difficulté ? Répondez-nous, on vous aide en 5 minutes.
+
+**O3. Nouveaux gérants dans la zone (Clients)**
+Titre : De nouveaux gérants vous attendent
+Texte : De nouveaux gérants viennent de s'inscrire. Onglet Gérants → Ajouter : choisissez ceux qui sont « En ligne » près de chez vous et gagnez du temps sur vos prochaines recharges.
+
+**O4. Merci gérant du mois (Un utilisateur)**
+Titre : Gérant du mois !
+Texte : Ce mois-ci, vous êtes le gérant le plus rapide et le mieux apprécié de Cabine En Ligne. Merci pour votre sérieux : nous vous offrons 30 jours d'abonnement.
