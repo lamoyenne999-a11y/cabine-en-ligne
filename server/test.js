@@ -393,6 +393,12 @@ async function main() {
     check('Le client reçoit l\'astuce', types.includes('announce_tip'));
     const ng = await req('GET', '/gerant/notifications', null, r2.json.token);
     check('Un gérant ne reçoit PAS une astuce ciblée « clients »', !(ng.json.notifications || []).some((n) => n.type === 'announce_tip'));
+    const one = await req('POST', '/admin/announce', { kind: 'alert', audience: 'user', userId: r2.json.user.id, text: 'Message personnel pour ce gérant uniquement.' }, null, A);
+    check('Message à un seul utilisateur : 1 destinataire', one.status === 201 && one.json.announcement?.recipients === 1 && one.json.announcement.userPhone === ph2);
+    check('Le destinataire unique reçoit l\'alerte', ((await req('GET', '/gerant/notifications', null, r2.json.token)).json.notifications || []).some((n) => n.type === 'announce_alert'));
+    check('L\'autre utilisateur ne reçoit rien', !(await notifTypes()).includes('announce_alert'));
+    const noUser = await req('POST', '/admin/announce', { kind: 'info', audience: 'user', text: 'Sans destinataire choisi.' }, null, A);
+    check('Cible « un utilisateur » sans userId refusée (400)', noUser.status === 400);
     const sum = await req('GET', '/admin/summary', null, null, A);
     check('Historique des messages dans l\'Espace propriétaire', (sum.json.announcements || []).some((a) => a.id === ann.json.announcement.id));
   }

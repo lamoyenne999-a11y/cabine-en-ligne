@@ -1346,20 +1346,25 @@ export function startAlertScheduler() {
 //  reçoit une notification (+ push). L'envoi est journalisé.
 // ------------------------------------------------------------------
 export const ANNOUNCE_KINDS = { tip: 'Astuce', alert: 'Alerte', info: 'Information' };
-export function announcementAudience(audience) {
+export function announcementAudience(audience, userId = '') {
+  if (audience === 'user') return find('users', (u) => u.passwordHash && u.id === String(userId || ''));
   return find('users', (u) => u.passwordHash && (audience === 'all' || u.role === audience));
 }
-export function sendAnnouncement({ kind = 'tip', audience = 'all', title = '', text = '' }) {
+// audience 'user' = un seul destinataire (userId obligatoire).
+export function sendAnnouncement({ kind = 'tip', audience = 'all', title = '', text = '', userId = '' }) {
   const k = ANNOUNCE_KINDS[kind] ? kind : 'info';
-  const aud = ['all', 'client', 'gerant'].includes(audience) ? audience : 'all';
+  const aud = ['all', 'client', 'gerant', 'user'].includes(audience) ? audience : 'all';
+  if (aud === 'user' && !userId) return { ok: false, error: 'Choisissez un utilisateur.' };
   const t = String(title || '').trim().slice(0, 60);
   const body = String(text || '').trim().slice(0, 400);
   if (body.length < 10) return { ok: false, error: 'Message trop court (10 caractères minimum).' };
-  const targets = announcementAudience(aud);
+  const targets = announcementAudience(aud, userId);
+  if (aud === 'user' && targets.length === 0) return { ok: false, error: 'Utilisateur introuvable.' };
+  const target = aud === 'user' ? targets[0] : null;
   const full = t ? `${t} — ${body}` : body;
   for (const u of targets) createNotification({ userId: u.id, type: `announce_${k}`, text: full });
-  const a = insert('announcements', { kind: k, audience: aud, title: t, text: body, recipients: targets.length, createdAt: Date.now() });
-  recordEvent({ type: 'announcement_sent', name: ANNOUNCE_KINDS[k], phone: '', role: aud, recipients: targets.length });
+  const a = insert('announcements', { kind: k, audience: aud, title: t, text: body, recipients: targets.length, userId: target?.id || '', userName: target?.name || '', userPhone: target?.phone || '', createdAt: Date.now() });
+  recordEvent({ type: 'announcement_sent', name: target ? `${ANNOUNCE_KINDS[k]} → ${target.name}` : ANNOUNCE_KINDS[k], phone: target?.phone || '', role: target?.role || aud, recipients: targets.length });
   return { ok: true, announcement: a };
 }
 export function announcementsForAdmin() {

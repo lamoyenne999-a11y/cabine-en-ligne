@@ -47,6 +47,8 @@ export default function Admin({ onBack }) {
   const [annText, setAnnText] = useState('');
   const [annConfirm, setAnnConfirm] = useState(false);
   const [annDone, setAnnDone] = useState('');
+  const [annUser, setAnnUser] = useState(null);    // { id, name, phone, role } si cible = un utilisateur
+  const [annSearch, setAnnSearch] = useState('');
   const [deleteTarget, setDeleteTarget] = useState(null); // user
   const [blockTarget, setBlockTarget] = useState(null); // user à bloquer
   const [unblockTarget, setUnblockTarget] = useState(null); // user à débloquer
@@ -223,7 +225,7 @@ export default function Admin({ onBack }) {
   const doAnnounce = async () => {
     setAnnConfirm(false); setBusy('announce');
     try {
-      const out = await api.admin.announce(key, { kind: annKind, audience: annAudience, title: annTitle, text: annText });
+      const out = await api.admin.announce(key, { kind: annKind, audience: annAudience, title: annTitle, text: annText, userId: annAudience === 'user' ? annUser?.id : undefined });
       setAnnDone(`Message envoyé à ${out.announcement?.recipients || 0} utilisateur(s).`);
       setAnnTitle(''); setAnnText('');
       await reload();
@@ -703,11 +705,42 @@ export default function Admin({ onBack }) {
                 );
               })}
             </View>
+            <Pressable onPress={() => setAnnAudience('user')} style={[s.segBtn, { marginRight: 0, marginBottom: 12 }, annAudience === 'user' && s.segBtnOn]}>
+              <Ionicons name="person-outline" size={14} color={annAudience === 'user' ? '#fff' : colors.primary} />
+              <T size={font.xs} weight="800" color={annAudience === 'user' ? '#fff' : colors.primary} style={{ marginLeft: 4 }}>
+                {annAudience === 'user' && annUser ? `Un utilisateur : ${annUser.name} (${annUser.phone})` : 'Un seul utilisateur'}
+              </T>
+            </Pressable>
+            {annAudience === 'user' ? (
+              <View style={{ marginBottom: 12 }}>
+                {annUser ? (
+                  <View style={[s.msgBox, { marginTop: 0, flexDirection: 'row', alignItems: 'center' }]}>
+                    <Ionicons name={annUser.role === 'gerant' ? 'storefront-outline' : 'person-outline'} size={16} color={colors.primary} />
+                    <T size={font.sm} weight="800" color={colors.text} style={{ marginLeft: 8, flex: 1 }}>{annUser.name} · {annUser.phone} · {annUser.role === 'gerant' ? 'Gérant' : 'Client'}</T>
+                    <Pressable onPress={() => { setAnnUser(null); setAnnSearch(''); }} hitSlop={8}><T size={font.xs} weight="800" color={colors.danger}>Changer</T></Pressable>
+                  </View>
+                ) : (
+                  <>
+                    <TextInput value={annSearch} onChangeText={setAnnSearch} placeholder="Rechercher par nom ou numéro…" placeholderTextColor={colors.muted2} style={[s.noteInput, { marginTop: 0 }]} autoCapitalize="none" />
+                    {annSearch.trim().length >= 2 ? (
+                      users.filter((u) => `${u.name} ${u.phone}`.toLowerCase().includes(annSearch.trim().toLowerCase())).slice(0, 6).map((u) => (
+                        <Pressable key={u.id} onPress={() => { setAnnUser({ id: u.id, name: u.name, phone: u.phone, role: u.role }); setAnnSearch(''); }} style={s.userPick}>
+                          <Ionicons name={u.role === 'gerant' ? 'storefront-outline' : 'person-outline'} size={15} color={colors.primary} />
+                          <T size={font.sm} weight="700" color={colors.text} style={{ marginLeft: 8, flex: 1 }}>{u.name} · {u.phone}</T>
+                          <T size={font.xs} weight="700" color={colors.muted}>{u.role === 'gerant' ? 'Gérant' : 'Client'}</T>
+                        </Pressable>
+                      ))
+                    ) : <T size={font.xs} weight="600" color={colors.muted2} style={{ marginTop: 6 }}>Tapez au moins 2 caractères.</T>}
+                    {annSearch.trim().length >= 2 && !users.some((u) => `${u.name} ${u.phone}`.toLowerCase().includes(annSearch.trim().toLowerCase())) ? <T size={font.xs} weight="600" color={colors.muted} style={{ marginTop: 6 }}>Aucun utilisateur trouvé.</T> : null}
+                  </>
+                )}
+              </View>
+            ) : null}
             <TextInput value={annTitle} onChangeText={setAnnTitle} placeholder="Titre court (facultatif, 60 car. max)" placeholderTextColor={colors.muted2} maxLength={60} style={s.noteInput} />
             <TextInput value={annText} onChangeText={setAnnText} placeholder="Message (10 à 400 caractères). Ex : Astuce — ajoutez 1 % au montant pour couvrir les frais Wave, le gérant reçoit ainsi le montant exact." placeholderTextColor={colors.muted2} maxLength={400} multiline style={[s.noteInput, { minHeight: 90, textAlignVertical: 'top' }]} />
             <T size={font.xs} weight="600" color={colors.muted2} style={{ textAlign: 'right', marginTop: 4 }}>{annText.length}/400</T>
             {annDone ? <T size={font.sm} weight="800" color={colors.success} style={{ textAlign: 'center', marginTop: 6 }}>{annDone}</T> : null}
-            <Btn title="Envoyer" icon="send" size="sm" disabled={annText.trim().length < 10} loading={busy === 'announce'} onPress={() => setAnnConfirm(true)} style={{ marginTop: 10 }} />
+            <Btn title="Envoyer" icon="send" size="sm" disabled={annText.trim().length < 10 || (annAudience === 'user' && !annUser)} loading={busy === 'announce'} onPress={() => setAnnConfirm(true)} style={{ marginTop: 10 }} />
           </Card>
 
           <T size={font.h3} weight="800" color={colors.text} style={{ marginTop: space.lg, marginBottom: 4 }}>Alertes automatiques</T>
@@ -730,7 +763,7 @@ export default function Admin({ onBack }) {
             <Card key={a.id} style={{ marginBottom: space.sm }}>
               <View style={{ flexDirection: 'row', alignItems: 'center' }}>
                 <Ionicons name={a.kind === 'tip' ? 'bulb-outline' : a.kind === 'alert' ? 'megaphone-outline' : 'information-circle-outline'} size={16} color={a.kind === 'alert' ? colors.danger : colors.primary} />
-                <T size={font.xs} weight="800" color={colors.muted} style={{ marginLeft: 6, flex: 1 }}>{a.kind === 'tip' ? 'ASTUCE' : a.kind === 'alert' ? 'ALERTE' : 'INFO'} · {a.audience === 'all' ? 'Tous' : a.audience === 'client' ? 'Clients' : 'Gérants'} · {a.recipients} destinataire(s)</T>
+                <T size={font.xs} weight="800" color={colors.muted} style={{ marginLeft: 6, flex: 1 }}>{a.kind === 'tip' ? 'ASTUCE' : a.kind === 'alert' ? 'ALERTE' : 'INFO'} · {a.audience === 'all' ? 'Tous' : a.audience === 'client' ? 'Clients' : a.audience === 'gerant' ? 'Gérants' : `${a.userName} (${a.userPhone})`}{a.audience === 'user' ? '' : ` · ${a.recipients} destinataire(s)`}</T>
                 <T size={font.xs} weight="600" color={colors.muted2}>{fmtDate(a.createdAt)}</T>
               </View>
               {a.title ? <T size={font.body} weight="800" color={colors.text} style={{ marginTop: 6 }}>{a.title}</T> : null}
@@ -1071,7 +1104,7 @@ export default function Admin({ onBack }) {
       <Dialog visible={annConfirm}>
         <T size={font.h3} weight="800" color={colors.text} style={{ textAlign: 'center' }}>Envoyer ce message ?</T>
         <T size={font.sm} weight="600" color={colors.muted} style={{ textAlign: 'center', marginTop: 6 }}>
-          {annKind === 'tip' ? 'Astuce' : annKind === 'alert' ? 'Alerte' : 'Info'} → {annAudience === 'all' ? `tous les utilisateurs (${audienceCounts.all})` : annAudience === 'client' ? `les clients (${audienceCounts.client})` : `les gérants (${audienceCounts.gerant})`}. Chacun recevra une notification. Cet envoi ne peut pas être annulé.
+          {annKind === 'tip' ? 'Astuce' : annKind === 'alert' ? 'Alerte' : 'Info'} → {annAudience === 'all' ? `tous les utilisateurs (${audienceCounts.all})` : annAudience === 'client' ? `les clients (${audienceCounts.client})` : annAudience === 'gerant' ? `les gérants (${audienceCounts.gerant})` : `${annUser?.name || ''} (${annUser?.phone || ''}) uniquement`}. {annAudience === 'user' ? 'Il' : 'Chacun'} recevra une notification. Cet envoi ne peut pas être annulé.
         </T>
         <View style={[s.msgBox, { marginTop: 10 }]}>
           {annTitle ? <T size={font.sm} weight="800" color={colors.text}>{annTitle}</T> : null}
@@ -1261,6 +1294,7 @@ const s = StyleSheet.create({
   uActions: { marginTop: 12, paddingTop: 12, borderTopWidth: 1, borderTopColor: colors.border },
   segBtn: { flex: 1, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', paddingVertical: 8, borderRadius: radius.pill, borderWidth: 1.4, borderColor: colors.primary, marginRight: 6 },
   segBtnOn: { backgroundColor: colors.primary },
+  userPick: { flexDirection: 'row', alignItems: 'center', paddingVertical: 10, paddingHorizontal: 10, borderBottomWidth: 1, borderBottomColor: colors.border },
   reasonRow: { flexDirection: 'row', alignItems: 'center', paddingVertical: 8, paddingHorizontal: 8, borderRadius: radius.md },
   reasonRowOn: { backgroundColor: colors.primarySoft },
   noteInput: { marginTop: 6, borderWidth: 1.4, borderColor: colors.border, borderRadius: radius.md, padding: 10, fontSize: font.sm, color: colors.text, backgroundColor: colors.bg },
