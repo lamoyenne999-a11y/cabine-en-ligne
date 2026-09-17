@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { View, Pressable, StyleSheet } from 'react-native';
+import { View, Pressable, StyleSheet, useWindowDimensions } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { colors, radius, space, font } from '../theme';
 import { T } from './ui';
@@ -92,6 +92,9 @@ export default function NotificationCenter({ visible, onOpen, onClose, list, unr
   const all = list || [];
   const count = unread || 0;
   const [tab, setTab] = useState('all');
+  const { height: winH } = useWindowDimensions();
+  // Hauteur fixe du contenu : identique dans les 3 onglets (celle de « Tout »).
+  const listMinH = Math.round(winH * 0.62);
   const items = tab === 'all' ? all : all.filter((n) => notifCategory(n.type) === tab);
   const unreadIn = (cat) => all.filter((n) => !n.read && notifCategory(n.type) === cat).length;
   const TABS = [['all', 'Tout', null], ['alert', 'Alertes', unreadIn('alert')], ['tip', 'Astuces', unreadIn('tip')]];
@@ -131,8 +134,9 @@ export default function NotificationCenter({ visible, onOpen, onClose, list, unr
           })}
         </View>
 
+        <View style={{ minHeight: listMinH }}>
         {items.length === 0 ? (
-          <View style={s.empty}>
+          <View style={[s.empty, { flex: 1, justifyContent: 'center' }]}>
             <Ionicons name="notifications-off-outline" size={40} color={colors.muted2} />
             <T size={font.body} weight="700" color={colors.muted} style={{ marginTop: 10 }}>Aucune notification</T>
             <T size={font.sm} weight="600" color={colors.muted2} style={{ marginTop: 4, textAlign: 'center' }}>
@@ -158,6 +162,7 @@ export default function NotificationCenter({ visible, onOpen, onClose, list, unr
             </Pressable>
           ))
         )}
+        </View>
       </BottomSheet>
     </>
   );
