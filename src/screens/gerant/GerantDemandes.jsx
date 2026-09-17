@@ -116,6 +116,10 @@ export default function GerantDemandes() {
       { key: 'accept', title: 'Accepter', icon: 'checkmark', color: colors.primary },
       { key: 'requestpay', title: 'Payer d\'abord', icon: 'card-outline', color: '#2E7BF6', outline: true },
     ];
+    // Argent déjà confirmé : il ne reste qu'à servir → un seul bouton clair.
+    if (d.moneyReceived && d.status !== 'completed') return [
+      { key: 'complete', title: 'J\'ai servi le client ✓', icon: 'checkmark-done', color: colors.primary },
+    ];
     if (d.status === 'accepted') return [
       d.paymentRequestedAt
         ? { key: 'requestpay', title: 'Relancer paiement', icon: 'card-outline', color: '#2E7BF6', outline: true }
@@ -148,8 +152,7 @@ export default function GerantDemandes() {
   const moreActions = (d) => {
     const a = [];
     const canServe = d.status !== 'completed' && d.status !== 'pending';
-    if (d.moneyReceived && d.status !== 'completed') a.unshift({ key: 'complete', title: 'J\'ai servi le client', icon: 'checkmark-done', color: colors.primary });
-    else if (canServe) a.push({ key: 'complete', title: 'J\'ai servi (sans attendre le paiement)', icon: 'checkmark-done-outline', color: colors.primary });
+    if (canServe && !d.moneyReceived) a.push({ key: 'complete', title: 'J\'ai servi (sans attendre le paiement)', icon: 'checkmark-done-outline', color: colors.primary });
     if (d.status === 'pending' || d.status === 'accepted') a.push({ key: 'received', title: 'Argent déjà reçu ✓', icon: 'cash-outline', color: colors.success });
     if (d.status === 'pending' || d.status === 'paid') a.push({ key: 'decline', title: 'Refuser la demande', icon: 'close-circle', color: colors.danger });
     return a;
