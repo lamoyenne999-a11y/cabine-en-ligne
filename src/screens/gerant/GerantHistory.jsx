@@ -63,14 +63,14 @@ export default function GerantHistory() {
   const GROUPS = [
     { value: 'all', label: `Toutes (${demandes.length})` },
     { value: 'pending', label: `En attente (${sum.counts.pending})` },
-    { value: 'treated', label: `Traitées (${sum.counts.completed + sum.counts.paid + sum.counts.accepted})` },
+    { value: 'treated', label: `Servies (${sum.counts.completed})` },
     { value: 'unpaid', label: `À encaisser (${demandes.filter((d) => d.status === 'completed' && !d.moneyReceived).length})` },
     { value: 'declined', label: `Refusées / indispo (${sum.counts.declined + sum.counts.unavailable})` },
     { value: 'canceled', label: `Annulées (${sum.counts.canceled})` },
   ];
   const inGroup = (d) => {
     if (group === 'all') return true;
-    if (group === 'treated') return ['accepted', 'paid', 'completed'].includes(d.status);
+    if (group === 'treated') return d.status === 'completed';
     if (group === 'unpaid') return d.status === 'completed' && !d.moneyReceived;
     if (group === 'declined') return ['declined', 'unavailable'].includes(d.status);
     return d.status === group;
@@ -91,8 +91,8 @@ export default function GerantHistory() {
         </View>
         <View style={s.sumGrid}>
           <Tile icon="checkmark-done" tone="green" value={served} label="Servies" />
-          <Tile icon="checkmark-circle" tone="blue" value={treated} label="Traitées" />
-          <Tile icon="close-circle" tone="red" value={sum.counts.declined} label="Refusées" />
+          <Tile icon="close-circle" tone="red" value={sum.counts.declined + sum.counts.unavailable} label="Refusées" />
+          <Tile icon="remove-circle" tone="gray" value={sum.counts.canceled} label="Annulées" />
         </View>
       </Card>
 
@@ -198,6 +198,7 @@ function Tile({ icon, tone, value, label }) {
     orange: { bg: colors.warnBg, color: colors.warn },
     blue: { bg: '#E7F0FE', color: '#2E7BF6' },
     red: { bg: colors.dangerBg, color: colors.danger },
+    gray: { bg: colors.gray, color: colors.muted },
   };
   const t = tones[tone] || tones.blue;
   return (
