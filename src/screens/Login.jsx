@@ -140,7 +140,7 @@ export default function Login({ role, onBack, onLogin, onSignup, connecting }) {
 }
 
 const s = StyleSheet.create({
-  wrap: { flexGrow: 1, paddingHorizontal: space.xl, paddingTop: Platform.OS === 'web' ? 22 : 52, paddingBottom: 40 },
+  wrap: { flexGrow: 1, paddingHorizontal: space.xl, paddingTop: Platform.OS === 'web' ? 'calc(22px + env(safe-area-inset-top, 0px))' : 52, paddingBottom: 40 },
   back: { width: 42, height: 42, borderRadius: 21, backgroundColor: 'rgba(255,255,255,0.18)', alignItems: 'center', justifyContent: 'center' },
   center: { alignItems: 'center', marginTop: 10, marginBottom: 22 },
   card: { backgroundColor: '#fff', borderRadius: radius.lg, padding: space.xl, ...shadow.card },

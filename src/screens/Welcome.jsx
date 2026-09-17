@@ -118,7 +118,7 @@ const s = StyleSheet.create({
   wrap: { flexGrow: 1 },
   hero: {
     alignItems: 'center',
-    paddingTop: Platform.OS === 'web' ? 56 : 74,
+    paddingTop: Platform.OS === 'web' ? 'calc(56px + env(safe-area-inset-top, 0px))' : 74,
     paddingBottom: 34,
   },
   features: { flexDirection: 'row', marginTop: 22 },

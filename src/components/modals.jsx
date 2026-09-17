@@ -1,6 +1,7 @@
 import React, { useEffect, useRef } from 'react';
 import {
   Modal, View, Text, Pressable, Animated, Easing, ScrollView, Dimensions, PanResponder,
+  Platform,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { colors, space, font } from '../theme';
@@ -121,7 +122,7 @@ const overlay = {
     borderTopLeftRadius: 28,
     borderTopRightRadius: 28,
     paddingHorizontal: 22,
-    paddingBottom: 36,
+    paddingBottom: Platform.OS === 'web' ? 'calc(36px + env(safe-area-inset-bottom, 0px))' : 36,
     shadowColor: '#000',
     shadowOffset: { width: 0, height: -6 },
     shadowOpacity: 0.15,

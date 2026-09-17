@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from 'react';
-import { View } from 'react-native';
+import { View, Platform } from 'react-native';
 import { TabBar } from '../../components/Shell';
 import { colors } from '../../theme';
 import NotificationCenter from '../../components/Notifications';
@@ -34,7 +34,7 @@ export default function ClientApp({ onLogout }) {
       </View>
 
       {/* Cloche de notifications (en haut à droite) */}
-      <View style={{ position: 'absolute', top: 22, right: 16, zIndex: 30 }}>
+      <View style={{ position: 'absolute', top: Platform.OS === 'web' ? 'calc(22px + env(safe-area-inset-top, 0px))' : 22, right: 16, zIndex: 30 }}>
         <NotificationCenter
           visible={showNotif}
           onOpen={() => setShowNotif(true)}
