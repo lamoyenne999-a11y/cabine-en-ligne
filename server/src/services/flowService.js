@@ -1288,7 +1288,8 @@ function alertTexts(u, kind, stage, at) {
   const date = new Date(at).toLocaleDateString('fr-FR', { day: 'numeric', month: 'long' });
   const what = kind === 'trial' ? 'Votre essai gratuit' : `Votre abonnement ${plans[(u.subscription || {}).plan]?.label || ''}`.trim();
   const consequence = u.role === 'gerant' ? 'vous ne recevrez plus de demandes' : 'vous ne pourrez plus envoyer de demandes';
-  if (stage === 'd5') return `${what} se termine le ${date} (dans 5 jours). Pour continuer sans interruption, abonnez-vous depuis votre Profil (${offer}). Paiement Wave, activation après vérification.`;
+  const days = Math.max(2, Math.ceil((at - Date.now()) / DAY_MS));
+  if (stage === 'd5') return `${what} se termine le ${date} (dans ${days} jours). Pour continuer sans interruption, abonnez-vous depuis votre Profil (${offer}). Paiement Wave, activation après vérification.`;
   if (stage === 'd1') return `${what} se termine demain (${date}). Après cette date, ${consequence}. Abonnez-vous dès maintenant depuis votre Profil (${offer}).`;
   return `${what} a expiré : ${consequence}. Réabonnez-vous en 1 minute depuis votre Profil (${offer}) — votre historique et vos contacts sont conservés.`;
 }
