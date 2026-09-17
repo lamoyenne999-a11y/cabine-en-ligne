@@ -42,15 +42,41 @@ if (fs.existsSync(index)) {
     <link rel="apple-touch-icon" href="/icons/apple-touch-icon.png" />
     <link rel="icon" type="image/png" sizes="192x192" href="/icons/icon-192.png" />
     <link rel="icon" type="image/png" sizes="512x512" href="/icons/icon-512.png" />
-    <title>Cabine En Ligne</title>`;
+    <title>Cabine En Ligne</title>
+    <style id="ios-pwa-fixes">
+      /* iOS « app installée » (mode standalone) : garantit que les champs de
+         saisie sont focusables et ouvrent le clavier. Sans ces règles, iOS peut
+         ignorer le toucher sur un input (user-select hérité, touch-callout). */
+      input, textarea, select, [contenteditable="true"] {
+        -webkit-user-select: text !important;
+        user-select: text !important;
+        -webkit-touch-callout: default !important;
+        touch-action: manipulation;
+        pointer-events: auto !important;
+        font-size: 16px; /* évite le zoom automatique iOS au focus */
+      }
+      html, body, #root { -webkit-tap-highlight-color: transparent; }
+    </style>`;
 
   // Insert after </head>
+  // Viewport adapté au clavier (interactive-widget) et aux encoches iOS (viewport-fit).
+  html = html.replace(
+    /<meta name="viewport" content="[^"]*"\s*\/?>/,
+    '<meta name="viewport" content="width=device-width, initial-scale=1, shrink-to-fit=no, viewport-fit=cover, interactive-widget=resizes-content" />',
+  );
   if (!html.includes('manifest.webmanifest')) {
     html = html.replace('</head>', `  ${meta}\n</head>`);
   }
 
   // Register the service worker (skip in dev to avoid caching stale bundles)
   const sw = `\n<script>\n  if ('serviceWorker' in navigator && location.protocol === 'https:') {\n    window.addEventListener('load', function() {\n      navigator.serviceWorker.register('/sw.js').then(function(r) {\n        console.log('PWA: service worker prêt', r.scope);\n      }).catch(function(e) { console.warn('PWA: SW non enregistré', e); });\n    });\n  }\n</script>\n`;
+
+  // iOS standalone : parfois le « touchend » sur un input n'ouvre pas le clavier
+  // (le focus est posé puis perdu). On re-force le focus juste après le toucher.
+  const iosFocus = `\n<script>\n  (function(){\n    var standalone = window.navigator.standalone === true || window.matchMedia('(display-mode: standalone)').matches;\n    if (!standalone) return;\n    document.addEventListener('touchend', function(e){\n      var t = e.target && e.target.closest ? e.target.closest('input,textarea,select') : null;\n      if (!t || t.disabled || t.readOnly) return;\n      setTimeout(function(){ if (document.activeElement !== t) { try { t.focus({ preventScroll: true }); } catch(_) { t.focus(); } } }, 0);\n    }, { passive: true });\n  })();\n</script>\n`;
+  if (!html.includes('iosFocusFix') && !html.includes('navigator.standalone')) {
+    html = html.replace('</body>', `${iosFocus}</body>`);
+  }
 
   if (!html.includes('serviceWorker')) {
     html = html.replace('</body>', `${sw}</body>`);
