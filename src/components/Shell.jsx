@@ -11,7 +11,7 @@ import { T } from './ui';
 // ---------------------------------------------------------------
 export function Header({ title, subtitle, onBack, right, noPad }) {
   return (
-    <View style={[s.header, noPad && { paddingTop: 18 }]}>
+    <View style={[s.header, noPad && { paddingTop: Platform.OS === 'web' ? 'calc(18px + env(safe-area-inset-top, 0px))' : 18 }]}>
       <View style={s.topRow}>
         <View style={s.side}>
           {onBack ? (
