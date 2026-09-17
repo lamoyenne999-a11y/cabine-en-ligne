@@ -6,6 +6,7 @@ import { T, Btn, Card, Field } from '../../components/ui';
 import { Header } from '../../components/Shell';
 import { BottomSheet } from '../../components/modals';
 import { useStore } from '../../store';
+import { RatingBadge } from '../../components/Rating';
 import { buildShareUrl } from '../../config';
 
 export default function ClientGerants() {
@@ -114,6 +115,7 @@ export default function ClientGerants() {
                             <T size={font.xs} weight="800" color="#fff" style={{ marginLeft: 3 }}>Certifié</T>
                           </View>
                         ) : null}
+                        <RatingBadge rating={g.rating} />
                       </View>
                       <View style={{ flexDirection: 'row', alignItems: 'center', marginTop: 5 }}>
                         <Ionicons name="call-outline" size={14} color={colors.primary} />

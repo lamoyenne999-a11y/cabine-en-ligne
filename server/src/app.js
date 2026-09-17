@@ -31,7 +31,10 @@ export async function createApp(opts = {}) {
   const app = express();
   app.set('trust proxy', 1);           // derrière Render : vraie IP du client (pour le rate limit)
   app.disable('x-powered-by');
-  app.use(cors());
+  // CORS : seuls le site officiel, l'adresse Render et le dev local peuvent appeler l'API
+  // depuis un navigateur. Les requêtes sans origine (app native, curl, même origine) passent.
+  const ALLOWED_ORIGINS = /^https?:\/\/((www\.)?cabineenligne\.com|cabine-en-ligne\.onrender\.com|localhost(:\d+)?|127\.0\.0\.1(:\d+)?|[\w.-]+\.e2b\.app)$/i;
+  app.use(cors({ origin: (origin, cb) => cb(null, !origin || ALLOWED_ORIGINS.test(origin)) }));
   app.use(express.json({ limit: '50kb' }));
   // En-têtes de sécurité de base (sans dépendance)
   app.use((req, res, next) => {

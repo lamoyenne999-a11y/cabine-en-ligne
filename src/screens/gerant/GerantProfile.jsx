@@ -6,6 +6,8 @@ import { T, Card, ListRow, Pill, Btn } from '../../components/ui';
 import { Page } from '../../components/Shell';
 import SubscribeSheet from '../../components/Subscribe';
 import PushSettings from '../../components/PushSettings';
+import ChangePassword from '../../components/ChangePassword';
+import GerantStats from '../../components/GerantStats';
 import { useStore } from '../../store';
 import { buildShareUrl } from '../../config';
 import Help from '../Help';
@@ -62,6 +64,8 @@ export default function GerantProfile({ onLogout }) {
           <Pressable onPress={() => setShowSub(true)} style={s.subBtn}><T size={font.sm} weight="800" color="#fff">S'abonner — 200 FCFA/mois ou 2000 FCFA/an</T></Pressable>
         )}
       </Card>
+
+      <GerantStats />
 
       {/* Disponibilité : visible par les clients (En ligne / Hors ligne) */}
       <Card style={{ marginTop: space.lg, backgroundColor: isAvailable ? colors.successBg : colors.warnBg }}>
@@ -162,6 +166,8 @@ export default function GerantProfile({ onLogout }) {
       </Card>
 
       <PushSettings />
+
+      <ChangePassword />
 
       <Card style={{ marginTop: space.lg }}>
         <ListRow icon="help-circle-outline" label="Aide & Support" onPress={() => setShowHelp(true)} />

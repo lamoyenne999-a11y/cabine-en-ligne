@@ -391,6 +391,7 @@ export default function Admin({ onBack }) {
   const ADMIN_TABS = [
     { key: 'apercu', label: 'Aperçu', icon: 'grid-outline', filled: 'grid' },
     { key: 'utilisateurs', label: 'Utilisateurs', icon: 'people-outline', filled: 'people', badge: users.length },
+    { key: 'notes', label: 'Notes', icon: 'star-outline', filled: 'star', badge: 0 },
     { key: 'messages', label: 'Messages', icon: 'megaphone-outline', filled: 'megaphone', badge: 0 },
     { key: 'signalements', label: 'Signalements', icon: 'flag-outline', filled: 'flag', badge: openReports.length },
     { key: 'deblocages', label: 'Déblocages', icon: 'lock-open-outline', filled: 'lock-open', badge: unblockRequests.length },
@@ -675,6 +676,43 @@ export default function Admin({ onBack }) {
       )}
 
       {/* ===== Déblocages (demandes + numéros bloqués) ===== */}
+      {adminTab === 'notes' && (
+        <>
+          <T size={font.h3} weight="800" color={colors.text} style={{ marginBottom: 4 }}>Notes des gérants</T>
+          <T size={font.xs} weight="600" color={colors.muted} style={{ marginBottom: space.sm }}>
+            Données des 30 derniers jours. La note s'affiche aux clients à partir de 3 avis. Les meilleurs gérants sont vos candidats à la certification ; sous 3,5, gardez un œil.
+          </T>
+          {(data?.ratings || []).length === 0 ? (
+            <Card style={{ alignItems: 'center', paddingVertical: 18 }}><T size={font.sm} weight="600" color={colors.muted}>Aucune activité de gérant pour le moment.</T></Card>
+          ) : (data?.ratings || []).map((r) => (
+            <Card key={r.id} style={{ marginBottom: space.sm, borderLeftWidth: 4, borderLeftColor: r.avg == null ? colors.border : r.avg >= 4.5 ? colors.success : r.avg >= 3.5 ? colors.warn : colors.danger }}>
+              <View style={{ flexDirection: 'row', alignItems: 'center' }}>
+                <View style={{ flex: 1 }}>
+                  <View style={{ flexDirection: 'row', alignItems: 'center', flexWrap: 'wrap' }}>
+                    <T size={font.body} weight="800" color={colors.text}>{r.name}</T>
+                    {r.certified ? <Ionicons name="shield-checkmark" size={14} color={colors.primary} style={{ marginLeft: 5 }} /> : null}
+                    {r.frozen ? <T size={font.xs} weight="800" color={colors.danger} style={{ marginLeft: 6 }}>SUSPENDU</T> : null}
+                  </View>
+                  <T size={font.xs} weight="600" color={colors.muted}>{r.phone}</T>
+                </View>
+                <View style={{ alignItems: 'flex-end' }}>
+                  {r.avg != null ? (
+                    <View style={{ flexDirection: 'row', alignItems: 'center' }}>
+                      <Ionicons name="star" size={16} color="#F5A623" />
+                      <T size={font.h3} weight="900" color={colors.text} style={{ marginLeft: 4 }}>{String(r.avg).replace('.', ',')}</T>
+                    </View>
+                  ) : <T size={font.sm} weight="700" color={colors.muted2}>pas encore de note</T>}
+                  <T size={font.xs} weight="600" color={colors.muted}>{r.count} avis</T>
+                </View>
+              </View>
+              <T size={font.xs} weight="600" color={colors.muted} style={{ marginTop: 6 }}>
+                {r.totalServed} servie{r.totalServed > 1 ? 's' : ''} au total · « Bien reçu » {r.confirmRate == null ? '—' : r.confirmRate + ' %'} · réponse {r.avgResponseSec == null ? '—' : r.avgResponseSec < 60 ? r.avgResponseSec + ' s' : Math.round(r.avgResponseSec / 60) + ' min'}
+              </T>
+            </Card>
+          ))}
+        </>
+      )}
+
       {adminTab === 'messages' && (
         <>
           <T size={font.h3} weight="800" color={colors.text} style={{ marginBottom: 4 }}>Envoyer un message</T>

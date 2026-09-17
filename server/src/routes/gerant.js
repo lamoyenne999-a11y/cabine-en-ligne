@@ -1,7 +1,7 @@
 import { Router } from 'express';
 import { findOne } from '../db.js';
 import { requireAuth, requireRole } from '../middleware/auth.js';
-import { demandesForGerant, gerantHistory, demandeSummary, decideDemande, markCompleted, markReceived, markNotReceived, markPartial, requestPayment, setGerantAvailability, subscriptionFor, paySubscription, publicProfile, gerantProfile, updateGerantProfile, notificationsFor, unreadCount, markNotificationRead, markAllNotificationsRead  , createReport, suspendReasonText } from '../services/flowService.js';
+import { demandesForGerant, gerantHistory, demandeSummary, decideDemande, markCompleted, markReceived, markNotReceived, markPartial, requestPayment, setGerantAvailability, subscriptionFor, paySubscription, publicProfile, gerantProfile, updateGerantProfile, notificationsFor, unreadCount, markNotificationRead, markAllNotificationsRead  , createReport, suspendReasonText, gerantStats } from '../services/flowService.js';
 
 const router = Router();
 router.use(requireAuth, requireRole('gerant'));
@@ -62,6 +62,7 @@ router.post('/demandes/:id/complete', (req, res) => {
 
 // ---- Profil / Wave marchand ----
 router.get('/profile', (req, res) => res.json({ user: gerantProfile(req.user) }));
+router.get('/stats', (req, res) => res.json({ stats: gerantStats(req.user.id) }));
 
 // Mise à jour du numéro + lien Wave marchand (les clients pourront cliquer pour payer)
 router.post('/profile', (req, res) => {

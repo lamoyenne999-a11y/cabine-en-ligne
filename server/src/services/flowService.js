@@ -775,7 +775,7 @@ function notifyPush(userId, { type, text, demandeId }) {
 export function publicProfile(id) {
   const u = findOne('users', (x) => x.id === id);
   if (!u) return null;
-  return { id: u.id, name: u.name, phone: u.phone, role: u.role, waveNumber: u.waveNumber, payLink: u.payLink || '' };
+  return { id: u.id, name: u.name, phone: u.phone, role: u.role, waveNumber: u.waveNumber, payLink: u.payLink || '', certified: !!u.certified, rating: u.role === 'gerant' ? gerantRating(u.id) : undefined };
 }
 
 // ---- Gérants (contacts) d'un client ----
@@ -789,7 +789,7 @@ export function gerantsFor(clientId) {
     if (g.userId) {
       const u = findOne('users', (x) => x.id === g.userId);
       if (u) {
-        return { ...g, waveNumber: u.waveNumber || g.waveNumber, payLink: u.payLink || g.payLink || '', suspended: !!u.frozen, certified: !!u.certified, online: u.available !== false };
+        return { ...g, waveNumber: u.waveNumber || g.waveNumber, payLink: u.payLink || g.payLink || '', suspended: !!u.frozen, certified: !!u.certified, online: u.available !== false, rating: gerantRating(u.id) };
       }
     }
     return g;
@@ -809,6 +809,7 @@ export function availableGerants(clientId) {
       alreadyAdded: added.includes(u.id), online: u.available !== false,
       // "Certifié" : badge attribué UNIQUEMENT par le propriétaire (Espace propriétaire).
       certified: !!u.certified,
+      rating: gerantRating(u.id),
     }))
     .sort((a, b) => (a.name || '').localeCompare(b.name || ''));
 }
@@ -954,7 +955,13 @@ export function demandesForClient(clientId) {
 }
 
 export function demandesForGerant(userId) {
-  return find('demandes', (d) => d.gerantUserId === userId).sort((a, b) => b.createdAt - a.createdAt);
+  const rows = find('demandes', (d) => d.gerantUserId === userId).sort((a, b) => b.createdAt - a.createdAt);
+  // Badge « Client fiable » calculé une fois par client présent dans la liste.
+  const cache = new Map();
+  return rows.map((d) => {
+    if (!cache.has(d.clientId)) cache.set(d.clientId, isReliableClient(d.clientId));
+    return { ...d, clientReliable: cache.get(d.clientId) };
+  });
 }
 
 // ---- Résumé / historique (v2 : on suit les demandes, pas d'argent stocké) ----
@@ -1250,6 +1257,7 @@ export function markCompleted({ id, gerantUserId }) {
   if (!d.acceptedAt) patch.acceptedAt = Date.now();
   update('demandes', (x) => x.id === id, patch);
   const upd = findOne('demandes', (x) => x.id === id);
+  try { checkGerantMilestone(gerantUserId); } catch {}
   if (upd && upd.clientId) {
     const label = `${TYPE_LABEL[upd.type] || upd.type}  ${upd.amount} F`;
     createNotification({
@@ -1330,11 +1338,33 @@ export function runSubscriptionAlerts(now = Date.now()) {
   }
   return sent;
 }
+// Purge des notifications : supprime les notifications LUES de plus de 60 jours,
+// et garde au plus 200 notifications par compte (les plus anciennes lues partent
+// d'abord ; on ne supprime jamais une notification non lue de moins de 60 jours).
+export function purgeOldNotifications(now = Date.now()) {
+  const LIMIT = 200, MAX_AGE = 60 * DAY_MS;
+  const all = find('notifications', () => true);
+  const drop = new Set();
+  const byUser = new Map();
+  for (const n of all) {
+    if (n.read && now - n.createdAt > MAX_AGE) { drop.add(n.id); continue; }
+    if (!byUser.has(n.userId)) byUser.set(n.userId, []);
+    byUser.get(n.userId).push(n);
+  }
+  for (const list of byUser.values()) {
+    if (list.length <= LIMIT) continue;
+    const extra = list.length - LIMIT;
+    const candidates = list.filter((n) => n.read).sort((a, b) => a.createdAt - b.createdAt).slice(0, extra);
+    for (const n of candidates) drop.add(n.id);
+  }
+  if (drop.size) remove('notifications', (n) => drop.has(n.id));
+  return drop.size;
+}
 // Démarrage du planificateur (appelé une fois par app.js). Toutes les heures.
 let alertsTimer = null;
 export function startAlertScheduler() {
   if (alertsTimer) return;
-  const tick = () => { try { runSubscriptionAlerts(); reconcileExpiredEvents(); } catch (e) { console.error('[alerts]', e.message); } };
+  const tick = () => { try { runSubscriptionAlerts(); reconcileExpiredEvents(); purgeOldNotifications(); } catch (e) { console.error('[alerts]', e.message); } };
   setTimeout(tick, 20 * 1000);                        // 20 s après le démarrage
   alertsTimer = setInterval(tick, 60 * 60 * 1000);
   alertsTimer.unref && alertsTimer.unref();
@@ -1369,4 +1399,84 @@ export function sendAnnouncement({ kind = 'tip', audience = 'all', title = '', t
 }
 export function announcementsForAdmin() {
   return find('announcements', () => true).sort((a, b) => b.createdAt - a.createdAt).slice(0, 50);
+}
+
+// ------------------------------------------------------------------
+//  ENCOURAGER LES BONS COMPORTEMENTS
+//  - Notes ⭐ (client → gérant) après « Bien reçu », 1 à 5, une par demande,
+//    modifiable pendant 24 h. Moyenne publique à partir de 3 avis.
+//  - Badge « Client fiable » (vu par le gérant) : ≥ 5 demandes payées et
+//    confirmées, aucun litige ouvert. Jamais affiché au client lui-même ni public.
+//  - Stats gérant (Profil) : semaine / mois.
+//  - Jalons : 1re, 10e, 50e, 100e, 500e demande servie → un seul message chacun.
+// ------------------------------------------------------------------
+export const RATING_MIN_REVIEWS = 3;
+export function rateDemande({ id, clientId, stars }) {
+  const n = Number(stars);
+  if (!Number.isInteger(n) || n < 1 || n > 5) throw Object.assign(new Error('Note invalide (1 à 5)'), { status: 400 });
+  const d = findOne('demandes', (x) => x.id === id && x.clientId === clientId);
+  if (!d) throw Object.assign(new Error('Demande introuvable'), { status: 404 });
+  if (d.status !== 'completed' || !d.clientConfirmedAt) throw Object.assign(new Error('Vous pourrez noter après avoir confirmé « Bien reçu »'), { status: 400 });
+  if (d.ratedAt && Date.now() - d.ratedAt > DAY_MS) throw Object.assign(new Error('La note ne peut plus être modifiée (24 h dépassées)'), { status: 400 });
+  const first = !d.ratedAt;
+  update('demandes', (x) => x.id === id, { rating: n, ratedAt: d.ratedAt || Date.now(), ratingUpdatedAt: Date.now() });
+  const upd = findOne('demandes', (x) => x.id === id);
+  // Le gérant est prévenu seulement des bonnes notes à la 1re note (encouragement) ; pas de notification pour 1–3 (évite les tensions).
+  if (first && n >= 4 && upd.gerantUserId) {
+    createNotification({ userId: upd.gerantUserId, type: 'rating_received', demandeId: upd.id, text: `${upd.clientName} vous a donné ${n} étoile${n > 1 ? 's' : ''} ⭐ pour ${TYPE_LABEL[upd.type] || upd.type} ${upd.amount} F. Bravo, continuez !` });
+  }
+  return upd;
+}
+// Moyenne d'un gérant. Retourne { avg, count } ; avg = null tant que count < RATING_MIN_REVIEWS.
+export function gerantRating(gerantUserId) {
+  const rated = find('demandes', (d) => d.gerantUserId === gerantUserId && d.rating > 0);
+  const count = rated.length;
+  if (count < RATING_MIN_REVIEWS) return { avg: null, count };
+  const avg = Math.round((rated.reduce((a, d) => a + d.rating, 0) / count) * 10) / 10;
+  return { avg, count };
+}
+// Client fiable : ≥ 5 demandes complètement clôturées (servi + argent reçu + confirmé) et aucun signalement ouvert contre lui.
+export function isReliableClient(clientId) {
+  const done = find('demandes', (d) => d.clientId === clientId && d.status === 'completed' && d.moneyReceived && d.clientConfirmedAt).length;
+  if (done < 5) return false;
+  const openAgainst = find('reports', (r) => r.targetId === clientId && r.status === 'open').length;
+  const disputes = find('demandes', (d) => d.clientId === clientId && (d.notReceivedAt || d.clientPaidDeclaredCount > 2)).length;
+  return openAgainst === 0 && disputes === 0;
+}
+// Stats d'un gérant pour son Profil.
+export function gerantStats(gerantUserId, now = Date.now()) {
+  const all = find('demandes', (d) => d.gerantUserId === gerantUserId);
+  const period = (since) => {
+    const rows = all.filter((d) => d.createdAt >= since);
+    const served = rows.filter((d) => d.status === 'completed');
+    const received = served.filter((d) => d.moneyReceived);
+    const confirmed = served.filter((d) => d.clientConfirmedAt);
+    const answered = rows.filter((d) => d.acceptedAt && d.acceptedAt > d.createdAt);
+    const avgResp = answered.length ? Math.round(answered.reduce((a, d) => a + (d.acceptedAt - d.createdAt), 0) / answered.length / 1000) : null;
+    return {
+      requests: rows.length,
+      served: served.length,
+      amountServed: served.reduce((a, d) => a + (d.amount || 0), 0),
+      amountReceived: received.reduce((a, d) => a + (d.amount || 0), 0),
+      confirmRate: served.length ? Math.round((confirmed.length / served.length) * 100) : null,
+      avgResponseSec: avgResp,
+    };
+  };
+  const totalServed = all.filter((d) => d.status === 'completed').length;
+  return { week: period(now - 7 * DAY_MS), month: period(now - 30 * DAY_MS), totalServed, rating: gerantRating(gerantUserId) };
+}
+const MILESTONES = [1, 10, 50, 100, 500, 1000];
+function checkGerantMilestone(gerantUserId) {
+  const u = findOne('users', (x) => x.id === gerantUserId);
+  if (!u) return;
+  const total = find('demandes', (d) => d.gerantUserId === gerantUserId && d.status === 'completed').length;
+  const reached = (u.milestones || []);
+  const m = MILESTONES.filter((k) => total >= k && !reached.includes(k)).pop();
+  if (!m) return;
+  // On ne marque que le palier atteint le plus haut (et tous les inférieurs, sans les notifier).
+  update('users', (x) => x.id === gerantUserId, { milestones: [...new Set([...reached, ...MILESTONES.filter((k) => k <= m)])] });
+  const text = m === 1
+    ? `Première demande servie ! 🎉 Bienvenue parmi les gérants actifs de Cabine En Ligne. Astuce : restez « En ligne » pour en recevoir d'autres.`
+    : `Bravo ${u.name} : ${m} demandes servies sur Cabine En Ligne ! 🎉 Merci pour votre sérieux, vos clients comptent sur vous.`;
+  createNotification({ userId: gerantUserId, type: 'milestone', text });
 }

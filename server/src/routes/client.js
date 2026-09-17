@@ -1,6 +1,6 @@
 import { Router } from 'express';
 import { requireAuth, requireRole } from '../middleware/auth.js';
-import { gerantsFor, addGerant, removeGerant, createDemande, demandesForClient, clientHistory, demandeSummary, subscriptionFor, paySubscription, publicProfile, markPaid, cancelDemande, clientPaymentReply, clientNotServed, clientConfirmServed, notificationsFor, unreadCount, markNotificationRead, markAllNotificationsRead, availableGerants  , createReport, suspendReasonText } from '../services/flowService.js';
+import { gerantsFor, addGerant, removeGerant, createDemande, demandesForClient, clientHistory, demandeSummary, subscriptionFor, paySubscription, publicProfile, markPaid, cancelDemande, clientPaymentReply, clientNotServed, clientConfirmServed, notificationsFor, unreadCount, markNotificationRead, markAllNotificationsRead, availableGerants  , createReport, suspendReasonText, rateDemande } from '../services/flowService.js';
 
 const router = Router();
 router.use(requireAuth, requireRole('client'));
@@ -62,6 +62,10 @@ router.post('/demandes/:id/confirm-served', (req, res, next) => {
 });
 
 // Le client n'a PAS reçu ce qu'il a demandé alors que le gérant a marqué « servi »
+// Note ⭐ du gérant (1–5) après « Bien reçu ».
+router.post('/demandes/:id/rate', (req, res, next) => {
+  try { res.json({ demande: rateDemande({ id: req.params.id, clientId: req.user.id, stars: req.body?.stars }) }); } catch (e) { next(e); }
+});
 router.post('/demandes/:id/not-served', (req, res, next) => {
   try { res.json({ demande: clientNotServed({ id: req.params.id, clientId: req.user.id }) }); }
   catch (e) { next(e); }

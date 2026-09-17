@@ -336,6 +336,70 @@ async function main() {
     check('Réactivation : plus suspendu, notifié', react.status === 200 && meR.json.user?.frozen === false && (await req('GET', '/client/notifications', null, ct)).json.notifications.some((n) => n.type === 'account_reactivated'));
   }
 
+  // ===== Notes ⭐, client fiable, stats, jalons =====
+  {
+    const A = { 'x-admin-key': 'testkey' };
+    const gp = '0944' + uniq.slice(-6), cp = '0933' + uniq.slice(-6);
+    const g = await req('POST', '/auth/register', { role: 'gerant', name: 'NoteG', phone: gp, password: '123456' });
+    const c = await req('POST', '/auth/register', { role: 'client', name: 'NoteC', phone: cp, password: '123456' });
+    const gt = g.json.token, ct = c.json.token;
+    await req('POST', '/client/gerants', { phone: gp, name: 'NoteG' }, ct);
+    const gid = ((await req('GET', '/client/gerants', null, ct)).json.gerants || [])[0]?.id;
+    const cycle = async () => {
+      const d = (await req('POST', '/client/demandes', { gerantId: gid, type: 'unites', amount: 100, benefName: 'Moi', benefPhone: cp }, ct)).json.demande;
+      await req('POST', `/gerant/demandes/${d.id}/received`, {}, gt);
+      await req('POST', `/gerant/demandes/${d.id}/complete`, {}, gt);
+      await req('POST', `/client/demandes/${d.id}/confirm-served`, {}, ct);
+      return d.id;
+    };
+    const d1 = await cycle();
+    const gn = (await req('GET', '/gerant/notifications', null, gt)).json.notifications || [];
+    check('Jalon « première demande servie » reçu une fois', gn.filter((n) => n.type === 'milestone').length === 1);
+    const bad = await req('POST', `/client/demandes/${d1}/rate`, { stars: 9 }, ct);
+    check('Note hors 1–5 refusée (400)', bad.status === 400);
+    const r1 = await req('POST', `/client/demandes/${d1}/rate`, { stars: 5 }, ct);
+    check('Note 5 acceptée après « Bien reçu »', r1.status === 200 && r1.json.demande.rating === 5);
+    check('Gérant prévenu d\'une bonne note', ((await req('GET', '/gerant/notifications', null, gt)).json.notifications || []).some((n) => n.type === 'rating_received'));
+    let list = (await req('GET', '/client/gerants', null, ct)).json.gerants || [];
+    check('Moyenne masquée sous 3 avis', list[0].rating && list[0].rating.avg === null && list[0].rating.count === 1);
+    const d2 = await cycle(); await req('POST', `/client/demandes/${d2}/rate`, { stars: 4 }, ct);
+    const d3 = await cycle(); await req('POST', `/client/demandes/${d3}/rate`, { stars: 5 }, ct);
+    list = (await req('GET', '/client/gerants', null, ct)).json.gerants || [];
+    check('Moyenne visible à 3 avis (4,7)', list[0].rating.avg === 4.7 && list[0].rating.count === 3);
+    const unrated = (await req('POST', '/client/demandes', { gerantId: gid, type: 'unites', amount: 100, benefName: 'Moi', benefPhone: cp }, ct)).json.demande;
+    const early = await req('POST', `/client/demandes/${unrated.id}/rate`, { stars: 5 }, ct);
+    check('Impossible de noter avant « Bien reçu » (400)', early.status === 400);
+    // Client fiable : 5 demandes clôturées sans litige
+    await cycle(); await cycle();
+    const gd = (await req('GET', '/gerant/demandes', null, gt)).json.demandes || [];
+    check('Badge « Client fiable » visible par le gérant après 5 demandes propres', gd.some((d) => d.clientReliable === true));
+    const st = (await req('GET', '/gerant/stats', null, gt)).json.stats;
+    check('Stats gérant : servies, montant, note', st.week.served === 5 && st.week.amountServed === 500 && st.rating.avg === 4.7 && st.totalServed === 5);
+    const sum = await req('GET', '/admin/summary', null, null, A);
+    check('Classement des notes dans l\'Espace propriétaire', (sum.json.ratings || []).some((r) => r.phone === gp && r.avg === 4.7));
+    const pub = await req('GET', `/public/u/${g.json.user.id}`, null);
+    check('Fiche publique : note incluse', pub.status === 200 && JSON.stringify(pub.json).includes('4.7'));
+  }
+
+  // ===== Changer mon mot de passe =====
+  {
+    const ph = '0955' + uniq.slice(-6);
+    const r = await req('POST', '/auth/register', { role: 'client', name: 'Mdp', phone: ph, password: 'ancien1' });
+    const tk = r.json.token;
+    const bad = await req('POST', '/auth/change-password', { currentPassword: 'faux', newPassword: 'nouveau1' }, tk);
+    check('Changement refusé si mot de passe actuel faux (401)', bad.status === 401);
+    const short = await req('POST', '/auth/change-password', { currentPassword: 'ancien1', newPassword: '123' }, tk);
+    check('Nouveau mot de passe trop court refusé (400)', short.status === 400);
+    const ok = await req('POST', '/auth/change-password', { currentPassword: 'ancien1', newPassword: 'nouveau1' }, tk);
+    check('Changement de mot de passe accepté', ok.status === 200 && ok.json.ok);
+    const oldLogin = await req('POST', '/auth/login', { phone: ph, password: 'ancien1', role: 'client' });
+    check('Ancien mot de passe ne fonctionne plus', oldLogin.status === 401);
+    const newLogin = await req('POST', '/auth/login', { phone: ph, password: 'nouveau1', role: 'client' });
+    check('Nouveau mot de passe fonctionne', newLogin.status === 200 && newLogin.json.token);
+    const noAuth = await req('POST', '/auth/change-password', { currentPassword: 'x', newPassword: 'yyyyyy' });
+    check('Changement sans connexion refusé (401)', noAuth.status === 401);
+  }
+
   // ===== Bienvenue, alertes d'abonnement, messages du propriétaire =====
   {
     const A = { 'x-admin-key': 'testkey' };

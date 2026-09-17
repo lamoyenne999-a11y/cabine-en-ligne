@@ -29,6 +29,8 @@ const ICONS = {
   client_confirmed: 'happy-outline',
   gift: 'gift-outline',
   welcome: 'hand-left-outline',
+  rating_received: 'star',
+  milestone: 'trophy-outline',
   alert_expiring: 'alarm-outline',
   alert_expired: 'alarm',
   announce_tip: 'bulb-outline',
@@ -63,6 +65,8 @@ const COLORS = {
   client_confirmed: colors.success,
   gift: colors.success,
   welcome: colors.primary,
+  rating_received: '#F5A623',
+  milestone: '#F5A623',
   alert_expiring: colors.warn,
   alert_expired: colors.danger,
   announce_tip: '#B7791F',
@@ -83,7 +87,7 @@ const COLORS = {
 
 // Catégorie d'une notification : « alert » (à traiter / important), « tip » (astuce, info), sinon activité.
 const ALERT_TYPES = new Set(['alert_expiring', 'alert_expired', 'announce_alert', 'account_suspended', 'reported', 'demande_not_received', 'client_not_served', 'subscription_rejected', 'payment_requested', 'demande_served_unpaid']);
-const TIP_TYPES = new Set(['welcome', 'announce_tip', 'announce_info']);
+const TIP_TYPES = new Set(['welcome', 'announce_tip', 'announce_info', 'rating_received', 'milestone']);
 export const notifCategory = (t) => (ALERT_TYPES.has(t) ? 'alert' : TIP_TYPES.has(t) ? 'tip' : 'activity');
 
 const when = (t) => (t ? new Date(t).toLocaleString('fr-FR', { day: '2-digit', month: 'short', hour: '2-digit', minute: '2-digit' }) : '');
@@ -152,7 +156,7 @@ export default function NotificationCenter({ visible, onOpen, onClose, list, unr
               <View style={{ flex: 1, marginLeft: 12 }}>
                 {notifCategory(n.type) !== 'activity' ? (
                   <T size={9} weight="800" color={COLORS[n.type] || colors.primary} style={{ marginBottom: 2, letterSpacing: 0.5 }}>
-                    {notifCategory(n.type) === 'alert' ? 'ALERTE' : n.type === 'announce_info' ? 'INFO' : n.type === 'welcome' ? 'BIENVENUE' : 'ASTUCE'}
+                    {notifCategory(n.type) === 'alert' ? 'ALERTE' : n.type === 'announce_info' ? 'INFO' : n.type === 'welcome' ? 'BIENVENUE' : n.type === 'rating_received' || n.type === 'milestone' ? 'BRAVO' : 'ASTUCE'}
                   </T>
                 ) : null}
                 <T size={font.sm} weight={n.read ? '600' : '800'} color={n.read ? colors.muted : colors.text} style={{ lineHeight: 19 }}>{n.text}</T>

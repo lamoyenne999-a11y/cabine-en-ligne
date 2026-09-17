@@ -1,5 +1,5 @@
 import { Router } from 'express';
-import { findOne, insert } from '../db.js';
+import { findOne, insert, update } from '../db.js';
 import { signToken, hashPassword, verifyPassword, requireAuth } from '../middleware/auth.js';
 import { sendWelcome, suspendReasonText, subscriptionFor, applyReferral, referralInfoFor, recordEvent, registerPushToken, removePushToken, isPhoneBlocked } from '../services/flowService.js';
 import { registerWebPushSubscription, removeWebPushSubscription } from '../services/pushService.js';
@@ -73,6 +73,24 @@ router.post('/login', rateLimit({ name: 'login', windowMs: 15 * 60 * 1000, max: 
 
     const token = signToken(user);
     res.json({ token, user: publicUser(user), subscription: subscriptionFor(user), referral: referralInfoFor(user) });
+  } catch (e) { next(e); }
+});
+
+// POST /api/auth/change-password { currentPassword, newPassword }
+// L'utilisateur connecté change son propre mot de passe (l'ancien est exigé).
+const chpwdLimit = rateLimit({ name: 'chpwd', windowMs: 15 * 60 * 1000, max: 10, perIp: false, keyFn: (r) => r.user?.id || '', message: 'Trop de tentatives. Réessayez dans 15 minutes.' });
+router.post('/change-password', requireAuth, (req, res, next) => chpwdLimit(req, res, next), async (req, res, next) => {
+  try {
+    const cur = String(req.body?.currentPassword || '');
+    const nw = String(req.body?.newPassword || '');
+    if (nw.length < 6 || nw.length > 128) return res.status(400).json({ error: 'Le nouveau mot de passe doit faire entre 6 et 128 caractères.' });
+    if (nw === cur) return res.status(400).json({ error: 'Le nouveau mot de passe doit être différent de l\'ancien.' });
+    const user = findOne('users', (u) => u.id === req.user.id);
+    if (!user) return res.status(404).json({ error: 'Compte introuvable' });
+    const ok = await verifyPassword(cur, user.passwordHash);
+    if (!ok) return res.status(401).json({ error: 'Mot de passe actuel incorrect.' });
+    update('users', (u) => u.id === user.id, { passwordHash: await hashPassword(nw), passwordChangedAt: Date.now() });
+    res.json({ ok: true });
   } catch (e) { next(e); }
 });
 

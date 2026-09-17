@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { View, Pressable, StyleSheet } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
+import { ReliableBadge } from '../../components/Rating';
 import { colors, radius, space, font } from '../../theme';
 import { T, Btn, Card, Pill } from '../../components/ui';
 import { Page } from '../../components/Shell';
@@ -202,6 +203,7 @@ export default function GerantDemandes() {
                 <T size={font.xs} weight="700" color={colors.muted}>
                   <T size={font.xs} weight="800" color={colors.text}>{d.clientName}</T>{third ? ' demande pour' : ' demande pour lui-même'}
                 </T>
+                <ReliableBadge visible={d.clientReliable} style={{ alignSelf: 'flex-start', marginLeft: 0, marginTop: 3 }} />
                 <T size={font.h3} weight="900" color={colors.text} style={{ marginTop: 1 }} numberOfLines={1}>{d.benefPhone || d.benefName}</T>
               </View>
               <Pressable onPress={() => setProfile(d)} hitSlop={6} style={s.profileBtn}>

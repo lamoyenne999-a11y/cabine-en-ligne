@@ -8,6 +8,7 @@ import { WavePaySheet, WavePayBox } from '../../components/WavePay';
 import { Dialog, DialogButtons } from '../../components/modals';
 import { useStore } from '../../store';
 import SuspendedBanner from '../../components/SuspendedBanner';
+import { RateDemande } from '../../components/Rating';
 import ReportButton from '../../components/ReportButton';
 
 // Pour mettre à jour le compte à rebours d'un délai toutes les secondes
@@ -76,7 +77,7 @@ function matches(d, q) {
 }
 
 export default function ClientHistory() {
-  const { state, markPaid, cancelDemande, paymentReply, notServedDemande, confirmServedDemande, refresh } = useStore();
+  const { state, markPaid, cancelDemande, paymentReply, notServedDemande, confirmServedDemande, refresh , dispatch } = useStore();
   const [notServedTarget, setNotServedTarget] = useState(null);
   const [paying, setPaying] = useState(null);
   const [canceling, setCanceling] = useState(null);
@@ -351,6 +352,9 @@ export default function ClientHistory() {
                   Vous avez confirmé la réception. Demande terminée. Merci !
                 </T>
               </View>
+            )}
+            {d.status === 'completed' && d.clientConfirmedAt && (
+              <RateDemande demande={d} onRated={(upd) => dispatch({ type: 'CLIENT_UPDATE_DEMANDE', payload: upd })} style={{ marginTop: 8 }} />
             )}
             <ReportButton role="client" demande={d} otherName={d.gerantName} onDone={refresh} style={{ marginTop: 10 }} />
             {d.notServedAt && d.status !== 'completed' && !['declined', 'canceled'].includes(d.status) && (

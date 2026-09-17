@@ -7,6 +7,7 @@ import { Header } from '../../components/Shell';
 import { BottomSheet, Dialog, DialogButtons } from '../../components/modals';
 import { WavePaySheet, WavePayBox } from '../../components/WavePay';
 import { useStore } from '../../store';
+import { RatingBadge } from '../../components/Rating';
 import SuspendedBanner from '../../components/SuspendedBanner';
 
 const money = (n) => `${(n || 0).toLocaleString('fr-FR').replace(/\u202f/g, ' ')} F`;
@@ -234,6 +235,7 @@ export default function ClientHome() {
                           <T size={font.xs} weight="800" color="#fff" style={{ marginLeft: 3 }}>Certifié</T>
                         </View>
                       )}
+                      <RatingBadge rating={g.rating} />
                     </View>
                     <T size={font.sm} weight="600" color={colors.muted} style={{ marginTop: 2 }}>{g.phone}</T>
                   </View>
@@ -268,6 +270,7 @@ export default function ClientHome() {
                         <T size={font.xs} weight="800" color="#fff" style={{ marginLeft: 3 }}>Certifié</T>
                       </View>
                     )}
+                    <RatingBadge rating={g.rating} />
                   </View>
                   <T size={font.sm} weight="600" color={colors.muted} style={{ marginTop: 2 }}>{g.phone}</T>
                 </View>

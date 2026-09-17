@@ -6,6 +6,7 @@ import { T, Card, ListRow, Pill } from '../../components/ui';
 import { Page } from '../../components/Shell';
 import SubscribeSheet from '../../components/Subscribe';
 import PushSettings from '../../components/PushSettings';
+import ChangePassword from '../../components/ChangePassword';
 import { useStore } from '../../store';
 import { buildShareUrl } from '../../config';
 import Help from '../Help';
@@ -106,6 +107,8 @@ export default function ClientProfile({ onLogout }) {
       </Card>
 
       <PushSettings />
+
+      <ChangePassword />
 
       <Card style={{ marginTop: space.lg }}>
         <ListRow icon="help-circle-outline" label="Aide & Support" onPress={() => setShowHelp(true)} />

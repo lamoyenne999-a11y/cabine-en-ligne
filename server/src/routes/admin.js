@@ -1,7 +1,7 @@
 import express from 'express';
 import { hashPassword } from '../middleware/auth.js';
 import { config } from '../config.js';
-import { runSubscriptionAlerts, sendAnnouncement, announcementsForAdmin, announcementAudience, reportsForAdmin, resolveReport, openReportsCountFor, SUSPEND_REASONS, pendingSubscriptionPayments, confirmSubscriptionPayment, rejectSubscriptionPayment, setUserCertified, grantFreeTime, giftsForAdmin, subscriptionPayments, subscriptionTotals, subscriptionFor, referralSummary, referredUsersCount, referralPaymentCount, referralRateFor, deleteAccountAll, setUserFrozen, eventsForAdmin, eventsCounters, referralCodeStats, expiredUsers, reconcileExpiredEvents, isPhoneBlocked, blockUser, unblockUser, blockedList, unblockRequestsPending, resolveUnblockRequest } from '../services/flowService.js';
+import { gerantRating, gerantStats, runSubscriptionAlerts, sendAnnouncement, announcementsForAdmin, announcementAudience, reportsForAdmin, resolveReport, openReportsCountFor, SUSPEND_REASONS, pendingSubscriptionPayments, confirmSubscriptionPayment, rejectSubscriptionPayment, setUserCertified, grantFreeTime, giftsForAdmin, subscriptionPayments, subscriptionTotals, subscriptionFor, referralSummary, referredUsersCount, referralPaymentCount, referralRateFor, deleteAccountAll, setUserFrozen, eventsForAdmin, eventsCounters, referralCodeStats, expiredUsers, reconcileExpiredEvents, isPhoneBlocked, blockUser, unblockUser, blockedList, unblockRequestsPending, resolveUnblockRequest } from '../services/flowService.js';
 import { find, findOne, update, dbStats } from '../db.js';
 
 const router = express.Router();
@@ -49,6 +49,10 @@ router.get('/summary', requireAdmin, (req, res) => {
     announcements: announcementsForAdmin(),
     audienceCounts: { all: announcementAudience('all').length, client: announcementAudience('client').length, gerant: announcementAudience('gerant').length },
     pendingOld: pendingSubscriptionPayments().filter((p) => Date.now() - p.declaredAt > 24 * 3600 * 1000).length,
+    ratings: find('users', (u) => u.role === 'gerant' && u.passwordHash).map((u) => {
+      const st = gerantStats(u.id);
+      return { id: u.id, name: u.name, phone: u.phone, certified: !!u.certified, frozen: !!u.frozen, avg: st.rating.avg, count: st.rating.count, totalServed: st.totalServed, confirmRate: st.month.confirmRate, avgResponseSec: st.month.avgResponseSec };
+    }).filter((r) => r.totalServed > 0 || r.count > 0).sort((a, b) => (b.avg || 0) - (a.avg || 0) || b.totalServed - a.totalServed),
     suspendReasons: SUSPEND_REASONS,
     unblockRequests: unblockRequestsPending(),
     blocked: blockedList(),
