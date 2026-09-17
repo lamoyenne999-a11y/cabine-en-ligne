@@ -31,10 +31,23 @@ const TYPE_ICON = { unites: 'phone-portrait-outline', minutes: 'call-outline', i
 const TYPE_LABEL = { unites: 'Unités', minutes: 'Minutes', internet: 'Internet', forfait: 'Appel + Internet' };
 const fmt = (n) => (n || 0).toLocaleString('fr-FR').replace(/\u202f/g, ' ');
 
+// Ancienneté lisible : « à l'instant », « il y a 12 min », « il y a 3 h », « il y a 2 j ».
+export function ago(t) {
+  if (!t) return '';
+  const m = Math.max(0, Math.round((Date.now() - t) / 60000));
+  if (m < 1) return "à l'instant";
+  if (m < 60) return `il y a ${m} min`;
+  const h = Math.floor(m / 60);
+  if (h < 24) return `il y a ${h} h${m % 60 ? ' ' + String(m % 60).padStart(2, '0') : ''}`;
+  const j = Math.floor(h / 24);
+  return `il y a ${j} jour${j > 1 ? 's' : ''}`;
+}
+const fmtDT = (t) => (t ? new Date(t).toLocaleString('fr-FR', { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' }) : '');
+
 // Ligne d'état (1 phrase) : dit au gérant où en est la demande.
 function stateLine(d) {
   const amt = `${fmt(d.amount)} XOF`;
-  if (d.notServedAt && d.status !== 'completed') return { tone: 'danger', icon: 'alert-circle', text: `Client dit NE PAS avoir reçu sa recharge (${d.benefPhone}). Servez-le puis « J'ai servi ».` };
+  if (d.notServedAt && d.status !== 'completed') return { tone: 'danger', icon: 'alert-circle', text: `PAS une nouvelle demande : demande de ${fmtDT(d.createdAt)} (${ago(d.createdAt)}). Le client dit NE PAS avoir reçu sa recharge (${d.benefPhone}) — signalé ${ago(d.notServedAt)}. Vérifiez le numéro, servez-le puis « J'ai servi ».` };
   if (d.moneyReceived && d.status === 'completed' && d.clientConfirmedAt) return { tone: 'success', icon: 'checkmark-done-circle', text: 'Terminée — le client a confirmé la réception.' };
   if (d.moneyReceived) return { tone: 'success', icon: 'checkmark-circle', text: `Argent reçu (${amt}). Reste à servir le client.` };
   if (d.clientDisputedAt) return { tone: 'warn', icon: 'help-circle', text: `Le client affirme avoir payé la totalité (${amt}). Revérifiez votre Wave.` };
@@ -197,6 +210,14 @@ export default function GerantDemandes() {
               <Pill icon={st.icon} color={st.color} bg={st.bg}>{st.label}</Pill>
             </View>
 
+            {/* Quand : date de création + ancienneté (évite de confondre une relance avec une nouvelle demande) */}
+            <View style={{ flexDirection: 'row', alignItems: 'center', marginTop: 6 }}>
+              <Ionicons name="time-outline" size={12} color={d.notServedAt && d.status !== 'completed' ? colors.danger : colors.muted2} />
+              <T size={font.xs} weight="700" color={d.notServedAt && d.status !== 'completed' ? colors.danger : colors.muted} style={{ marginLeft: 4 }}>
+                Demande du {fmtDT(d.createdAt)} · {ago(d.createdAt)}{d.notServedCount > 1 ? ` · ${d.notServedCount}e relance` : ''}
+              </T>
+            </View>
+
             {/* QUI demande, POUR QUI : le numéro à créditer est en grand */}
             <View style={s.whoRow}>
               <View style={{ flex: 1 }}>
@@ -215,7 +236,7 @@ export default function GerantDemandes() {
             {/* Ligne d'état (1 phrase) */}
             <View style={[s.stateLine, { backgroundColor: tone.bg }]}>
               <Ionicons name={line.icon} size={14} color={tone.color} />
-              <T size={font.xs} weight="700" color={tone.color} style={{ marginLeft: 6, flex: 1 }} numberOfLines={2}>{line.text}</T>
+              <T size={font.xs} weight="700" color={tone.color} style={{ marginLeft: 6, flex: 1 }} numberOfLines={line.tone === 'danger' ? 5 : 2}>{line.text}</T>
             </View>
 
             {/* Actions : ≤ 2 boutons petits + « ⋯ » */}

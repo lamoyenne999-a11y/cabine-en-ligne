@@ -1241,7 +1241,7 @@ export function clientNotServed({ id, clientId }) {
   const upd = findOne('demandes', (x) => x.id === id);
   if (upd && upd.gerantUserId) createNotification({
     userId: upd.gerantUserId, type: 'client_not_served', demandeId: upd.id,
-    text: `${upd.clientName} indique NE PAS avoir reçu ${TYPE_LABEL[upd.type] || upd.type} ${upd.amount} F (numéro ${upd.benefPhone || ''}). Vérifiez le numéro crédité, servez-le, puis appuyez à nouveau sur « J'ai servi le client ».`,
+    text: `${upd.clientName} indique NE PAS avoir reçu ${TYPE_LABEL[upd.type] || upd.type} ${upd.amount} F (numéro ${upd.benefPhone || ''}). Ce n'est PAS une nouvelle demande : c'est celle du ${new Date(upd.createdAt).toLocaleString('fr-FR', { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' })}. Vérifiez le numéro crédité, servez-le, puis appuyez à nouveau sur « J'ai servi le client ».`,
   });
   return upd;
 }
