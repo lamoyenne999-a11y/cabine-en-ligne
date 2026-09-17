@@ -1,7 +1,7 @@
 import { Router } from 'express';
 import { findOne, insert } from '../db.js';
 import { signToken, hashPassword, verifyPassword, requireAuth } from '../middleware/auth.js';
-import { suspendReasonText, subscriptionFor, applyReferral, referralInfoFor, recordEvent, registerPushToken, removePushToken, isPhoneBlocked } from '../services/flowService.js';
+import { sendWelcome, suspendReasonText, subscriptionFor, applyReferral, referralInfoFor, recordEvent, registerPushToken, removePushToken, isPhoneBlocked } from '../services/flowService.js';
 import { registerWebPushSubscription, removeWebPushSubscription } from '../services/pushService.js';
 import { rateLimit } from '../middleware/rateLimit.js';
 
@@ -34,6 +34,8 @@ router.post('/register', rateLimit({ name: 'register', windowMs: 10 * 60 * 1000,
 
     // Parrainage optionnel : code saisi à l'inscription.
     applyReferral(user, referrerCode);
+    // Message d'accueil (unique) : les 3 gestes essentiels.
+    try { sendWelcome(user); } catch {}
 
     // Journal : enregistre l'inscription (entrée) pour l'Espace propriétaire.
     recordEvent({ type: 'user_registered', name: user.name, phone: user.phone, role: user.role });

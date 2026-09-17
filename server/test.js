@@ -336,6 +336,67 @@ async function main() {
     check('Réactivation : plus suspendu, notifié', react.status === 200 && meR.json.user?.frozen === false && (await req('GET', '/client/notifications', null, ct)).json.notifications.some((n) => n.type === 'account_reactivated'));
   }
 
+  // ===== Bienvenue, alertes d'abonnement, messages du propriétaire =====
+  {
+    const A = { 'x-admin-key': 'testkey' };
+    const DAY = 86400000;
+    const ph = '0977' + uniq.slice(-6);
+    const r = await req('POST', '/auth/register', { role: 'client', name: 'Alerte', phone: ph, password: '123456' });
+    const tk = r.json.token;
+    const n0 = await req('GET', '/client/notifications', null, tk);
+    check('Message de bienvenue à l\'inscription', (n0.json.notifications || []).some((n) => n.type === 'welcome'));
+    const notifTypes = async () => ((await req('GET', '/client/notifications', null, tk)).json.notifications || []).map((n) => n.type);
+    // Essai se terminant dans 4 jours → J-5 envoyé une fois
+    await req('POST', '/admin/debug-set-subscription', { phone: ph, subscription: { status: 'trial', trialEndsAt: Date.now() + 4 * DAY, subscribedUntil: 0 } }, null, A);
+    await req('POST', '/admin/run-alerts', {}, null, A);
+    await req('POST', '/admin/run-alerts', {}, null, A);
+    let types = await notifTypes();
+    check('Alerte J-5 envoyée UNE seule fois malgré 2 passages', types.filter((x) => x === 'alert_expiring').length === 1);
+    // Puis J-1
+    await req('POST', '/admin/debug-set-subscription', { phone: ph, subscription: { trialEndsAt: Date.now() + 0.5 * DAY } }, null, A);
+    await req('POST', '/admin/run-alerts', {}, null, A);
+    types = await notifTypes();
+    check('Alerte J-1 envoyée (2 alertes « expiring » au total)', types.filter((x) => x === 'alert_expiring').length === 2);
+    // Expiré depuis 1 h
+    await req('POST', '/admin/debug-set-subscription', { phone: ph, subscription: { trialEndsAt: Date.now() - 3600000 } }, null, A);
+    await req('POST', '/admin/run-alerts', {}, null, A);
+    await req('POST', '/admin/run-alerts', {}, null, A);
+    types = await notifTypes();
+    check('Alerte « expiré » envoyée une seule fois', types.filter((x) => x === 'alert_expired').length === 1);
+    // Non rétroactif : un autre compte expiré depuis 10 jours ne reçoit rien
+    const ph2 = '0966' + uniq.slice(-6);
+    const r2 = await req('POST', '/auth/register', { role: 'gerant', name: 'Vieux', phone: ph2, password: '123456' });
+    await req('POST', '/admin/debug-set-subscription', { phone: ph2, subscription: { status: 'trial', trialEndsAt: Date.now() - 10 * DAY } }, null, A);
+    await req('POST', '/admin/run-alerts', {}, null, A);
+    const n2 = await req('GET', '/gerant/notifications', null, r2.json.token);
+    check('Pas d\'alerte rétroactive pour une expiration ancienne', !(n2.json.notifications || []).some((n) => n.type.startsWith('alert_')));
+    // Après confirmation d'un paiement, les drapeaux sont remis à zéro → nouvelle période, nouvelles alertes possibles
+    const dcl = await req('POST', '/client/subscribe', { plan: 'monthly' }, tk);
+    await req('POST', '/admin/confirm-payment', { id: dcl.json.payment.id }, null, A);
+    const subA = (await req('GET', '/client/subscription', null, tk)).json.subscription;
+    check('Reconduction : abonnement actif ~30 jours après confirmation', subA.status === 'active' && subA.daysLeft >= 29 && subA.daysLeft <= 31);
+    await req('POST', '/admin/debug-set-subscription', { phone: ph, subscription: { subscribedUntil: Date.now() + 4 * DAY } }, null, A);
+    await req('POST', '/admin/run-alerts', {}, null, A);
+    types = await notifTypes();
+    check('Nouvelle période → alerte J-5 à nouveau possible', types.filter((x) => x === 'alert_expiring').length === 3);
+    // Reconduction cumulée : payer alors qu'il reste 4 jours → ~34 jours
+    const dcl2 = await req('POST', '/client/subscribe', { plan: 'monthly' }, tk);
+    await req('POST', '/admin/confirm-payment', { id: dcl2.json.payment.id }, null, A);
+    const subB = (await req('GET', '/client/subscription', null, tk)).json.subscription;
+    check('Reconduction cumulée : les jours restants ne sont pas perdus (~34 j)', subB.daysLeft >= 33 && subB.daysLeft <= 35);
+    // Messages du propriétaire
+    const short = await req('POST', '/admin/announce', { kind: 'tip', audience: 'client', text: 'court' }, null, A);
+    check('Message trop court refusé (400)', short.status === 400);
+    const ann = await req('POST', '/admin/announce', { kind: 'tip', audience: 'client', title: 'Frais Wave', text: 'Ajoutez 1 % au montant pour couvrir les frais Wave.' }, null, A);
+    check('Astuce envoyée aux clients', ann.status === 201 && ann.json.announcement?.recipients >= 1);
+    types = await notifTypes();
+    check('Le client reçoit l\'astuce', types.includes('announce_tip'));
+    const ng = await req('GET', '/gerant/notifications', null, r2.json.token);
+    check('Un gérant ne reçoit PAS une astuce ciblée « clients »', !(ng.json.notifications || []).some((n) => n.type === 'announce_tip'));
+    const sum = await req('GET', '/admin/summary', null, null, A);
+    check('Historique des messages dans l\'Espace propriétaire', (sum.json.announcements || []).some((a) => a.id === ann.json.announcement.id));
+  }
+
   // ===== Gérant indisponible (pas un refus) =====
   const dmU2 = await req('POST', '/client/demandes', { gerantId, gerantName: 'Gérant Test', gerantWave: gphone, type: 'unites', amount: 300, benefName: 'Awa', benefPhone: '07' + uniq }, ct);
   const unavailId = dmU2.json.demande?.id;

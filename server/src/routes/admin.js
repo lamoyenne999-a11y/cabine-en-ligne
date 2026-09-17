@@ -1,7 +1,7 @@
 import express from 'express';
 import { hashPassword } from '../middleware/auth.js';
 import { config } from '../config.js';
-import { reportsForAdmin, resolveReport, openReportsCountFor, SUSPEND_REASONS, pendingSubscriptionPayments, confirmSubscriptionPayment, rejectSubscriptionPayment, setUserCertified, grantFreeTime, giftsForAdmin, subscriptionPayments, subscriptionTotals, subscriptionFor, referralSummary, referredUsersCount, referralPaymentCount, referralRateFor, deleteAccountAll, setUserFrozen, eventsForAdmin, eventsCounters, referralCodeStats, expiredUsers, reconcileExpiredEvents, isPhoneBlocked, blockUser, unblockUser, blockedList, unblockRequestsPending, resolveUnblockRequest } from '../services/flowService.js';
+import { runSubscriptionAlerts, sendAnnouncement, announcementsForAdmin, announcementAudience, reportsForAdmin, resolveReport, openReportsCountFor, SUSPEND_REASONS, pendingSubscriptionPayments, confirmSubscriptionPayment, rejectSubscriptionPayment, setUserCertified, grantFreeTime, giftsForAdmin, subscriptionPayments, subscriptionTotals, subscriptionFor, referralSummary, referredUsersCount, referralPaymentCount, referralRateFor, deleteAccountAll, setUserFrozen, eventsForAdmin, eventsCounters, referralCodeStats, expiredUsers, reconcileExpiredEvents, isPhoneBlocked, blockUser, unblockUser, blockedList, unblockRequestsPending, resolveUnblockRequest } from '../services/flowService.js';
 import { find, findOne, update, dbStats } from '../db.js';
 
 const router = express.Router();
@@ -46,6 +46,9 @@ router.get('/summary', requireAdmin, (req, res) => {
     dbStats: dbStats(),
     pendingPayments: pendingSubscriptionPayments(),
     reports: reportsForAdmin(),
+    announcements: announcementsForAdmin(),
+    audienceCounts: { all: announcementAudience('all').length, client: announcementAudience('client').length, gerant: announcementAudience('gerant').length },
+    pendingOld: pendingSubscriptionPayments().filter((p) => Date.now() - p.declaredAt > 24 * 3600 * 1000).length,
     suspendReasons: SUSPEND_REASONS,
     unblockRequests: unblockRequestsPending(),
     blocked: blockedList(),
@@ -140,6 +143,23 @@ router.post('/resolve-report', requireAdmin, (req, res) => {
   const out = resolveReport(String(req.body?.id || ''), String(req.body?.decision || 'resolve'));
   if (!out.ok) return res.status(400).json(out);
   res.json(out);
+});
+
+// Message du propriétaire (astuce / alerte / info) à une cible. Body : { kind, audience, title, text }.
+router.post('/announce', requireAdmin, (req, res) => {
+  const out = sendAnnouncement(req.body || {});
+  if (!out.ok) return res.status(400).json(out);
+  res.status(201).json(out);
+});
+// Lance immédiatement la vérification des alertes d'abonnement (sinon : toutes les heures).
+router.post('/run-alerts', requireAdmin, (req, res) => res.json({ sent: runSubscriptionAlerts() }));
+// Outil de TEST uniquement (désactivé en production) : force les dates d'abonnement d'un compte.
+router.post('/debug-set-subscription', requireAdmin, (req, res) => {
+  if (config.env === 'production') return res.status(404).json({ error: 'Route introuvable' });
+  const u = findOne('users', (x) => x.phone === String(req.body?.phone || '').trim());
+  if (!u) return res.status(404).json({ error: 'Utilisateur introuvable' });
+  const upd = update('users', (x) => x.id === u.id, { subscription: { ...(u.subscription || {}), ...(req.body?.subscription || {}) } });
+  res.json({ ok: true, subscription: upd.subscription });
 });
 
 // Offre du temps gratuit à un utilisateur. Body : { phone, days, note }.

@@ -41,6 +41,12 @@ export default function Admin({ onBack }) {
   const [suspendReason, setSuspendReason] = useState('other');
   const [suspendNote, setSuspendNote] = useState('');
   const [reportTarget, setReportTarget] = useState(null);   // {report, decision}
+  const [annKind, setAnnKind] = useState('tip');
+  const [annAudience, setAnnAudience] = useState('all');
+  const [annTitle, setAnnTitle] = useState('');
+  const [annText, setAnnText] = useState('');
+  const [annConfirm, setAnnConfirm] = useState(false);
+  const [annDone, setAnnDone] = useState('');
   const [deleteTarget, setDeleteTarget] = useState(null); // user
   const [blockTarget, setBlockTarget] = useState(null); // user à bloquer
   const [unblockTarget, setUnblockTarget] = useState(null); // user à débloquer
@@ -107,6 +113,9 @@ export default function Admin({ onBack }) {
   const pendingPayments = data?.pendingPayments || [];
   const reports = data?.reports || [];
   const openReports = reports.filter((r) => r.status === 'open');
+  const announcements = data?.announcements || [];
+  const audienceCounts = data?.audienceCounts || { all: 0, client: 0, gerant: 0 };
+  const pendingOld = data?.pendingOld || 0;
   const totals = data?.totals || {};
   const referral = data?.referral || { totalCommission: 0, count: 0, referrers: [] };
   const referralCodes = data?.referralCodes || { registeredWithCode: 0, registeredWithoutCode: 0, uniqueCodesUsed: 0, byCode: [] };
@@ -121,6 +130,7 @@ export default function Admin({ onBack }) {
 
   const EVENT_META = {
     user_registered: { label: 'Nouvel utilisateur', icon: 'person-add-outline', color: colors.primary, bg: colors.primarySoft },
+    announcement_sent: { label: 'Message envoyé aux utilisateurs', icon: 'megaphone-outline', color: colors.primary, bg: colors.primarySoft },
     report_created: { label: 'Signalement', icon: 'flag-outline', color: colors.danger, bg: colors.dangerBg },
     user_suspended: { label: 'Compte suspendu', icon: 'ban-outline', color: colors.danger, bg: colors.dangerBg },
     user_reactivated: { label: 'Compte réactivé', icon: 'checkmark-circle-outline', color: colors.success, bg: colors.successBg },
@@ -207,6 +217,19 @@ export default function Admin({ onBack }) {
     const msg = `Cabine En Ligne — votre nouveau mot de passe temporaire : ${pwdResult?.tempPassword}. Connectez-vous avec le numéro ${pwdResult?.phone}.`;
     if (typeof navigator !== 'undefined' && navigator.clipboard) navigator.clipboard.writeText(msg).catch(() => {});
     setPwdCopied(true); setTimeout(() => setPwdCopied(false), 1800);
+  };
+
+  // Envoi d'un message (astuce / alerte / info) aux utilisateurs.
+  const doAnnounce = async () => {
+    setAnnConfirm(false); setBusy('announce');
+    try {
+      const out = await api.admin.announce(key, { kind: annKind, audience: annAudience, title: annTitle, text: annText });
+      setAnnDone(`Message envoyé à ${out.announcement?.recipients || 0} utilisateur(s).`);
+      setAnnTitle(''); setAnnText('');
+      await reload();
+      setTimeout(() => setAnnDone(''), 5000);
+    } catch (e) { setErr(e?.message || 'Envoi impossible.'); }
+    finally { setBusy(null); }
   };
 
   // Validation manuelle d'un paiement d'abonnement déclaré.
@@ -366,6 +389,7 @@ export default function Admin({ onBack }) {
   const ADMIN_TABS = [
     { key: 'apercu', label: 'Aperçu', icon: 'grid-outline', filled: 'grid' },
     { key: 'utilisateurs', label: 'Utilisateurs', icon: 'people-outline', filled: 'people', badge: users.length },
+    { key: 'messages', label: 'Messages', icon: 'megaphone-outline', filled: 'megaphone', badge: 0 },
     { key: 'signalements', label: 'Signalements', icon: 'flag-outline', filled: 'flag', badge: openReports.length },
     { key: 'deblocages', label: 'Déblocages', icon: 'lock-open-outline', filled: 'lock-open', badge: unblockRequests.length },
     { key: 'activite', label: 'Activité', icon: 'pulse-outline', filled: 'pulse', badge: events.length },
@@ -649,6 +673,73 @@ export default function Admin({ onBack }) {
       )}
 
       {/* ===== Déblocages (demandes + numéros bloqués) ===== */}
+      {adminTab === 'messages' && (
+        <>
+          <T size={font.h3} weight="800" color={colors.text} style={{ marginBottom: 4 }}>Envoyer un message</T>
+          <T size={font.xs} weight="600" color={colors.muted} style={{ marginBottom: space.sm }}>
+            Arrive dans la cloche de chaque destinataire (+ notification téléphone). Astuce = conseil d'utilisation, nouveauté. Alerte = important, à lire. Info = neutre. Restez court et concret ; évitez plus d'un message par semaine.
+          </T>
+          <Card>
+            <T size={font.xs} weight="800" color={colors.muted}>TYPE</T>
+            <View style={{ flexDirection: 'row', marginTop: 6, marginBottom: 12 }}>
+              {[['tip', 'Astuce', 'bulb-outline'], ['alert', 'Alerte', 'megaphone-outline'], ['info', 'Info', 'information-circle-outline']].map(([v, l, ic]) => {
+                const on = annKind === v;
+                return (
+                  <Pressable key={v} onPress={() => setAnnKind(v)} style={[s.segBtn, on && s.segBtnOn]}>
+                    <Ionicons name={ic} size={14} color={on ? '#fff' : colors.primary} />
+                    <T size={font.xs} weight="800" color={on ? '#fff' : colors.primary} style={{ marginLeft: 4 }}>{l}</T>
+                  </Pressable>
+                );
+              })}
+            </View>
+            <T size={font.xs} weight="800" color={colors.muted}>DESTINATAIRES</T>
+            <View style={{ flexDirection: 'row', marginTop: 6, marginBottom: 12 }}>
+              {[['all', `Tous (${audienceCounts.all})`], ['client', `Clients (${audienceCounts.client})`], ['gerant', `Gérants (${audienceCounts.gerant})`]].map(([v, l]) => {
+                const on = annAudience === v;
+                return (
+                  <Pressable key={v} onPress={() => setAnnAudience(v)} style={[s.segBtn, on && s.segBtnOn]}>
+                    <T size={font.xs} weight="800" color={on ? '#fff' : colors.primary}>{l}</T>
+                  </Pressable>
+                );
+              })}
+            </View>
+            <TextInput value={annTitle} onChangeText={setAnnTitle} placeholder="Titre court (facultatif, 60 car. max)" placeholderTextColor={colors.muted2} maxLength={60} style={s.noteInput} />
+            <TextInput value={annText} onChangeText={setAnnText} placeholder="Message (10 à 400 caractères). Ex : Astuce — ajoutez 1 % au montant pour couvrir les frais Wave, le gérant reçoit ainsi le montant exact." placeholderTextColor={colors.muted2} maxLength={400} multiline style={[s.noteInput, { minHeight: 90, textAlignVertical: 'top' }]} />
+            <T size={font.xs} weight="600" color={colors.muted2} style={{ textAlign: 'right', marginTop: 4 }}>{annText.length}/400</T>
+            {annDone ? <T size={font.sm} weight="800" color={colors.success} style={{ textAlign: 'center', marginTop: 6 }}>{annDone}</T> : null}
+            <Btn title="Envoyer" icon="send" size="sm" disabled={annText.trim().length < 10} loading={busy === 'announce'} onPress={() => setAnnConfirm(true)} style={{ marginTop: 10 }} />
+          </Card>
+
+          <T size={font.h3} weight="800" color={colors.text} style={{ marginTop: space.lg, marginBottom: 4 }}>Alertes automatiques</T>
+          <Card>
+            <T size={font.sm} weight="600" color={colors.muted}>
+              L'app prévient automatiquement chaque utilisateur à J-5 et J-1 de la fin de son essai ou abonnement, puis le jour de l'expiration (une seule fois par période, vérification toutes les heures). Rien à faire de votre côté.
+            </T>
+            {pendingOld > 0 ? (
+              <View style={[s.msgBox, { backgroundColor: colors.warnBg, marginTop: 10 }]}>
+                <T size={font.sm} weight="800" color={colors.warn}>⚠ {pendingOld} paiement(s) d'abonnement attendent votre vérification depuis plus de 24 h (onglet Paiements).</T>
+              </View>
+            ) : null}
+            <Btn title="Vérifier les alertes maintenant" icon="refresh" outline size="sm" loading={busy === 'alerts'} onPress={async () => { setBusy('alerts'); try { const o = await api.admin.runAlerts(key); setAnnDone(`${o.sent || 0} alerte(s) envoyée(s).`); setTimeout(() => setAnnDone(''), 4000); } catch (e) { setErr(e?.message || 'Erreur.'); } finally { setBusy(null); } }} style={{ marginTop: 10 }} />
+          </Card>
+
+          <T size={font.h3} weight="800" color={colors.text} style={{ marginTop: space.lg, marginBottom: space.sm }}>Messages envoyés</T>
+          {announcements.length === 0 ? (
+            <Card style={{ alignItems: 'center', paddingVertical: 18 }}><T size={font.sm} weight="600" color={colors.muted}>Aucun message envoyé pour le moment.</T></Card>
+          ) : announcements.map((a) => (
+            <Card key={a.id} style={{ marginBottom: space.sm }}>
+              <View style={{ flexDirection: 'row', alignItems: 'center' }}>
+                <Ionicons name={a.kind === 'tip' ? 'bulb-outline' : a.kind === 'alert' ? 'megaphone-outline' : 'information-circle-outline'} size={16} color={a.kind === 'alert' ? colors.danger : colors.primary} />
+                <T size={font.xs} weight="800" color={colors.muted} style={{ marginLeft: 6, flex: 1 }}>{a.kind === 'tip' ? 'ASTUCE' : a.kind === 'alert' ? 'ALERTE' : 'INFO'} · {a.audience === 'all' ? 'Tous' : a.audience === 'client' ? 'Clients' : 'Gérants'} · {a.recipients} destinataire(s)</T>
+                <T size={font.xs} weight="600" color={colors.muted2}>{fmtDate(a.createdAt)}</T>
+              </View>
+              {a.title ? <T size={font.body} weight="800" color={colors.text} style={{ marginTop: 6 }}>{a.title}</T> : null}
+              <T size={font.sm} weight="600" color={colors.text} style={{ marginTop: 4 }}>{a.text}</T>
+            </Card>
+          ))}
+        </>
+      )}
+
       {adminTab === 'signalements' && (
         <>
           <T size={font.h3} weight="800" color={colors.text} style={{ marginBottom: 4 }}>Signalements ({openReports.length} à traiter)</T>
@@ -976,6 +1067,19 @@ export default function Admin({ onBack }) {
         <DialogButtons cancel="Annuler" confirm={`Offrir ${giftCustom ? giftCustom + ' j' : ({ 7: '1 sem.', 14: '2 sem.', 30: '1 mois', 60: '2 mois', 90: '3 mois', 180: '6 mois' }[giftDays] || giftDays + ' j')}`} onCancel={() => setGiftTarget(null)} onConfirm={doGift} />
       </Dialog>
 
+      {/* Confirmation d'envoi de message */}
+      <Dialog visible={annConfirm}>
+        <T size={font.h3} weight="800" color={colors.text} style={{ textAlign: 'center' }}>Envoyer ce message ?</T>
+        <T size={font.sm} weight="600" color={colors.muted} style={{ textAlign: 'center', marginTop: 6 }}>
+          {annKind === 'tip' ? 'Astuce' : annKind === 'alert' ? 'Alerte' : 'Info'} → {annAudience === 'all' ? `tous les utilisateurs (${audienceCounts.all})` : annAudience === 'client' ? `les clients (${audienceCounts.client})` : `les gérants (${audienceCounts.gerant})`}. Chacun recevra une notification. Cet envoi ne peut pas être annulé.
+        </T>
+        <View style={[s.msgBox, { marginTop: 10 }]}>
+          {annTitle ? <T size={font.sm} weight="800" color={colors.text}>{annTitle}</T> : null}
+          <T size={font.sm} weight="600" color={colors.text}>{annText}</T>
+        </View>
+        <DialogButtons cancel="Relire" confirm="Envoyer maintenant" onCancel={() => setAnnConfirm(false)} onConfirm={doAnnounce} />
+      </Dialog>
+
       {/* Clôture d'un signalement */}
       <Dialog visible={!!reportTarget}>
         <T size={font.h3} weight="800" color={colors.text} style={{ textAlign: 'center' }}>Clôturer ce signalement</T>
@@ -1155,6 +1259,8 @@ const s = StyleSheet.create({
   uLine: { flexDirection: 'row', alignItems: 'center' },
   uIconSm: { width: 32, height: 32, borderRadius: 16, backgroundColor: colors.primarySoft, alignItems: 'center', justifyContent: 'center' },
   uActions: { marginTop: 12, paddingTop: 12, borderTopWidth: 1, borderTopColor: colors.border },
+  segBtn: { flex: 1, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', paddingVertical: 8, borderRadius: radius.pill, borderWidth: 1.4, borderColor: colors.primary, marginRight: 6 },
+  segBtnOn: { backgroundColor: colors.primary },
   reasonRow: { flexDirection: 'row', alignItems: 'center', paddingVertical: 8, paddingHorizontal: 8, borderRadius: radius.md },
   reasonRowOn: { backgroundColor: colors.primarySoft },
   noteInput: { marginTop: 6, borderWidth: 1.4, borderColor: colors.border, borderRadius: radius.md, padding: 10, fontSize: font.sm, color: colors.text, backgroundColor: colors.bg },

@@ -138,7 +138,7 @@ export function confirmSubscriptionPayment(paymentId) {
   const s = user.subscription || {};
   const prev = s.subscribedUntil > now ? s.subscribedUntil : now;
   const validUntil = prev + conf.ms;
-  const fresh = { status: 'active', plan: p.plan, price: conf.price, trialEndsAt: s.trialEndsAt || now + MONTH_MS, subscribedUntil: validUntil, expiryNotified: false };
+  const fresh = { status: 'active', plan: p.plan, price: conf.price, trialEndsAt: s.trialEndsAt || now + MONTH_MS, subscribedUntil: validUntil, expiryNotified: false, alerts: null };
   update('users', (u) => u.id === user.id, { subscription: fresh });
   const payment = update('subscriptions', (x) => x.id === p.id, { status: 'confirmed', paidAt: now, validUntil, confirmedAt: now });
   const referralCommission = recordReferralCommission(user, payment);
@@ -493,9 +493,9 @@ export function grantFreeTime(phone, days, note = '') {
   const cur = subscriptionFor(u);
   const s = u.subscription || {};
   let patch;
-  if (cur.status === 'active') patch = { ...s, subscribedUntil: (s.subscribedUntil || now) + add, expiryNotified: false };
-  else if (cur.status === 'trial') patch = { ...s, status: 'trial', trialEndsAt: (s.trialEndsAt || now) + add, expiryNotified: false };
-  else patch = { ...s, status: 'trial', trialEndsAt: now + add, subscribedUntil: 0, expiryNotified: false };
+  if (cur.status === 'active') patch = { ...s, subscribedUntil: (s.subscribedUntil || now) + add, expiryNotified: false, alerts: null };
+  else if (cur.status === 'trial') patch = { ...s, status: 'trial', trialEndsAt: (s.trialEndsAt || now) + add, expiryNotified: false, alerts: null };
+  else patch = { ...s, status: 'trial', trialEndsAt: now + add, subscribedUntil: 0, expiryNotified: false, alerts: null };
   update('users', (x) => x.id === u.id, { subscription: patch, lastGift: { days: n, at: now, note } });
   insert('gifts', { userId: u.id, phone: u.phone, name: u.name, role: u.role, days: n, note, createdAt: now });
   recordEvent({ type: 'free_time_granted', name: u.name, phone: u.phone, role: u.role, amount: n });
@@ -623,7 +623,7 @@ export function eventsForAdmin(limit = 100) {
 export function eventsCounters() {
   const rows = find('events', () => true);
   const c = { total: rows.length };
-  for (const type of ['user_registered', 'user_deleted', 'subscription_declared', 'subscription_paid', 'user_suspended', 'user_reactivated', 'report_created', 'subscription_expired', 'user_blocked', 'user_unblocked', 'unblock_request', 'free_time_granted', 'gerant_certified']) {
+  for (const type of ['user_registered', 'user_deleted', 'subscription_declared', 'subscription_paid', 'user_suspended', 'user_reactivated', 'report_created', 'announcement_sent', 'subscription_expired', 'user_blocked', 'user_unblocked', 'unblock_request', 'free_time_granted', 'gerant_certified']) {
     c[type] = rows.filter((r) => r.type === type).length;
   }
   return c;
@@ -1264,4 +1264,103 @@ export function markCompleted({ id, gerantUserId }) {
     });
   }
   return upd;
+}
+
+// ------------------------------------------------------------------
+//  ALERTES D'ABONNEMENT (automatiques, prudentes, idempotentes)
+//  - J-5 et J-1 avant la fin de l'essai ou de l'abonnement, puis le jour de
+//    l'expiration. Chaque alerte est envoyée UNE seule fois par période
+//    (drapeaux dans user.subscription.alerts, remis à zéro à chaque
+//    prolongation : confirmation de paiement, cadeau).
+//  - Jamais rétroactif : au 1er déploiement, une échéance dépassée depuis plus
+//    de 2 jours est simplement marquée comme déjà traitée (aucune notification).
+// ------------------------------------------------------------------
+const DAY_MS = 86400000;
+function subscriptionDeadline(u) {
+  const s = u.subscription || {};
+  if (s.status === 'active' && s.subscribedUntil > 0) return { at: s.subscribedUntil, kind: 'active' };
+  if ((s.status === 'trial' || !s.status) && s.trialEndsAt > 0) return { at: s.trialEndsAt, kind: 'trial' };
+  return null;
+}
+function alertTexts(u, kind, stage, at) {
+  const plans = plansFor(u.role);
+  const offer = u.role === 'gerant' ? '200 F/mois ou 2000 F/an' : '100 F/mois ou 1000 F/an';
+  const date = new Date(at).toLocaleDateString('fr-FR', { day: 'numeric', month: 'long' });
+  const what = kind === 'trial' ? 'Votre essai gratuit' : `Votre abonnement ${plans[(u.subscription || {}).plan]?.label || ''}`.trim();
+  const consequence = u.role === 'gerant' ? 'vous ne recevrez plus de demandes' : 'vous ne pourrez plus envoyer de demandes';
+  if (stage === 'd5') return `${what} se termine le ${date} (dans 5 jours). Pour continuer sans interruption, abonnez-vous depuis votre Profil (${offer}). Paiement Wave, activation après vérification.`;
+  if (stage === 'd1') return `${what} se termine demain (${date}). Après cette date, ${consequence}. Abonnez-vous dès maintenant depuis votre Profil (${offer}).`;
+  return `${what} a expiré : ${consequence}. Réabonnez-vous en 1 minute depuis votre Profil (${offer}) — votre historique et vos contacts sont conservés.`;
+}
+export function sendWelcome(user) {
+  const text = user.role === 'gerant'
+    ? `Bienvenue sur Cabine En Ligne, ${user.name} ! 3 gestes essentiels : 1) Vérifiez votre numéro Wave dans Profil (c'est là que les clients paient). 2) Restez « En ligne » pour recevoir des demandes. 3) Sur chaque demande : Accepter ou « Payer d'abord », puis « Argent reçu » quand Wave confirme. Votre essai gratuit dure 30 jours.`
+    : `Bienvenue sur Cabine En Ligne, ${user.name} ! Rechargez à distance en 3 gestes : 1) Choisissez un gérant (les « En ligne » répondent vite). 2) Payez le montant + 1 % de frais sur son Wave. 3) Appuyez sur « J'ai payé » : il vous crédite. Votre essai gratuit dure 30 jours.`;
+  return createNotification({ userId: user.id, type: 'welcome', text });
+}
+export function runSubscriptionAlerts(now = Date.now()) {
+  let sent = 0;
+  for (const u of find('users', () => true)) {
+    if (!u.passwordHash) continue;                    // comptes fantômes
+    const dl = subscriptionDeadline(u);
+    if (!dl) continue;
+    const s = { ...(u.subscription || {}) };
+    const key = `${dl.kind}:${dl.at}`;                // période courante
+    let alerts = s.alerts && s.alerts.key === key ? { ...s.alerts } : { key };
+    const left = dl.at - now;
+    const stages = [
+      ['d5', left <= 5 * DAY_MS && left > 1 * DAY_MS],
+      ['d1', left <= 1 * DAY_MS && left > 0],
+      ['expired', left <= 0],
+    ];
+    let changed = false;
+    for (const [stage, due] of stages) {
+      if (alerts[stage]) continue;
+      // Échéance trop ancienne (ex. 1er déploiement) : on marque sans notifier.
+      const stale = stage === 'expired' ? left < -2 * DAY_MS : left <= 0;
+      if (due && !stale) {
+        createNotification({ userId: u.id, type: stage === 'expired' ? 'alert_expired' : 'alert_expiring', text: alertTexts(u, dl.kind, stage, dl.at) });
+        alerts[stage] = now; changed = true; sent++;
+      } else if (stale) { alerts[stage] = -1; changed = true; }
+      // Une étape « due » englobe les précédentes : si on est à J-1, J-5 est réputé passé.
+      if (stage === 'd5' && left <= 1 * DAY_MS && !alerts.d5) { alerts.d5 = -1; changed = true; }
+    }
+    if (changed) update('users', (x) => x.id === u.id, { subscription: { ...s, alerts } });
+  }
+  return sent;
+}
+// Démarrage du planificateur (appelé une fois par app.js). Toutes les heures.
+let alertsTimer = null;
+export function startAlertScheduler() {
+  if (alertsTimer) return;
+  const tick = () => { try { runSubscriptionAlerts(); reconcileExpiredEvents(); } catch (e) { console.error('[alerts]', e.message); } };
+  setTimeout(tick, 20 * 1000);                        // 20 s après le démarrage
+  alertsTimer = setInterval(tick, 60 * 60 * 1000);
+  alertsTimer.unref && alertsTimer.unref();
+}
+
+// ------------------------------------------------------------------
+//  MESSAGES DU PROPRIÉTAIRE (astuces / alertes / infos) — 100 % manuels.
+//  Le propriétaire rédige, choisit la cible, confirme. Chaque destinataire
+//  reçoit une notification (+ push). L'envoi est journalisé.
+// ------------------------------------------------------------------
+export const ANNOUNCE_KINDS = { tip: 'Astuce', alert: 'Alerte', info: 'Information' };
+export function announcementAudience(audience) {
+  return find('users', (u) => u.passwordHash && (audience === 'all' || u.role === audience));
+}
+export function sendAnnouncement({ kind = 'tip', audience = 'all', title = '', text = '' }) {
+  const k = ANNOUNCE_KINDS[kind] ? kind : 'info';
+  const aud = ['all', 'client', 'gerant'].includes(audience) ? audience : 'all';
+  const t = String(title || '').trim().slice(0, 60);
+  const body = String(text || '').trim().slice(0, 400);
+  if (body.length < 10) return { ok: false, error: 'Message trop court (10 caractères minimum).' };
+  const targets = announcementAudience(aud);
+  const full = t ? `${t} — ${body}` : body;
+  for (const u of targets) createNotification({ userId: u.id, type: `announce_${k}`, text: full });
+  const a = insert('announcements', { kind: k, audience: aud, title: t, text: body, recipients: targets.length, createdAt: Date.now() });
+  recordEvent({ type: 'announcement_sent', name: ANNOUNCE_KINDS[k], phone: '', role: aud, recipients: targets.length });
+  return { ok: true, announcement: a };
+}
+export function announcementsForAdmin() {
+  return find('announcements', () => true).sort((a, b) => b.createdAt - a.createdAt).slice(0, 50);
 }

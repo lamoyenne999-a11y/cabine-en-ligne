@@ -22,7 +22,7 @@ const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
 const DATA_FILE = process.env.DB_FILE || path.join(__dirname, '..', 'data', 'db.json');
 const DATABASE_URL = process.env.DATABASE_URL || '';
-const COLLECTIONS = ['users', 'gerants', 'demandes', 'notifications', 'subscriptions', 'referrals', 'events', 'gifts', 'push_tokens', 'push_subscriptions', 'blocked', 'unblock_requests', 'reports'];
+const COLLECTIONS = ['users', 'gerants', 'demandes', 'notifications', 'subscriptions', 'referrals', 'events', 'gifts', 'push_tokens', 'push_subscriptions', 'blocked', 'unblock_requests', 'reports', 'announcements'];
 
 const now = Date.now();
 const seed = () => ({
@@ -60,6 +60,8 @@ const seed = () => ({
   // Signalements entre utilisateurs (client → gérant, gérant → client), rattachés
   // à une demande. Le propriétaire les traite (suspension éventuelle) puis les clôture.
   reports: [],
+  // Messages envoyés par le propriétaire (astuces / alertes / infos).
+  announcements: [],
 });
 
 // S'assure que toutes les collections existent (utile pour une base Postgres
