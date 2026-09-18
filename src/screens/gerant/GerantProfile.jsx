@@ -9,6 +9,7 @@ import PushSettings from '../../components/PushSettings';
 import ChangePassword from '../../components/ChangePassword';
 import GerantStats from '../../components/GerantStats';
 import { useStore } from '../../store';
+import QrToggle from '../../components/QrToggle';
 import { buildShareUrl } from '../../config';
 import Help from '../Help';
 import Referral from '../Referral';
@@ -154,6 +155,7 @@ export default function GerantProfile({ onLogout }) {
           <Pressable onPress={copy} style={s.copyBtn}><Ionicons name={copied ? 'checkmark' : 'copy-outline'} size={16} color="#fff" /></Pressable>
         </View>
         {copied && <T size={font.xs} weight="600" color={colors.success} style={{ marginTop: 6 }}>Lien copié !</T>}
+        <QrToggle value={shareUrl} title={u?.name} subtitle="Scannez pour me recharger à distance" hint="Affichez-le à votre cabine : le client le scanne avec son appareil photo, vous êtes ajouté à ses gérants et il peut vous envoyer des demandes." />
       </Card>
 
       <Card style={{ marginTop: space.lg }}>

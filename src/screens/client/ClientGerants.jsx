@@ -6,6 +6,7 @@ import { T, Btn, Card, Field } from '../../components/ui';
 import { Header } from '../../components/Shell';
 import { BottomSheet } from '../../components/modals';
 import { useStore } from '../../store';
+import QrToggle from '../../components/QrToggle';
 import { RatingBadge } from '../../components/Rating';
 import { buildShareUrl } from '../../config';
 
@@ -81,6 +82,7 @@ export default function ClientGerants() {
             </Pressable>
           </View>
           {copied && <T size={font.xs} weight="600" color={colors.success} style={{ marginTop: 6 }}>Lien copié !</T>}
+          <QrToggle value={shareUrl} subtitle="Scannez pour me retrouver sur Cabine En Ligne" />
         </Card>
 
         {/* Recherche parmi mes gérants */}
