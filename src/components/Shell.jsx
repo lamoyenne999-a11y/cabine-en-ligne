@@ -54,7 +54,7 @@ export function Page({ title, subtitle, onBack, right, children, noPad, contentS
 // ---------------------------------------------------------------
 export function TabBar({ tabs, active, onChange }) {
   return (
-    <View style={s.tabbarWrap}>
+    <View style={s.tabbarWrap} dataSet={{ tabbar: 'true' }}>
       <View style={s.tabbar}>
         {tabs.map((t) => {
           const on = t.key === active;

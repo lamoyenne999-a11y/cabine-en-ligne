@@ -56,6 +56,10 @@ if (fs.existsSync(index)) {
         font-size: 16px; /* évite le zoom automatique iOS au focus */
       }
       html, body, #root { -webkit-tap-highlight-color: transparent; }
+      /* App installée : la barre d'onglets descend de la hauteur de la barre d'accueil (~0,6 cm). */
+      @media (display-mode: standalone) {
+        [data-tabbar] { bottom: -38px !important; padding-bottom: 10px !important; }
+      }
     </style>`;
 
   // Insert after </head>

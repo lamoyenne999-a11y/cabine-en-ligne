@@ -69,7 +69,7 @@ function matches(d, q) {
   const hay = [
     TYPE_LABEL[d.type] || 'Demande',
     STATUS[d.status]?.label || '',
-    d.gerantName, d.benefName, d.benefPhone,
+    d.gerantName, d.gerantPhone, d.benefName, d.benefPhone,
     when(d.createdAt), money(d.amount), d.id,
   ].map(norm).join(' ');
   return hay.includes(nq);
@@ -202,7 +202,12 @@ export default function ClientHistory() {
                   <T size={font.xs} weight="600" color={colors.muted2} style={{ marginLeft: 8 }}>{when(d.createdAt)}</T>
                 </View>
                 <T size={font.xs} weight="600" color={colors.muted} style={{ marginTop: 2 }}>
-                  {d.gerantName || 'Gérant'} · pour {d.benefName === d.benefPhone ? d.benefPhone : d.benefName}
+                  {d.gerantName || 'Gérant'}{d.gerantPhone ? ` · ${d.gerantPhone}` : ''}
+                </T>
+                <T size={font.xs} weight="600" color={colors.muted} style={{ marginTop: 1 }}>
+                  Pour : {d.benefPhone && d.benefPhone !== d.clientPhone
+                    ? `${d.benefName && d.benefName !== d.benefPhone ? d.benefName + ' · ' : ''}${d.benefPhone}`
+                    : `moi${d.benefPhone ? ' · ' + d.benefPhone : ''}`}
                 </T>
               </View>
               <View style={{ alignItems: 'flex-end' }}>

@@ -43,7 +43,7 @@ function matches(d, q) {
   const hay = [
     TYPE_LABEL[d.type] || 'Demande',
     STATUS[d.status]?.label || '',
-    d.clientName, d.benefName, d.benefPhone,
+    d.clientName, d.clientPhone, d.benefName, d.benefPhone,
     when(d.createdAt), money(d.amount), d.id,
   ].map(norm).join(' ');
   return hay.includes(nq);
@@ -163,7 +163,12 @@ export default function GerantHistory() {
                   <T size={font.xs} weight="600" color={colors.muted2} style={{ marginLeft: 8 }}>{when(d.createdAt)}</T>
                 </View>
                 <T size={font.xs} weight="600" color={colors.muted} style={{ marginTop: 2 }}>
-                  Client : {d.clientName}{d.clientPhone && d.clientPhone !== d.benefPhone ? ` (${d.clientPhone})` : ''} · pour {d.benefName === d.benefPhone ? d.benefPhone : d.benefName}
+                  Client : {d.clientName}{d.clientPhone ? ` · ${d.clientPhone}` : ''}
+                </T>
+                <T size={font.xs} weight="600" color={colors.muted} style={{ marginTop: 1 }}>
+                  Pour : {d.benefPhone && d.benefPhone !== d.clientPhone
+                    ? `${d.benefName && d.benefName !== d.benefPhone ? d.benefName + ' · ' : ''}${d.benefPhone}`
+                    : `lui-même${d.benefPhone ? ' · ' + d.benefPhone : ''}`}
                 </T>
               </View>
               <View style={{ alignItems: 'flex-end' }}>
