@@ -8,7 +8,7 @@ import { api } from '../api';
 
 // ============================================================
 //  « Changer mon mot de passe » (Profil client et gérant).
-//  Ancien mot de passe exigé, nouveau ≥ 6 caractères, confirmation.
+//  Ancien mot de passe exigé, nouveau ≥ 4 caractères, confirmation.
 // ============================================================
 export default function ChangePassword() {
   const [open, setOpen] = useState(false);
@@ -22,8 +22,8 @@ export default function ChangePassword() {
 
   const reset = () => { setCur(''); setNw(''); setNw2(''); setErr(''); setDone(false); setShow(false); };
   const close = () => { setOpen(false); reset(); };
-  const canSend = cur.length > 0 && nw.length >= 6 && nw === nw2 && !busy;
-  const hint = nw.length > 0 && nw.length < 6 ? '6 caractères minimum.' : nw2.length > 0 && nw !== nw2 ? 'Les deux mots de passe ne correspondent pas.' : '';
+  const canSend = cur.length > 0 && nw.length >= 4 && nw === nw2 && !busy;
+  const hint = nw.length > 0 && nw.length < 4 ? '4 caractères minimum.' : nw2.length > 0 && nw !== nw2 ? 'Les deux mots de passe ne correspondent pas.' : '';
 
   const submit = async () => {
     setBusy(true); setErr('');
@@ -55,7 +55,7 @@ export default function ChangePassword() {
           <>
             <T size={font.h3} weight="800" color={colors.text} style={{ textAlign: 'center' }}>Changer mon mot de passe</T>
             {field(cur, setCur, 'Mot de passe actuel')}
-            {field(nw, setNw, 'Nouveau mot de passe (6 car. min.)')}
+            {field(nw, setNw, 'Nouveau mot de passe (4 car. min.)')}
             {field(nw2, setNw2, 'Confirmez le nouveau mot de passe')}
             <Pressable onPress={() => setShow((v) => !v)} style={{ flexDirection: 'row', alignItems: 'center', marginTop: 8 }} hitSlop={8}>
               <Ionicons name={show ? 'eye-off-outline' : 'eye-outline'} size={16} color={colors.primary} />

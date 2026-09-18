@@ -260,8 +260,8 @@ async function main() {
     const other = await req('POST', '/auth/login', { phone: '07' + uniq, password: '123456', role: 'client' });
     check('Un autre numéro peut toujours se connecter', other.status === 200);
   }
-  const weakPwd = await req('POST', '/auth/register', { role: 'client', name: 'Faible', phone: '0199' + uniq.slice(-6), password: '1234' });
-  check('Inscription refusée si mot de passe < 6 caractères', weakPwd.status === 400);
+  const weakPwd = await req('POST', '/auth/register', { role: 'client', name: 'Faible', phone: '0199' + uniq.slice(-6), password: '123' });
+  check('Inscription refusée si mot de passe < 4 caractères', weakPwd.status === 400);
 
   // ===== Admin : réinitialisation de mot de passe =====
   const rst = await req('POST', '/admin/reset-password', { phone: '07' + uniq }, null, { 'x-admin-key': 'testkey' });

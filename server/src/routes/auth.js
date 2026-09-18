@@ -13,7 +13,7 @@ router.post('/register', rateLimit({ name: 'register', windowMs: 10 * 60 * 1000,
     const { role, name, phone, email, password, referrerCode } = req.body || {};
     if (role !== 'client' && role !== 'gerant') return res.status(400).json({ error: 'Rôle invalide' });
     if (!name?.trim() || !phone?.trim()) return res.status(400).json({ error: 'Nom et numéro requis' });
-    if (!password || password.length < 6) return res.status(400).json({ error: 'Mot de passe trop court (min. 6 caractères)' });
+    if (!password || password.length < 4) return res.status(400).json({ error: 'Mot de passe trop court (min. 4 caractères)' });
     if (password.length > 128) return res.status(400).json({ error: 'Mot de passe trop long' });
     if (name.trim().length > 60) return res.status(400).json({ error: 'Nom trop long (max. 60)' });
     if (!/^[0-9+ ]{8,20}$/.test(phone.trim())) return res.status(400).json({ error: 'Numéro de téléphone invalide' });
@@ -83,7 +83,7 @@ router.post('/change-password', requireAuth, (req, res, next) => chpwdLimit(req,
   try {
     const cur = String(req.body?.currentPassword || '');
     const nw = String(req.body?.newPassword || '');
-    if (nw.length < 6 || nw.length > 128) return res.status(400).json({ error: 'Le nouveau mot de passe doit faire entre 6 et 128 caractères.' });
+    if (nw.length < 4 || nw.length > 128) return res.status(400).json({ error: 'Le nouveau mot de passe doit faire entre 4 et 128 caractères.' });
     if (nw === cur) return res.status(400).json({ error: 'Le nouveau mot de passe doit être différent de l\'ancien.' });
     const user = findOne('users', (u) => u.id === req.user.id);
     if (!user) return res.status(404).json({ error: 'Compte introuvable' });
