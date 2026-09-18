@@ -58,7 +58,7 @@ if (fs.existsSync(index)) {
       html, body, #root { -webkit-tap-highlight-color: transparent; }
       /* App installée : la barre d'onglets descend de la hauteur de la barre d'accueil (~0,6 cm). */
       @media (display-mode: standalone) {
-        [data-tabbar] { bottom: -38px !important; padding-bottom: 10px !important; }
+        [data-tabbar] { bottom: 0 !important; padding-bottom: 4px !important; }
       }
     </style>`;
 
