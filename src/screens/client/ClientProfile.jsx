@@ -96,7 +96,7 @@ export default function ClientProfile({ onLogout }) {
           <Pressable onPress={copy} style={s.copyBtn}><Ionicons name={copied ? 'checkmark' : 'copy-outline'} size={16} color="#fff" /></Pressable>
         </View>
         {copied && <T size={font.xs} weight="600" color={colors.success} style={{ marginTop: 6 }}>Lien copié !</T>}
-        <QrToggle value={shareUrl} subtitle="Scannez pour me retrouver sur Cabine En Ligne" />
+        <QrToggle value={shareUrl} title={u?.name} role="Client" />
       </Card>
 
       <Card style={{ marginTop: space.lg }}>

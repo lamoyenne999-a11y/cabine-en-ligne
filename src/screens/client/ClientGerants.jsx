@@ -82,7 +82,7 @@ export default function ClientGerants() {
             </Pressable>
           </View>
           {copied && <T size={font.xs} weight="600" color={colors.success} style={{ marginTop: 6 }}>Lien copié !</T>}
-          <QrToggle value={shareUrl} subtitle="Scannez pour me retrouver sur Cabine En Ligne" />
+          <QrToggle value={shareUrl} title={state.user?.name} role="Client" />
         </Card>
 
         {/* Recherche parmi mes gérants */}
