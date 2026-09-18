@@ -65,7 +65,7 @@ export function TabBar({ tabs, active, onChange }) {
                 size={24}
                 color={on ? colors.primary : colors.muted2}
               />
-              <T size={10} weight={on ? '800' : '600'} color={on ? colors.primary : colors.muted2} numberOfLines={1} style={{ marginTop: 2 }}>
+              <T size={11} weight={on ? '800' : '700'} color={on ? colors.primary : colors.muted} numberOfLines={1} style={{ marginTop: 3 }}>
                 {t.label}
               </T>
             </Pressable>
