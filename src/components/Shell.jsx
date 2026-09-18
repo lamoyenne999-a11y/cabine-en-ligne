@@ -11,7 +11,7 @@ import { T } from './ui';
 // ---------------------------------------------------------------
 export function Header({ title, subtitle, onBack, right, noPad }) {
   return (
-    <View style={[s.header, noPad && { paddingTop: Platform.OS === 'web' ? 'calc(18px + env(safe-area-inset-top, 0px))' : 18 }]}>
+    <View style={[s.header, noPad && { paddingTop: Platform.OS === 'web' ? 'max(18px, calc(env(safe-area-inset-top, 0px) - 6px))' : 18 }]}>
       <View style={s.topRow}>
         <View style={s.side}>
           {onBack ? (
@@ -81,7 +81,7 @@ const s = StyleSheet.create({
     backgroundColor: colors.primary,
     borderBottomLeftRadius: 30,
     borderBottomRightRadius: 30,
-    paddingTop: Platform.OS === 'web' ? 'calc(20px + env(safe-area-inset-top, 0px))' : 46,
+    paddingTop: Platform.OS === 'web' ? 'max(20px, calc(env(safe-area-inset-top, 0px) - 4px))' : 46,
     paddingBottom: 20,
     paddingHorizontal: 16,
     shadowColor: colors.primaryDeep,
@@ -114,7 +114,7 @@ const s = StyleSheet.create({
     backgroundColor: colors.card,
     borderTopWidth: 1,
     borderTopColor: colors.border,
-    paddingBottom: Platform.OS === 'web' ? 'calc(10px + env(safe-area-inset-bottom, 0px))' : 22,
+    paddingBottom: Platform.OS === 'web' ? 'max(10px, calc(env(safe-area-inset-bottom, 0px) - 26px))' : 22,
     paddingTop: 8,
     shadowColor: '#000',
     shadowOffset: { width: 0, height: -4 },
