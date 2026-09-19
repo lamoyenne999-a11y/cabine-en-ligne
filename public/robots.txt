@@ -1,0 +1,7 @@
+User-agent: *
+Allow: /
+Disallow: /api/
+Disallow: /*?u=
+Disallow: /*?ref=
+
+Sitemap: https://cabineenligne.com/sitemap.xml

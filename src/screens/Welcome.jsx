@@ -104,6 +104,17 @@ export default function Welcome({ onSelect, onAdmin }) {
           </View>
         </Pressable>
 
+        {/* Présentation (texte lisible par les moteurs de recherche) */}
+        <View style={s.about} accessibilityRole="summary">
+          <T size={font.sm} weight="800" color={colors.text}>Cabine En Ligne, c'est quoi ?</T>
+          <T size={font.xs} weight="600" color={colors.muted} style={{ marginTop: 6, lineHeight: 18 }}>
+            Une application pour recharger vos unités, minutes et internet à distance, en Côte d'Ivoire.
+            Vous choisissez un gérant de cabine, vous le payez directement sur son Wave, il vous crédite sans que vous ayez à vous déplacer.
+            Les gérants de cabines reçoivent les demandes de leurs clients et fidélisent leur clientèle.
+            Essai gratuit 1 mois, puis 100 F/mois pour les clients et 200 F/mois pour les gérants.
+          </T>
+        </View>
+
         <Pressable onPress={onAdmin} style={({ pressed }) => [pressed && { opacity: 0.6 }]}>
           <T size={font.xs} weight="600" color={colors.muted2} style={{ textAlign: 'center', marginTop: space.xxl }}>
             © Cabine En Ligne · <T size={font.xs} weight="700" color={colors.muted}>Espace propriétaire</T>
@@ -116,6 +127,7 @@ export default function Welcome({ onSelect, onAdmin }) {
 
 const s = StyleSheet.create({
   wrap: { flexGrow: 1 },
+  about: { marginTop: space.xl, padding: 14, borderRadius: radius.md, backgroundColor: '#F7F2FA' },
   hero: {
     alignItems: 'center',
     paddingTop: Platform.OS === 'web' ? 'calc(56px + env(safe-area-inset-top, 0px))' : 74,
