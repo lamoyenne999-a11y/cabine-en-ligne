@@ -35,6 +35,7 @@ if (fs.existsSync(index)) {
     <meta name="theme-color" content="#7B1FA2" />
     <meta name="description" content="Cabine En Ligne : rechargez vos unités, minutes et internet à distance auprès d'un gérant de cabine, en Côte d'Ivoire. Paiement direct par Wave, sans vous déplacer. Application gratuite à l'essai pour clients et gérants de cabines." />
     <meta name="keywords" content="recharge unités à distance, cabine téléphonique en ligne, crédit téléphonique Abidjan, recharge internet Wave, gérant de cabine, Cabine En Ligne, Côte d'Ivoire" />
+    <meta name="google-site-verification" content="yyiuIHm5O_e2HIE_Hy_KZudJ-ObcKe1GW80VbzkEYns" />
     <meta name="robots" content="index, follow, max-image-preview:large" />
     <meta name="author" content="Cabine En Ligne" />
     <meta name="geo.region" content="CI" />
