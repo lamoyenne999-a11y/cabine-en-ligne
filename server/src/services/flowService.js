@@ -791,6 +791,8 @@ function notifyPush(userId, { type, text, demandeId }) {
 
 // ---- Public profile (lien de partage) ----
 export function publicProfile(id) {
+  // Profil bloqué : lien et QR ne mènent plus nulle part tant qu'il n'est pas débloqué.
+  { const b = findOne('users', (x) => x.id === id); if (b && isPhoneBlocked(b.phone)) return null; }
   const u = findOne('users', (x) => x.id === id);
   if (!u) return null;
   return { id: u.id, name: u.name, phone: u.phone, role: u.role, waveNumber: u.waveNumber, payLink: u.payLink || '', certified: !!u.certified, rating: u.role === 'gerant' ? gerantRating(u.id) : undefined };
@@ -803,7 +805,9 @@ export function gerantsFor(clientId) {
   // même si le contact a été ajouté avant que le gérant ne configure son lien.
   // Un gérant suspendu par le propriétaire est marqué `suspended` : le client
   // ne peut plus lui envoyer de demande tant que la suspension n'est pas levée.
-  return find('gerants', (g) => g.ownerId === clientId).map((g) => {
+  // Un gérant BLOQUÉ par le propriétaire disparaît complètement des listes des
+  // clients tant qu'il n'est pas débloqué (le contact est conservé et réapparaît).
+  return find('gerants', (g) => g.ownerId === clientId).filter((g) => !isPhoneBlocked(g.phone)).map((g) => {
     if (g.userId) {
       const u = findOne('users', (x) => x.id === g.userId);
       if (u) {
@@ -821,7 +825,7 @@ export function gerantsFor(clientId) {
 // suspension est annulée par le propriétaire.
 export function availableGerants(clientId) {
   const added = gerantsFor(clientId).map((g) => g.userId);
-  return find('users', (u) => u.role === 'gerant' && u.passwordHash && !u.frozen)
+  return find('users', (u) => u.role === 'gerant' && u.passwordHash && !u.frozen && !isPhoneBlocked(u.phone))
     .map((u) => ({
       userId: u.id, name: u.name, phone: u.phone, waveNumber: u.waveNumber || u.phone, payLink: u.payLink || '',
       alreadyAdded: added.includes(u.id), online: u.available !== false,
@@ -916,6 +920,7 @@ export function createDemande({ client, gerantId, gerantUserId, type, amount, be
     }
   }
   if (!g) throw Object.assign(new Error('Gérant introuvable'), { status: 404 });
+  if (isPhoneBlocked(g.phone)) throw Object.assign(new Error('Ce gérant n\'est plus disponible sur Cabine En Ligne.'), { status: 403 });
   // Le gérant ciblé peut être suspendu par le propriétaire : on bloque la demande
   // pour qu'il ne reçoive rien tant que sa suspension n'est pas annulée.
   if (g.userId) {
