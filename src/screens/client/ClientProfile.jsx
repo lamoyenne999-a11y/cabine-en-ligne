@@ -48,8 +48,8 @@ export default function ClientProfile({ onLogout }) {
     <Page title="Profil">
       <Card style={{ alignItems: 'center', paddingVertical: 26 }}>
         <View style={s.avatar}><Ionicons name="person" size={48} color="#fff" /></View>
-        <T size={font.h2} weight="800" color={colors.text} style={{ marginTop: 14 }}>{u?.name || 'Client'}</T>
-        <T size={font.sm} weight="600" color={colors.muted} style={{ marginTop: 3 }}>Client</T>
+        <T size={font.h2} weight="800" color={colors.text} style={{ marginTop: 14 }}>{u?.name || 'Client(e)'}</T>
+        <T size={font.sm} weight="600" color={colors.muted} style={{ marginTop: 3 }}>Client(e)</T>
         <Pill icon={subPill.icon} color={subPill.color} bg={subPill.bg} style={{ marginTop: 12 }}>{subPill.label}</Pill>
         {subStatus !== 'active' && (
           <Pressable onPress={() => setShowSub(true)} style={s.subBtn}>
@@ -96,7 +96,7 @@ export default function ClientProfile({ onLogout }) {
           <Pressable onPress={copy} style={s.copyBtn}><Ionicons name={copied ? 'checkmark' : 'copy-outline'} size={16} color="#fff" /></Pressable>
         </View>
         {copied && <T size={font.xs} weight="600" color={colors.success} style={{ marginTop: 6 }}>Lien copié !</T>}
-        <QrToggle value={shareUrl} title={u?.name} role="Client" />
+        <QrToggle value={shareUrl} title={u?.name} role="Client(e)" />
       </Card>
 
       <Card style={{ marginTop: space.lg }}>

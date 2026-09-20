@@ -68,7 +68,7 @@ router.post('/login', rateLimit({ name: 'login', windowMs: 15 * 60 * 1000, max: 
     // Séparation stricte des rôles : un client ne peut pas se connecter en
     // gérant et inversement. On compare le rôle demandé au rôle du compte.
     if (role && user.role !== role) {
-      return res.status(403).json({ error: user.role === 'gerant' ? 'Ce compte est un compte GÉRANT. Connectez-vous dans l\'espace Gérant.' : 'Ce compte est un compte CLIENT. Connectez-vous dans l\'espace Client.' });
+      return res.status(403).json({ error: user.role === 'gerant' ? 'Ce compte est un compte GÉRANT(E). Connectez-vous dans l\'espace Gérant(e).' : 'Ce compte est un compte CLIENT(E). Connectez-vous dans l\'espace Client(e).' });
     }
 
     const token = signToken(user);

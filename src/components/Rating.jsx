@@ -65,7 +65,7 @@ export function ReliableBadge({ visible, style }) {
   return (
     <View style={[s.reliable, style]}>
       <Ionicons name="ribbon" size={11} color="#fff" />
-      <T size={font.xs} weight="800" color="#fff" style={{ marginLeft: 3 }}>Client fiable</T>
+      <T size={font.xs} weight="800" color="#fff" style={{ marginLeft: 3 }}>Client(e) fiable</T>
     </View>
   );
 }

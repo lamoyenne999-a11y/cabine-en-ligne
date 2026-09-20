@@ -82,7 +82,7 @@ export default function Welcome({ onSelect, onAdmin }) {
               <Ionicons name="person-outline" size={28} color={colors.primary} />
             </View>
             <View style={{ marginLeft: 16, flex: 1 }}>
-              <T size={font.h3} weight="800" color={colors.primary}>Je suis Client</T>
+              <T size={font.h3} weight="800" color={colors.primary}>Je suis Client(e)</T>
               <T size={font.sm} weight="600" color={colors.muted} style={{ marginTop: 3 }}>
                 Demandez unités, minutes ou internet
               </T>
@@ -96,7 +96,7 @@ export default function Welcome({ onSelect, onAdmin }) {
               <Ionicons name="storefront-outline" size={28} color="#fff" />
             </View>
             <View style={{ marginLeft: 16, flex: 1 }}>
-              <T size={font.h3} weight="800" color="#fff">Je suis Gérant</T>
+              <T size={font.h3} weight="800" color="#fff">Je suis Gérant(e)</T>
               <T size={font.sm} weight="600" color="rgba(255,255,255,0.8)" style={{ marginTop: 3 }}>
                 Recevez et traitez les demandes
               </T>

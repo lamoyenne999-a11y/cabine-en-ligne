@@ -224,7 +224,7 @@ export default function Referral({ onBack }) {
             <ListRow
               key={u.id}
               icon={u.role === 'gerant' ? 'storefront-outline' : 'person-outline'}
-              label={`${u.name} (${u.role === 'gerant' ? 'Gérant' : 'Client'})`}
+              label={`${u.name} (${u.role === 'gerant' ? 'Gérant(e)' : 'Client(e)'})`}
               value={p.label}
               iconColor={u.role === 'gerant' ? colors.wave : colors.primary}
               iconBg={p.bg}

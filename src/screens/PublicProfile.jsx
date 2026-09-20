@@ -74,7 +74,7 @@ export default function PublicProfile({ userId }) {
               </View>
               <T size={font.h2} weight="800" color={colors.text} style={{ marginTop: 12 }}>{profile.name}</T>
               <Pill icon={isGerant ? 'storefront-outline' : 'person-outline'} color={isGerant ? colors.primary : colors.textSoft} bg={colors.primarySoft} style={{ marginTop: 8 }}>
-                {isGerant ? 'Gérant de cabine' : 'Client'}
+                {isGerant ? 'Gérant(e) de cabine' : 'Client(e)'}
               </Pill>
               <View style={s.phoneRow}>
                 <Ionicons name="call-outline" size={16} color={colors.primary} />

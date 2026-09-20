@@ -56,7 +56,7 @@ export default function Signup({ role, onBack, onRegister, connecting, refCode }
         <Logo size={104} />
         <T size={28} weight="900" color="#fff" style={{ marginTop: 14 }}>Créer un compte</T>
         <T size={font.sm} weight="600" color="rgba(255,255,255,0.85)" style={{ marginTop: 4 }}>
-          Espace {isGerant ? 'Gérant' : 'Client'} · 1 mois d'essai gratuit
+          Espace {isGerant ? 'Gérant(e)' : 'Client(e)'} · 1 mois d'essai gratuit
         </T>
       </View>
 

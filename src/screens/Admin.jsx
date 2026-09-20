@@ -349,7 +349,7 @@ export default function Admin({ onBack }) {
   // Export CSV de la liste des utilisateurs (respecte recherche + filtres + tri).
   const exportCsv = () => {
     const header = ['Nom', 'Téléphone', 'Rôle', 'Statut', 'Validité', 'Bloqué', 'Suspendu'];
-    const roleLabel = (r) => (r === 'gerant' ? 'Gérant' : 'Client');
+    const roleLabel = (r) => (r === 'gerant' ? 'Gérant(e)' : 'Client(e)');
     const statusLabel = (u) => (SUB_STATUS[u.subscription?.status] || SUB_STATUS.trial).label;
     const validityCsv = (u) => {
       const s = u.subscription || {};
@@ -615,7 +615,7 @@ export default function Admin({ onBack }) {
                           ) : (u.frozen ? <View style={s.frozenBadge}><T size={font.xs} weight="800" color={colors.warn}>Suspendu{u.frozenReason === 'unpaid_subscription' ? ' · abonnement' : u.frozenReason === 'client_unpaid_demandes' || u.frozenReason === 'gerant_not_served' ? ' · comportement' : ''}</T></View> : null)}{u.openReports > 0 ? <View style={[s.frozenBadge, { backgroundColor: colors.dangerBg }]}><T size={font.xs} weight="800" color={colors.danger}>⚑ {u.openReports} signalement{u.openReports > 1 ? 's' : ''}</T></View> : null}
                         </View>
                         <T size={font.sm} weight="600" color={colors.muted} style={{ marginTop: 1 }}>
-                          {u.phone} · {u.role === 'gerant' ? 'Gérant' : 'Client'}
+                          {u.phone} · {u.role === 'gerant' ? 'Gérant(e)' : 'Client(e)'}
                         </T>
                         {validityLabel(u) ? (
                           <View style={{ flexDirection: 'row', alignItems: 'center', marginTop: 3 }}>
@@ -803,7 +803,7 @@ export default function Admin({ onBack }) {
                 {annUser ? (
                   <View style={[s.msgBox, { marginTop: 0, flexDirection: 'row', alignItems: 'center' }]}>
                     <Ionicons name={annUser.role === 'gerant' ? 'storefront-outline' : 'person-outline'} size={16} color={colors.primary} />
-                    <T size={font.sm} weight="800" color={colors.text} style={{ marginLeft: 8, flex: 1 }}>{annUser.name} · {annUser.phone} · {annUser.role === 'gerant' ? 'Gérant' : 'Client'}</T>
+                    <T size={font.sm} weight="800" color={colors.text} style={{ marginLeft: 8, flex: 1 }}>{annUser.name} · {annUser.phone} · {annUser.role === 'gerant' ? 'Gérant(e)' : 'Client(e)'}</T>
                     <Pressable onPress={() => { setAnnUser(null); setAnnSearch(''); }} hitSlop={8}><T size={font.xs} weight="800" color={colors.danger}>Changer</T></Pressable>
                   </View>
                 ) : (
@@ -814,7 +814,7 @@ export default function Admin({ onBack }) {
                         <Pressable key={u.id} onPress={() => { setAnnUser({ id: u.id, name: u.name, phone: u.phone, role: u.role }); setAnnSearch(''); }} style={s.userPick}>
                           <Ionicons name={u.role === 'gerant' ? 'storefront-outline' : 'person-outline'} size={15} color={colors.primary} />
                           <T size={font.sm} weight="700" color={colors.text} style={{ marginLeft: 8, flex: 1 }}>{u.name} · {u.phone}</T>
-                          <T size={font.xs} weight="700" color={colors.muted}>{u.role === 'gerant' ? 'Gérant' : 'Client'}</T>
+                          <T size={font.xs} weight="700" color={colors.muted}>{u.role === 'gerant' ? 'Gérant(e)' : 'Client(e)'}</T>
                         </Pressable>
                       ))
                     ) : <T size={font.xs} weight="600" color={colors.muted2} style={{ marginTop: 6 }}>Tapez au moins 2 caractères.</T>}
@@ -914,7 +914,7 @@ export default function Admin({ onBack }) {
                   <View style={{ flex: 1, marginLeft: 10 }}>
                     <T size={font.body} weight="800" color={colors.text}>{r.name || '—'}</T>
                     <T size={font.sm} weight="600" color={colors.muted} style={{ marginTop: 2 }}>
-                      {r.phone} · {r.role === 'gerant' ? 'Gérant' : 'Client'} · demande du {fmtDate(r.createdAt)}
+                      {r.phone} · {r.role === 'gerant' ? 'Gérant(e)' : 'Client(e)'} · demande du {fmtDate(r.createdAt)}
                     </T>
                     {r.message ? (
                       <View style={s.msgBox}>
@@ -990,7 +990,7 @@ export default function Admin({ onBack }) {
                     icon={m.icon}
                     iconColor={m.color}
                     iconBg={m.bg}
-                    label={`${e.name || '—'}${e.phone ? ' · ' + e.phone : ''}${e.role ? ' · ' + (e.role === 'gerant' ? 'Gérant' : 'Client') : ''}`}
+                    label={`${e.name || '—'}${e.phone ? ' · ' + e.phone : ''}${e.role ? ' · ' + (e.role === 'gerant' ? 'Gérant(e)' : 'Client(e)') : ''}`}
                     value={`${m.label} · ${fmtDate(e.createdAt)}${e.amount ? ' · ' + money(e.amount) : ''}`}
                   />
                 );
@@ -1009,7 +1009,7 @@ export default function Admin({ onBack }) {
                   icon="alert-circle-outline"
                   iconColor={colors.danger}
                   iconBg={colors.dangerBg}
-                  label={`${u.name} · ${u.phone} · ${u.role === 'gerant' ? 'Gérant' : 'Client'}`}
+                  label={`${u.name} · ${u.phone} · ${u.role === 'gerant' ? 'Gérant(e)' : 'Client(e)'}`}
                   value={`Expiré depuis le ${fmtDate(u.subscribedUntil)}`}
                 />
               ))
@@ -1080,7 +1080,7 @@ export default function Admin({ onBack }) {
               <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' }}>
                 <View style={{ flex: 1 }}>
                   <T size={font.body} weight="800" color={colors.text}>{p.name}</T>
-                  <T size={font.xs} weight="600" color={colors.muted} style={{ marginTop: 2 }}>{p.phone} · {p.role === 'gerant' ? 'Gérant' : 'Client'} · {p.plan === 'annual' ? 'Annuel' : 'Mensuel'}</T>
+                  <T size={font.xs} weight="600" color={colors.muted} style={{ marginTop: 2 }}>{p.phone} · {p.role === 'gerant' ? 'Gérant(e)' : 'Client(e)'} · {p.plan === 'annual' ? 'Annuel' : 'Mensuel'}</T>
                 </View>
                 <T size={font.h3} weight="900" color={colors.warn}>{money(p.amount)}</T>
               </View>
@@ -1104,7 +1104,7 @@ export default function Admin({ onBack }) {
                 <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' }}>
                   <View style={{ flex: 1 }}>
                     <T size={font.body} weight="800" color={colors.text}>{p.name}</T>
-                    <T size={font.xs} weight="600" color={colors.muted} style={{ marginTop: 2 }}>{p.phone} · {p.role === 'gerant' ? 'Gérant' : 'Client'}</T>
+                    <T size={font.xs} weight="600" color={colors.muted} style={{ marginTop: 2 }}>{p.phone} · {p.role === 'gerant' ? 'Gérant(e)' : 'Client(e)'}</T>
                   </View>
                   <T size={font.body} weight="900" color={colors.success}>{money(p.amount)}</T>
                 </View>
@@ -1161,7 +1161,7 @@ export default function Admin({ onBack }) {
       <Dialog visible={!!giftTarget}>
         <T size={font.h3} weight="800" color={colors.text} style={{ textAlign: 'center' }}>🎁 Offrir du temps gratuit</T>
         <T size={font.sm} weight="600" color={colors.muted} style={{ textAlign: 'center', marginTop: 6 }}>
-          à {giftTarget?.name} ({giftTarget?.phone}) · {giftTarget?.role === 'gerant' ? 'Gérant' : 'Client'}
+          à {giftTarget?.name} ({giftTarget?.phone}) · {giftTarget?.role === 'gerant' ? 'Gérant(e)' : 'Client(e)'}
         </T>
         <T size={font.xs} weight="600" color={colors.muted2} style={{ textAlign: 'center', marginTop: 4, marginBottom: 12 }}>
           {giftTarget?.subscription?.status === 'active'
