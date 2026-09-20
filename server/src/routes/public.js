@@ -1,6 +1,6 @@
 import { Router } from 'express';
 import { rateLimit } from '../middleware/rateLimit.js';
-import { publicProfile, createUnblockRequest } from '../services/flowService.js';
+import { publicProfile, createUnblockRequest, unblockStatusFor } from '../services/flowService.js';
 import { getVapidPublicKey } from '../services/pushService.js';
 
 const router = Router();
@@ -35,6 +35,11 @@ router.post('/unblock-request', rateLimit({ windowMs: 10 * 60 * 1000, max: 100 }
   } catch (e) {
     res.status(400).json({ error: e.message });
   }
+});
+
+// GET /api/public/unblock-status?phone=… — l'utilisateur bloqué suit sa demande.
+router.get('/unblock-status', rateLimit({ windowMs: 60 * 1000, max: 60 }), (req, res) => {
+  res.json(unblockStatusFor(req.query.phone));
 });
 
 export default router;

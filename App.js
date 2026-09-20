@@ -53,6 +53,11 @@ function Root() {
   }
 
   if (!state.loggedIn) {
+    if (state.blockedPhone) {
+      return (
+        <Login role={state.role || 'client'} onBack={() => { dispatch({ type: 'CLEAR_BLOCKED_PHONE' }); setScreen('welcome'); }} onLogin={(u) => login(u)} onSignup={() => setScreen('signup')} connecting={checking} blockedPhone={state.blockedPhone} />
+      );
+    }
     if (screen === 'login') {
       return (
         <Login role={state.role || 'client'} onBack={() => setScreen('welcome')} onLogin={(u) => login(u)} onSignup={() => setScreen('signup')} connecting={checking} />

@@ -576,6 +576,14 @@ export function createUnblockRequest({ phone, message = '' }) {
   return { ok: true, request };
 }
 
+// Statut public d'un numéro : bloqué ? demande en attente / acceptée / refusée ?
+export function unblockStatusFor(phone) {
+  const p = String(phone || '').trim();
+  const blocked = isPhoneBlocked(p);
+  const last = find('unblock_requests', (r) => r.phone === p).sort((a, b) => b.createdAt - a.createdAt)[0] || null;
+  return { blocked, request: last ? { status: last.status, createdAt: last.createdAt, resolvedAt: last.resolvedAt || null } : null };
+}
+
 export function unblockRequestsPending() {
   return find('unblock_requests', (r) => r.status === 'pending').sort((a, b) => b.createdAt - a.createdAt);
 }

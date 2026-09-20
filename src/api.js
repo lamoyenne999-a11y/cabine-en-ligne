@@ -48,6 +48,7 @@ export const api = {
     pushKey: () => request('GET', '/api/public/push-key'),
     // Demande de déblocage déposée par un utilisateur bloqué (sans connexion).
     submitUnblockRequest: (phone, message) => request('POST', '/api/public/unblock-request', { phone, message }),
+    unblockStatus: (phone) => request('GET', `/api/public/unblock-status?phone=${encodeURIComponent(phone)}`),
   },
 
   // ---- client ----

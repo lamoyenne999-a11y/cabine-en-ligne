@@ -67,7 +67,11 @@ function reducer(state, action) {
     case 'SIGNUP':
       return { ...state, loggedIn: true, user: action.payload.user, subscription: action.payload.subscription };
     case 'LOGOUT':
-      return { ...seed(), loggedIn: false, role: state.role };
+      return { ...seed(), loggedIn: false, role: state.role, blockedPhone: state.blockedPhone || '' };
+    case 'SET_BLOCKED_PHONE':
+      return { ...state, blockedPhone: action.phone || '' };
+    case 'CLEAR_BLOCKED_PHONE':
+      return { ...state, blockedPhone: '' };
 
     case 'HYDRATE': {
       const p = action.payload || {};
@@ -210,6 +214,7 @@ export function StoreProvider({ children }) {
       persistSession({ user, subscription });
     } catch (e) {
       if (e && e.status === 401) { clearToken(); clearSession(); dispatch({ type: 'LOGOUT' }); }
+      if (e && e.code === 'BLOCKED') { const ph = state.user?.phone || ''; clearToken(); clearSession(); dispatch({ type: 'LOGOUT' }); if (ph) dispatch({ type: 'SET_BLOCKED_PHONE', phone: ph }); }
       /* autre erreur (réseau…) : on garde la session locale */
     }
   }, [online]);
@@ -220,6 +225,9 @@ export function StoreProvider({ children }) {
   // répond 401 (compte supprimé ou jeton invalidé), sinon renvoie null.
   const safe = (e) => {
     if (e && e.status === 401) { clearToken(); clearSession(); dispatch({ type: 'LOGOUT' }); }
+    // Bloqué par le propriétaire pendant la session : on coupe tout de suite et on
+    // mémorise le numéro pour afficher l'écran « compte bloqué » (demande de déblocage).
+    if (e && e.code === 'BLOCKED') { const ph = state.user?.phone || ''; clearToken(); clearSession(); dispatch({ type: 'LOGOUT' }); if (ph) dispatch({ type: 'SET_BLOCKED_PHONE', phone: ph }); }
     return null;
   };
   const refresh = useCallback(async () => {

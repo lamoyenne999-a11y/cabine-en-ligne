@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { View, TextInput, Pressable, ScrollView, StyleSheet } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { colors, radius, space, font } from '../theme';
@@ -82,6 +82,21 @@ export default function Admin({ onBack }) {
       setErr(e && e.status === 403 ? 'Clé incorrecte.' : (e?.message || 'Erreur de chargement.'));
     } finally { setLoading(false); }
   };
+
+  // Rafraîchissement automatique (15 s) : nouvelles demandes de déblocage,
+  // paiements à vérifier et signalements apparaissent sans recharger la page.
+  useEffect(() => {
+    if (!authed) return;
+    const t = setInterval(async () => {
+      try {
+        const summary = await api.admin.summary(key.trim());
+        setData(summary);
+        const u = await api.admin.users(key.trim());
+        setUsers(u.users || []);
+      } catch { /* réseau : on réessaiera au prochain cycle */ }
+    }, 15000);
+    return () => clearInterval(t);
+  }, [authed, key]); // eslint-disable-line
 
   // Pas encore authentifié : demande de la clé.
   if (!authed) {
@@ -426,6 +441,22 @@ export default function Admin({ onBack }) {
       {/* ===== Aperçu ===== */}
       {adminTab === 'apercu' && (
         <>
+          {unblockRequests.length > 0 ? (
+            <Pressable onPress={() => setAdminTab('deblocages')} style={({ pressed }) => [pressed && { opacity: 0.85 }]}>
+              <Card style={{ backgroundColor: colors.dangerBg, borderWidth: 1, borderColor: colors.danger, marginBottom: space.sm }}>
+                <View style={{ flexDirection: 'row', alignItems: 'center' }}>
+                  <Ionicons name="lock-open" size={22} color={colors.danger} />
+                  <View style={{ flex: 1, marginLeft: 10 }}>
+                    <T size={font.body} weight="800" color={colors.danger}>{unblockRequests.length} demande{unblockRequests.length > 1 ? 's' : ''} de déblocage en attente</T>
+                    <T size={font.sm} weight="600" color={colors.text} style={{ marginTop: 2 }}>
+                      {unblockRequests.slice(0, 2).map((r) => `${r.name || r.phone} (${r.role === 'gerant' ? 'gérant' : 'client'})`).join(', ')}{unblockRequests.length > 2 ? '…' : ''} — l'utilisateur attend votre réponse (2 à 3 min annoncées).
+                    </T>
+                  </View>
+                  <Ionicons name="chevron-forward" size={18} color={colors.danger} />
+                </View>
+              </Card>
+            </Pressable>
+          ) : null}
           <Card style={{ backgroundColor: colors.primarySoft }}>
             <T size={font.sm} weight="700" color={colors.primary} style={{ textTransform: 'uppercase', letterSpacing: 0.5 }}>Total reçu (déclaré)</T>
             <T size={font.h2} weight="900" color={colors.primary} style={{ marginTop: 6 }}>{money(totals.totalReceived)}</T>
