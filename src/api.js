@@ -123,6 +123,10 @@ export const api = {
     blockAccount: (key, phone, reason) => request('POST', '/api/admin/block-account', { phone, reason }, { 'x-admin-key': key }),
     unblockAccount: (key, phone) => request('POST', '/api/admin/unblock-account', { phone }, { 'x-admin-key': key }),
     unblockRequests: (key) => request('GET', '/api/admin/unblock-requests', null, { 'x-admin-key': key }),
+    pushState: (key) => request('GET', '/api/admin/push', null, { 'x-admin-key': key }),
+    pushSubscribe: (key, subscription) => request('POST', '/api/admin/push/subscribe', { subscription }, { 'x-admin-key': key }),
+    pushUnsubscribe: (key, endpoint) => request('POST', '/api/admin/push/unsubscribe', { endpoint }, { 'x-admin-key': key }),
+    pushTest: (key) => request('POST', '/api/admin/push/test', {}, { 'x-admin-key': key }),
     resolveUnblockRequest: (key, id, decision) => request('POST', '/api/admin/resolve-unblock-request', { id, decision }, { 'x-admin-key': key }),
   },
 };

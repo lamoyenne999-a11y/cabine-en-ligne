@@ -1,6 +1,6 @@
 import { getDb, save, insert, findOne, find, update, remove } from '../db.js';
 import { config } from '../config.js';
-import { sendWebPushToUser } from './pushService.js';
+import { sendWebPushToUser, notifyOwner } from './pushService.js';
 
 // ==================================================================
 //  Logique métier (v2 — zéro argent stocké sur l'app)
@@ -616,7 +616,17 @@ export function resolveUnblockRequest(id, decision) {
 //  expiration, suppression, blocage. Le propriétaire suit ainsi les
 //  entrées et sorties d'utilisateurs en direct.
 // ------------------------------------------------------------------
-export function recordEvent({ type, name = '', phone = '', role = '', amount = 0, plan = '', reference = '' }) {
+// Événements qui déclenchent une notification sur le téléphone du propriétaire.
+const OWNER_PUSH = {
+  unblock_request: (e) => ['Demande de déblocage', `${e.name || e.phone} (${e.role === 'gerant' ? 'gérant' : 'client'}) demande à être débloqué — réponse attendue sous 2 à 3 min.`],
+  subscription_declared: (e) => ['Paiement à vérifier', `${e.name || e.phone} déclare un paiement de ${e.amount} F (${e.plan}). Réf. ${e.reference}.`],
+  report_created: (e) => ['Nouveau signalement', `${e.name || e.phone} signale ${e.targetName || 'un utilisateur'}${e.reason ? ` · ${e.reason}` : ''}.`],
+  user_registered: (e) => ['Nouvelle inscription', `${e.name || e.phone} vient de créer un compte ${e.role === 'gerant' ? 'gérant' : 'client'}.`],
+};
+
+export function recordEvent({ type, name = '', phone = '', role = '', amount = 0, plan = '', reference = '', reason = '', targetName = '', targetPhone = '' }) {
+  const mk = OWNER_PUSH[type];
+  if (mk) { try { const [t, b] = mk({ type, name, phone, role, amount, plan, reference, reason, targetName, targetPhone }); notifyOwner(t, b); } catch { /* jamais bloquant */ } }
   return insert('events', {
     type,                 // user_registered | user_deleted | subscription_paid | subscription_expired | user_blocked | user_unblocked | unblock_request
     name, phone, role,

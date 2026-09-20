@@ -3,6 +3,7 @@ import { hashPassword } from '../middleware/auth.js';
 import { config } from '../config.js';
 import { gerantRating, gerantStats, runSubscriptionAlerts, sendAnnouncement, announcementsForAdmin, announcementAudience, reportsForAdmin, resolveReport, openReportsCountFor, SUSPEND_REASONS, pendingSubscriptionPayments, confirmSubscriptionPayment, rejectSubscriptionPayment, setUserCertified, grantFreeTime, giftsForAdmin, subscriptionPayments, subscriptionTotals, subscriptionFor, referralSummary, referredUsersCount, referralPaymentCount, referralRateFor, deleteAccountAll, setUserFrozen, eventsForAdmin, eventsCounters, referralCodeStats, expiredUsers, reconcileExpiredEvents, isPhoneBlocked, blockUser, unblockUser, blockedList, unblockRequestsPending, resolveUnblockRequest } from '../services/flowService.js';
 import { find, findOne, update, dbStats } from '../db.js';
+import { registerWebPushSubscription, removeWebPushSubscription, OWNER_ID, ownerPushCount, notifyOwner } from '../services/pushService.js';
 
 const router = express.Router();
 
@@ -20,6 +21,26 @@ function requireAdmin(req, res, next) {
   }
   next();
 }
+
+// ---- Notifications du propriétaire (Web Push sur son téléphone) ----
+router.get('/push', requireAdmin, (req, res) => {
+  res.json({ enabled: config.pushEnabled, devices: ownerPushCount() });
+});
+router.post('/push/subscribe', requireAdmin, (req, res) => {
+  try {
+    registerWebPushSubscription(OWNER_ID, req.body?.subscription);
+    res.json({ ok: true, devices: ownerPushCount() });
+  } catch (e) { res.status(e.status || 400).json({ error: e.message }); }
+});
+router.post('/push/unsubscribe', requireAdmin, (req, res) => {
+  const out = removeWebPushSubscription(OWNER_ID, req.body?.endpoint);
+  res.json({ ok: true, ...out, devices: ownerPushCount() });
+});
+// Notification d'essai : vérifie que le téléphone la reçoit bien.
+router.post('/push/test', requireAdmin, async (req, res) => {
+  const out = await notifyOwner('Test', 'Les notifications de l’Espace propriétaire fonctionnent sur ce téléphone.');
+  res.json({ ok: true, result: out });
+});
 
 router.get('/summary', requireAdmin, (req, res) => {
   const payments = subscriptionPayments().map((p) => ({

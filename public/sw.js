@@ -5,7 +5,7 @@
    - on ne cache JAMAIS /api ni /health : l'app garde le mode
      "connecté" basé sur la disponibilité de l'API.
    ============================================================ */
-const CACHE = 'cabine-en-ligne-v5';
+const CACHE = 'cabine-en-ligne-v6';
 const SHELL = ['/', '/index.html', '/manifest.webmanifest'];
 
 self.addEventListener('install', (event) => {
@@ -67,7 +67,7 @@ self.addEventListener('push', (event) => {
       body: data.body || '',
       icon: '/icons/icon-192.png',
       badge: '/icons/icon-192.png',
-      data: { url: '/' },
+      data: { url: (data.title && String(data.title).indexOf('Propriétaire') === 0) ? '/?admin=1' : '/' },
     }),
   );
 });

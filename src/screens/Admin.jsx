@@ -6,6 +6,8 @@ import { T, Card, Btn, StatTile, ListRow, Pill, Chip } from '../components/ui';
 import { Page } from '../components/Shell';
 import { Dialog, DialogButtons } from '../components/modals';
 import { api } from '../api';
+import { storage } from '../storage';
+import OwnerPush from '../components/OwnerPush';
 
 // ============================================================
 //  Espace propriétaire — vue des paiements d'abonnement.
@@ -22,6 +24,16 @@ const fmtDate = (t) => (t ? new Date(t).toLocaleDateString('fr-FR', { day: '2-di
 export default function Admin({ onBack }) {
   const [key, setKey] = useState('');
   const [authed, setAuthed] = useState(false);
+  // Clé mémorisée sur CE téléphone (celui du propriétaire) : ouverture directe
+  // depuis une notification, sans la ressaisir. « Verrouiller » l'efface.
+  useEffect(() => {
+    (async () => {
+      try {
+        const saved = await storage.get('cel_owner_key');
+        if (saved) { setKey(saved); setTimeout(() => loadWith(saved), 0); }
+      } catch { /* silencieux */ }
+    })();
+  }, []); // eslint-disable-line
   const [loading, setLoading] = useState(false);
   const [err, setErr] = useState('');
   const [data, setData] = useState(null);
@@ -67,21 +79,26 @@ export default function Admin({ onBack }) {
   const [adminTab, setAdminTab] = useState('apercu'); // apercu | utilisateurs | activite | parrainage | paiements | systeme
   const goUsers = (role) => { setURole(role); setUFilter('all'); setUCount(U_PAGE); setAdminTab('utilisateurs'); };
 
-  const load = async () => {
-    if (!key.trim()) { setErr('Saisissez la clé propriétaire.'); return; }
+  const loadWith = async (k) => {
+    const kk = String(k || '').trim();
+    if (!kk) { setErr('Saisissez la clé propriétaire.'); return; }
     setErr(''); setLoading(true);
     try {
-      const summary = await api.admin.summary(key.trim());
+      const summary = await api.admin.summary(kk);
       setData(summary);
       try {
-        const u = await api.admin.users(key.trim());
+        const u = await api.admin.users(kk);
         setUsers(u.users || []);
       } catch { setUsers([]); }
       setAuthed(true);
+      try { await storage.set('cel_owner_key', kk); } catch { /* silencieux */ }
     } catch (e) {
       setErr(e && e.status === 403 ? 'Clé incorrecte.' : (e?.message || 'Erreur de chargement.'));
+      if (e && e.status === 403) { try { await storage.remove('cel_owner_key'); } catch { /* silencieux */ } }
     } finally { setLoading(false); }
   };
+  const load = () => loadWith(key);
+  const lock = async () => { try { await storage.remove('cel_owner_key'); } catch { /* silencieux */ } setAuthed(false); setKey(''); setData(null); };
 
   // Rafraîchissement automatique (15 s) : nouvelles demandes de déblocage,
   // paiements à vérifier et signalements apparaissent sans recharger la page.
@@ -417,7 +434,7 @@ export default function Admin({ onBack }) {
   ];
 
   return (
-    <Page title="Espace propriétaire" onBack={onBack}>
+    <Page title="Espace propriétaire" onBack={onBack} right={<Pressable onPress={lock} hitSlop={10} accessibilityLabel="Verrouiller"><Ionicons name="lock-closed-outline" size={22} color="#fff" /></Pressable>}>
       {/* Barre de sections (onglets) */}
       <View style={s.tabBar}>
         <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={s.tabRow}>
@@ -441,6 +458,7 @@ export default function Admin({ onBack }) {
       {/* ===== Aperçu ===== */}
       {adminTab === 'apercu' && (
         <>
+          <OwnerPush adminKey={key.trim()} compact />
           {unblockRequests.length > 0 ? (
             <Pressable onPress={() => setAdminTab('deblocages')} style={({ pressed }) => [pressed && { opacity: 0.85 }]}>
               <Card style={{ backgroundColor: colors.dangerBg, borderWidth: 1, borderColor: colors.danger, marginBottom: space.sm }}>
@@ -1106,7 +1124,9 @@ export default function Admin({ onBack }) {
       {/* ===== Système ===== */}
       {adminTab === 'systeme' && (
         <>
-          <T size={font.h3} weight="800" color={colors.text} style={{ marginBottom: space.sm }}>Base de données</T>
+          <T size={font.h3} weight="800" color={colors.text} style={{ marginBottom: space.sm }}>Notifications du propriétaire</T>
+          <OwnerPush adminKey={key.trim()} />
+          <T size={font.h3} weight="800" color={colors.text} style={{ marginBottom: space.sm, marginTop: space.md }}>Base de données</T>
           <Card>
             <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' }}>
               <View>

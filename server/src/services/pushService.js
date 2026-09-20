@@ -79,3 +79,20 @@ export async function sendWebPushToUser(userId, { title = 'Cabine En Ligne', bod
   }
   return { sent: results.filter((r) => r.ok).length, results };
 }
+
+// ==================================================================
+//  NOTIFICATIONS DU PROPRIÉTAIRE (Espace propriétaire)
+//  L'Espace propriétaire n'est pas un compte : ses abonnements Web Push
+//  sont rattachés à l'identifiant réservé OWNER_ID. Le propriétaire active
+//  les notifications depuis l'onglet Système, sur chaque téléphone voulu.
+// ==================================================================
+export const OWNER_ID = '__owner__';
+
+export function ownerPushCount() {
+  return find('push_subscriptions', (s) => s.userId === OWNER_ID).length;
+}
+
+// Envoi au propriétaire — jamais bloquant, jamais d'exception.
+export function notifyOwner(title, body) {
+  return sendWebPushToUser(OWNER_ID, { title: `Propriétaire · ${title}`, body }).catch(() => ({ error: 'push_failed' }));
+}

@@ -6,6 +6,7 @@ import { colors } from './src/theme';
 import ConnectionBanner from './src/components/ConnectionBanner';
 import Welcome from './src/screens/Welcome';
 import Login from './src/screens/Login';
+import { storage } from './src/storage';
 import Signup from './src/screens/Signup';
 import PublicProfile from './src/screens/PublicProfile';
 import Admin from './src/screens/Admin';
@@ -39,7 +40,11 @@ function Root() {
   const refCode = useRefCode();
   // Si on arrive via un lien de parrainage (?ref=CODE) et qu'on n'est pas
   // connecté, on ouvre directement l'inscription avec le code pré-rempli.
-  const [screen, setScreen] = useState(refCode ? 'signup' : 'welcome'); // welcome | login | signup | admin
+  // ?admin=1 : ouverture depuis une notification du propriétaire → Espace propriétaire direct.
+  // (ou clé propriétaire mémorisée sur ce téléphone et aucun compte connecté).
+  const wantsAdmin = (typeof window !== 'undefined' && window.location && /[?&]admin=1/.test(window.location.search))
+    || (!state.loggedIn && !!storage.get('cel_owner_key'));
+  const [screen, setScreen] = useState(wantsAdmin ? 'admin' : refCode ? 'signup' : 'welcome'); // welcome | login | signup | admin
   const shareId = useShareId();
 
   // Lien de partage : un profil ciblé -> page publique (par-dessus tout)
