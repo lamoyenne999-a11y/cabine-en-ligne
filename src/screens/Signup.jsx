@@ -3,6 +3,8 @@ import { View, Text, TextInput, Pressable, ScrollView, StyleSheet, Platform } fr
 import { Ionicons } from '@expo/vector-icons';
 import { colors, radius, space, font, shadow } from '../theme';
 import { T, Btn, Field } from '../components/ui';
+import { Dialog, DialogButtons } from '../components/modals';
+import { PHONE_LEN, isValidPhone, fmtPhone } from '../phone';
 import Logo from '../components/Logo';
 import { api } from '../api';
 
@@ -15,6 +17,7 @@ export default function Signup({ role, onBack, onRegister, connecting, refCode }
   const [refCodeInput, setRefCodeInput] = useState((refCode || '').toUpperCase());
   const [refStatus, setRefStatus] = useState(null); // null | 'ok' | 'err'
   const [err, setErr] = useState('');
+  const [confirmOpen, setConfirmOpen] = useState(false); // confirmation du numéro avant création
 
   // Vérifie le code de parrainage saisi (sans être connecté).
   const checkCode = async (code) => {
@@ -33,18 +36,27 @@ export default function Signup({ role, onBack, onRegister, connecting, refCode }
     return () => clearTimeout(t);
   }, [refCodeInput]); // eslint-disable-line
 
-  const submit = async () => {
+  // Étape 1 : vérifications, puis ouverture de la confirmation du numéro.
+  const submit = () => {
     if (!name.trim() || !phone.trim()) { setErr('Veuillez remplir votre nom et votre numéro.'); return; }
+    if (!isValidPhone(phone)) { setErr(`Le numéro doit contenir exactement ${PHONE_LEN} chiffres (ex : 07 07 07 07 07).`); return; }
     if (pwd.length < 4) { setErr('Le mot de passe doit contenir au moins 4 caractères.'); return; }
     if (pwd !== confirmPwd) { setErr('Les mots de passe ne correspondent pas.'); return; }
     if (refCodeInput && refStatus === 'err') { setErr('Ce code de parrainage est invalide. Vérifiez-le ou laissez-le vide.'); return; }
     setErr('');
+    setConfirmOpen(true);
+  };
+
+  // Étape 2 : l'utilisateur a confirmé son numéro → création du compte.
+  const confirmCreate = async () => {
+    setConfirmOpen(false);
     try {
       await onRegister({ role, name: name.trim(), phone, password: pwd, referrerCode: refCodeInput.trim().toUpperCase() || undefined });
     } catch (e) {
       setErr(e && e.message ? e.message : 'Inscription impossible');
     }
   };
+  const phoneOk = isValidPhone(phone);
 
   return (
     <ScrollView style={{ flex: 1, backgroundColor: colors.primary }} contentContainerStyle={s.wrap}>
@@ -62,7 +74,20 @@ export default function Signup({ role, onBack, onRegister, connecting, refCode }
 
       <View style={s.card}>
         <Field icon={isGerant ? 'storefront-outline' : 'person-outline'} label={isGerant ? 'Nom de la cabine' : 'Votre nom'} placeholder={isGerant ? 'Ex : Nom Cabine' : 'Ex : Nom Client'} value={name} onChangeText={setName} />
-        <Field icon="call-outline" label="Numéro de téléphone" placeholder="Ex : 07 07 07 07 07" value={phone} onChangeText={(t) => setPhone(t.replace(/[^0-9]/g, ''))} keyboardType="phone-pad" />
+        <Field
+          icon="call-outline"
+          label={`Numéro de téléphone (${PHONE_LEN} chiffres)`}
+          placeholder="Ex : 07 07 07 07 07"
+          value={phone}
+          onChangeText={(t) => { setPhone(t.replace(/[^0-9]/g, '').slice(0, PHONE_LEN)); setErr(''); }}
+          keyboardType="phone-pad"
+          maxLength={PHONE_LEN}
+          style={{ marginBottom: 6 }}
+          right={phone.length ? (phoneOk ? <Ionicons name="checkmark-circle" size={20} color={colors.success} /> : <T size={font.xs} weight="700" color={colors.muted}>{phone.length}/{PHONE_LEN}</T>) : null}
+        />
+        <T size={font.xs} weight="600" color={phone.length && !phoneOk ? colors.danger : colors.muted} style={{ marginBottom: space.lg }}>
+          {phone.length && !phoneOk ? `Il manque ${PHONE_LEN - phone.length} chiffre${PHONE_LEN - phone.length > 1 ? 's' : ''}.` : `Numéro ivoirien à ${PHONE_LEN} chiffres, sans indicatif (+225).`}
+        </T>
 
         <View style={{ marginBottom: space.lg, width: '100%' }}>
           <T size={font.sm} weight="700" color={colors.textSoft} style={{ marginBottom: 7 }}>Code de parrainage (optionnel)</T>
@@ -101,6 +126,24 @@ export default function Signup({ role, onBack, onRegister, connecting, refCode }
       </View>
 
       <View style={{ flex: 1 }} />
+
+      {/* Confirmation des informations avant la création du compte */}
+      <Dialog visible={confirmOpen}>
+        <View style={{ alignItems: 'center', paddingVertical: 4 }}>
+          <Ionicons name="call" size={44} color={colors.primary} />
+          <T size={font.h3} weight="900" color={colors.text} style={{ marginTop: 10 }}>Vérifiez votre numéro</T>
+          <T size={font.sm} weight="600" color={colors.muted} style={{ marginTop: 6, textAlign: 'center' }}>
+            Ce numéro servira à vous connecter{isGerant ? ' et à recevoir vos paiements Wave' : ''}. Est-il correct ?
+          </T>
+          <View style={s.confirmBox}>
+            <T size={font.xs} weight="700" color={colors.muted}>{isGerant ? 'Nom de la cabine' : 'Nom'}</T>
+            <T size={font.body} weight="800" color={colors.text}>{name.trim()}</T>
+            <T size={font.xs} weight="700" color={colors.muted} style={{ marginTop: 10 }}>Numéro de téléphone</T>
+            <T size={26} weight="900" color={colors.primary} style={{ letterSpacing: 1 }}>{fmtPhone(phone)}</T>
+          </View>
+        </View>
+        <DialogButtons cancel="Modifier" confirm="Oui, créer mon compte" onCancel={() => setConfirmOpen(false)} onConfirm={confirmCreate} />
+      </Dialog>
     </ScrollView>
   );
 }
@@ -113,5 +156,6 @@ const s = StyleSheet.create({
   error: { flexDirection: 'row', alignItems: 'center', backgroundColor: colors.dangerBg, borderRadius: radius.sm, padding: 10, marginBottom: space.md },
   signup: { alignItems: 'center', marginTop: 18 },
   refField: { flexDirection: 'row', alignItems: 'center', backgroundColor: colors.bg, borderRadius: radius.md, paddingHorizontal: 14, height: 52 },
+  confirmBox: { width: '100%', backgroundColor: colors.bg, borderRadius: radius.md, padding: 14, marginTop: 14 },
   refInput: { flex: 1, fontSize: font.input, color: colors.text, height: '100%', paddingVertical: 0, outlineStyle: 'none' },
 });

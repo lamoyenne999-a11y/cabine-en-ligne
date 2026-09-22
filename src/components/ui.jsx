@@ -80,7 +80,7 @@ export function Btn({
   );
 }
 
-export function Field({ label, placeholder, value, onChangeText, keyboardType = 'default', icon, onFocus, onBlur, style, secure, multiline }) {
+export function Field({ label, placeholder, value, onChangeText, keyboardType = 'default', icon, onFocus, onBlur, style, secure, multiline, maxLength, right }) {
   return (
     <View style={[{ marginBottom: space.lg, width: '100%' }, style]}>
       {label ? <T size={font.sm} weight="700" color={colors.textSoft} style={{ marginBottom: 7 }}>{label}</T> : null}
@@ -94,10 +94,12 @@ export function Field({ label, placeholder, value, onChangeText, keyboardType = 
           keyboardType={keyboardType}
           secureTextEntry={secure}
           multiline={multiline}
+          maxLength={maxLength}
           onFocus={onFocus}
           onBlur={onBlur}
           style={[base.input, { paddingLeft: icon ? 0 : 14 }, multiline && { height: 'auto', minHeight: 64, textAlignVertical: 'top' }]}
         />
+        {right || null}
       </View>
     </View>
   );

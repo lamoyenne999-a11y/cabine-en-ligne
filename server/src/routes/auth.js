@@ -16,7 +16,8 @@ router.post('/register', rateLimit({ name: 'register', windowMs: 10 * 60 * 1000,
     if (!password || password.length < 4) return res.status(400).json({ error: 'Mot de passe trop court (min. 4 caractères)' });
     if (password.length > 128) return res.status(400).json({ error: 'Mot de passe trop long' });
     if (name.trim().length > 60) return res.status(400).json({ error: 'Nom trop long (max. 60)' });
-    if (!/^[0-9+ ]{8,20}$/.test(phone.trim())) return res.status(400).json({ error: 'Numéro de téléphone invalide' });
+    // Côte d'Ivoire : exactement 10 chiffres, sans indicatif ni espaces.
+    if (!/^[0-9]{10}$/.test(String(phone).trim())) return res.status(400).json({ error: 'Le numéro de téléphone doit contenir exactement 10 chiffres (ex : 0707070707).' });
     // Numéro bloqué : ce téléphone ne peut plus créer de compte.
     if (isPhoneBlocked(phone)) return res.status(403).json({ error: 'Ce numéro a été bloqué. Vous ne pouvez plus créer de compte avec ce numéro.', code: 'BLOCKED' });
     if (findOne('users', (u) => u.phone === phone)) return res.status(409).json({ error: 'Ce numéro est déjà utilisé' });

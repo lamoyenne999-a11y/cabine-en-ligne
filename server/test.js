@@ -35,7 +35,7 @@ async function main() {
   check('API démarrée (health 200)', health.status === 200 && health.json.status === 'ok');
 
   // Inscription client (1 mois d'essai gratuit)
-  const uniq = Date.now().toString().slice(-6);
+  const uniq = Date.now().toString().slice(-8); // 2 + 8 = 10 chiffres
   const reg = await req('POST', '/auth/register', {
     role: 'client', name: 'Awa Cissé', phone: '07' + uniq, password: '123456',
   });
@@ -45,6 +45,10 @@ async function main() {
   let ct = reg.json.token;
 
   // Inscription d'un vrai gérant (les comptes de démo ont été retirés)
+  const phTooLong = await req('POST', '/auth/register', { role: 'client', name: 'Trop long', phone: '07' + uniq + '1', password: '123456' });
+  check('Inscription refusée si numéro > 10 chiffres', phTooLong.status === 400);
+  const phTooShort = await req('POST', '/auth/register', { role: 'client', name: 'Trop court', phone: '7' + uniq, password: '123456' });
+  check('Inscription refusée si numéro < 10 chiffres', phTooShort.status === 400);
   const gphone = '08' + uniq;
   const greg = await req('POST', '/auth/register', { role: 'gerant', name: 'Gérant Test', phone: gphone, password: '123456' });
   check('Inscription gérant 201', greg.status === 201 && greg.json.user?.role === 'gerant');
@@ -260,7 +264,7 @@ async function main() {
     const other = await req('POST', '/auth/login', { phone: '07' + uniq, password: '123456', role: 'client' });
     check('Un autre numéro peut toujours se connecter', other.status === 200);
   }
-  const weakPwd = await req('POST', '/auth/register', { role: 'client', name: 'Faible', phone: '0199' + uniq.slice(-6), password: '123' });
+  const weakPwd = await req('POST', '/auth/register', { role: 'client', name: 'Faible', phone: '01' + uniq, password: '123' });
   check('Inscription refusée si mot de passe < 4 caractères', weakPwd.status === 400);
 
   // ===== Admin : réinitialisation de mot de passe =====
@@ -587,7 +591,7 @@ async function main() {
   check('Abonnement annuel 1000 FCFA', sA.json.subscription?.status === 'active' && sA.json.subscription?.price === 1000 && sA.json.subscription?.periodLabel === 'annuel');
 
   // Rejet : le propriétaire n'a rien reçu
-  const reg3 = await req('POST', '/auth/register', { role: 'client', name: 'Rejet', phone: '0899' + uniq.slice(-6), password: '123456' });
+  const reg3 = await req('POST', '/auth/register', { role: 'client', name: 'Rejet', phone: '06' + uniq, password: '123456' });
   const dR = await req('POST', '/client/subscribe', { plan: 'monthly' }, reg3.json.token);
   const rj = await req('POST', '/admin/reject-payment', { id: dR.json.payment.id, note: 'Aucun transfert trouvé' }, null, { 'x-admin-key': 'testkey' });
   const s3 = await req('GET', '/client/subscription', null, reg3.json.token);
@@ -613,7 +617,7 @@ async function main() {
   await req('POST', '/referral/code', { code: refCodeA }, refA.json.token);
   check('Parrain : 0 inscrit au départ', refA.json.referral?.registeredCount === 0 && refA.json.referral?.rate === 0);
 
-  const refPhoneB = '06' + uniq;
+  const refPhoneB = '04' + uniq;
   const refB = await req('POST', '/auth/register', { role: 'client', name: 'Invitée B', phone: refPhoneB, password: '123456', referrerCode: refCodeA });
   check('Parrainage : inscrit rattaché au parrain', refB.json.user?.phone === refPhoneB);
 
@@ -624,7 +628,7 @@ async function main() {
 
   // On recrute jusqu'à 100 inscrits -> le taux passe à 5 %.
   for (let i = 0; i < 99; i++) {
-    await req('POST', '/auth/register', { role: 'client', name: 'Inscrit ' + i, phone: '07' + uniq + String(i).padStart(2, '0'), password: '123456', referrerCode: refCodeA });
+    await req('POST', '/auth/register', { role: 'client', name: 'Inscrit ' + i, phone: '03' + uniq.slice(0, 6) + String(i).padStart(2, '0'), password: '123456', referrerCode: refCodeA });
   }
   const refASummary = await req('GET', '/referral/my', null, refA.json.token);
   check('Parrain : 100 inscrits → part de 5 %', refASummary.json.referral?.registeredCount === 100 && refASummary.json.referral?.rate === 5);
