@@ -92,16 +92,18 @@ export function Dialog({ visible, onClose, children }) {
 }
 
 export function DialogButtons({ cancel, confirm, onCancel, onConfirm }) {
+  // Libellés longs → boutons empilés (pleine largeur) pour rester centrés et lisibles.
+  const stacked = (String(cancel || '').length + String(confirm || '').length) > 22;
   return (
-    <View style={overlay.dialogBtns}>
-      {cancel ? (
-        <Pressable style={overlay.dialogBtn} onPress={onCancel}>
-          <T size={font.body} weight="700" color={colors.textSoft}>{cancel}</T>
+    <View style={[overlay.dialogBtns, stacked && overlay.dialogBtnsStacked]}>
+      {confirm ? (
+        <Pressable style={[overlay.dialogBtn, stacked && overlay.dialogBtnPrimary]} onPress={onConfirm}>
+          <T size={font.body} weight="800" color={stacked ? '#fff' : colors.primary} style={{ textAlign: 'center' }}>{confirm}</T>
         </Pressable>
       ) : null}
-      {confirm ? (
-        <Pressable style={overlay.dialogBtn} onPress={onConfirm}>
-          <T size={font.body} weight="800" color={colors.primary}>{confirm}</T>
+      {cancel ? (
+        <Pressable style={[overlay.dialogBtn, stacked && overlay.dialogBtnSecondary]} onPress={onCancel}>
+          <T size={font.body} weight="700" color={colors.textSoft} style={{ textAlign: 'center' }}>{cancel}</T>
         </Pressable>
       ) : null}
     </View>
@@ -167,6 +169,29 @@ const overlay = {
   dialogBtn: {
     flex: 1,
     alignItems: 'center',
+    justifyContent: 'center',
     paddingVertical: 14,
+    paddingHorizontal: 8,
+  },
+  // Variante empilée : bouton principal plein + bouton secondaire dessous, centrés.
+  dialogBtnsStacked: {
+    flexDirection: 'column',
+    borderTopWidth: 0,
+    marginHorizontal: 0,
+    marginBottom: 0,
+    marginTop: 18,
+  },
+  dialogBtnPrimary: {
+    flex: 0,
+    width: '100%',
+    backgroundColor: colors.primary,
+    borderRadius: 14,
+    paddingVertical: 15,
+  },
+  dialogBtnSecondary: {
+    flex: 0,
+    width: '100%',
+    paddingVertical: 12,
+    marginTop: 6,
   },
 };
