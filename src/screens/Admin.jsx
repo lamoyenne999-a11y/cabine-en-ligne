@@ -45,6 +45,9 @@ export default function Admin({ onBack }) {
   const [giftCustom, setGiftCustom] = useState('');
   const [giftNote, setGiftNote] = useState('');
   const [giftDone, setGiftDone] = useState('');
+  const [bulkTargets, setBulkTargets] = useState(null);      // liste d'utilisateurs pour un cadeau groupé (ouvre le dialogue)
+  const [selMode, setSelMode] = useState(false);             // mode sélection de plusieurs utilisateurs
+  const [selected, setSelected] = useState([]);              // téléphones sélectionnés
   const [certTarget, setCertTarget] = useState(null);       // {user, certified}
   const [pwdTarget, setPwdTarget] = useState(null);         // user dont on réinitialise le mot de passe
   const [pwdResult, setPwdResult] = useState(null);         // { name, phone, tempPassword }
@@ -172,6 +175,9 @@ export default function Admin({ onBack }) {
     subscription_paid: { label: 'Abonnement confirmé', icon: 'cash-outline', color: colors.success, bg: colors.successBg },
     subscription_expired: { label: 'Abonnement expiré', icon: 'alert-circle-outline', color: colors.danger, bg: colors.dangerBg },
     user_deleted: { label: 'Compte supprimé', icon: 'trash-outline', color: colors.warn, bg: '#FDF0E0' },
+    free_time_granted: { label: 'Cadeau de temps offert', icon: 'gift-outline', color: colors.success, bg: colors.successBg },
+    gerant_certified: { label: 'Gérant(e) certifié(e)', icon: 'shield-checkmark-outline', color: colors.primary, bg: colors.primarySoft },
+    free_time_granted_bulk: { label: 'Cadeau de temps groupé', icon: 'gift-outline', color: colors.success, bg: colors.successBg },
     user_blocked: { label: 'Compte bloqué', icon: 'ban-outline', color: colors.danger, bg: colors.dangerBg },
     user_unblocked: { label: 'Compte débloqué', icon: 'checkmark-circle-outline', color: colors.success, bg: colors.successBg },
     unblock_request: { label: 'Demande de déblocage', icon: 'mail-unread-outline', color: colors.primary, bg: colors.primarySoft },
@@ -221,6 +227,31 @@ export default function Admin({ onBack }) {
     } catch (e) { setErr(e?.message || 'Erreur.'); }
     finally { setBusy(null); }
   };
+
+  // Cadeau groupé : même durée / message pour plusieurs comptes d'un coup.
+  const openBulkGift = (list) => {
+    const targets = (list || []).filter((u) => !u.blocked);
+    if (targets.length === 0) { setErr('Aucun compte à qui offrir du temps (les numéros bloqués sont exclus).'); return; }
+    setGiftDays(30); setGiftCustom(''); setGiftNote(''); setBulkTargets(targets);
+  };
+  const doGiftBulk = async () => {
+    const targets = bulkTargets || []; if (targets.length === 0 || busy === 'bulk-gift') return;
+    const days = giftCustom ? parseInt(giftCustom, 10) : giftDays;
+    if (!(days > 0)) { setErr('Indiquez une durée valide.'); return; }
+    setBusy('bulk-gift');
+    try {
+      const note = giftNote.trim();
+      const out = await api.admin.grantFreeTimeBulk(key, targets.map((u) => u.phone), days, note);
+      const byPhone = Object.fromEntries((out.users || []).map((r) => [r.phone, r.subscription]));
+      setUsers((prev) => prev.map((u) => byPhone[u.phone] ? { ...u, subscription: byPhone[u.phone], lastGift: { days, at: Date.now(), note } } : u));
+      setGiftDone(`${days} jour${days > 1 ? 's' : ''} offert${days > 1 ? 's' : ''} à ${out.count} compte${out.count > 1 ? 's' : ''}${out.skipped ? ` (${out.skipped} ignoré${out.skipped > 1 ? 's' : ''})` : ''}. Tous ont été notifiés.`);
+      setBulkTargets(null); setGiftCustom(''); setGiftNote(''); setGiftDays(30);
+      setSelMode(false); setSelected([]);
+      setTimeout(() => setGiftDone(''), 6000);
+    } catch (e) { setErr(e?.message || 'Erreur.'); }
+    finally { setBusy(null); }
+  };
+  const toggleSelected = (phone) => setSelected((prev) => prev.includes(phone) ? prev.filter((p) => p !== phone) : [...prev, phone]);
 
   // Offre du temps gratuit (récompense / reconduction d'essai).
   const doGift = async () => {
@@ -579,6 +610,37 @@ export default function Admin({ onBack }) {
             ))}
           </View>
 
+          {/* Cadeau de temps groupé : à tous les comptes affichés (selon filtres) ou à une sélection */}
+          {filteredUsers.length > 0 && (
+            <Card style={{ padding: 10, marginBottom: 8, backgroundColor: colors.successBg, borderColor: colors.success, borderWidth: 1 }}>
+              <View style={{ flexDirection: 'row', alignItems: 'center' }}>
+                <Ionicons name="gift" size={18} color={colors.success} />
+                <T size={font.sm} weight="800" color={colors.text} style={{ marginLeft: 6, flex: 1 }}>Cadeau de temps groupé</T>
+              </View>
+              <T size={font.xs} weight="600" color={colors.muted} style={{ marginTop: 4, marginBottom: 8 }}>
+                {selMode
+                  ? `Cochez les comptes à qui offrir du temps. ${selected.length} sélectionné${selected.length > 1 ? 's' : ''}.`
+                  : `Offrez la même durée à tous les comptes affichés (${filteredUsers.length}) — utilisez les filtres ci-dessus pour cibler (ex. Gérants, Expirés) — ou choisissez-les un par un.`}
+              </T>
+              {selMode ? (
+                <View style={{ flexDirection: 'row' }}>
+                  <Btn title={`Offrir à ${selected.length} compte${selected.length > 1 ? 's' : ''}`} icon="gift-outline" color={colors.success} size="sm" disabled={selected.length === 0} onPress={() => openBulkGift(users.filter((u) => selected.includes(u.phone)))} style={{ flex: 1, marginRight: 8 }} />
+                  <Btn title="Annuler" icon="close-outline" outline color={colors.muted} size="sm" onPress={() => { setSelMode(false); setSelected([]); }} style={{ flex: 1 }} />
+                </View>
+              ) : (
+                <View style={{ flexDirection: 'row' }}>
+                  <Btn title={`Offrir aux ${filteredUsers.length} affichés`} icon="gift-outline" color={colors.success} size="sm" onPress={() => openBulkGift(filteredUsers)} style={{ flex: 1, marginRight: 8 }} />
+                  <Btn title="Choisir" icon="checkbox-outline" outline color={colors.success} size="sm" onPress={() => { setSelMode(true); setSelected([]); setUExpanded(null); }} style={{ flex: 1 }} />
+                </View>
+              )}
+              {selMode && filteredUsers.length > 0 ? (
+                <Pressable onPress={() => setSelected(filteredUsers.filter((u) => !u.blocked).map((u) => u.phone))} style={{ marginTop: 8, alignSelf: 'center' }} hitSlop={8}>
+                  <T size={font.xs} weight="800" color={colors.success}>Tout cocher ({filteredUsers.filter((u) => !u.blocked).length} affichés)</T>
+                </Pressable>
+              ) : null}
+            </Card>
+          )}
+
           {uExpanded && (
             <Pressable style={{ flexDirection: 'row', alignItems: 'center', marginBottom: 10 }} onPress={() => setUExpanded(null)}>
               <Ionicons name="chevron-up-circle-outline" size={16} color={colors.primary} />
@@ -598,9 +660,13 @@ export default function Admin({ onBack }) {
               {shownUsers.map((u, idx) => {
                 const st = SUB_STATUS[u.subscription?.status] || SUB_STATUS.trial;
                 const open = uExpanded === u.phone;
+                const isSel = selMode && selected.includes(u.phone);
                 return (
-                  <View key={u.id} style={[s.uRow, idx > 0 && s.uDivider]}>
-                    <Pressable style={s.uLine} onPress={() => setUExpanded(open ? null : u.phone)}>
+                  <View key={u.id} style={[s.uRow, idx > 0 && s.uDivider, isSel && { backgroundColor: colors.successBg, borderRadius: radius.md }]}>
+                    <Pressable style={s.uLine} onPress={() => (selMode ? (!u.blocked && toggleSelected(u.phone)) : setUExpanded(open ? null : u.phone))}>
+                      {selMode ? (
+                        <Ionicons name={u.blocked ? 'remove-circle-outline' : isSel ? 'checkbox' : 'square-outline'} size={24} color={u.blocked ? colors.muted2 : colors.success} style={{ marginRight: 8 }} />
+                      ) : null}
                       <View style={s.uIconSm}>
                         <Ionicons name={u.role === 'gerant' ? 'storefront-outline' : 'person-outline'} size={16} color={colors.primary} />
                       </View>
@@ -991,7 +1057,7 @@ export default function Admin({ onBack }) {
                     iconColor={m.color}
                     iconBg={m.bg}
                     label={`${e.name || '—'}${e.phone ? ' · ' + e.phone : ''}${e.role ? ' · ' + (e.role === 'gerant' ? 'Gérant(e)' : 'Client(e)') : ''}`}
-                    value={`${m.label} · ${fmtDate(e.createdAt)}${e.amount ? ' · ' + money(e.amount) : ''}`}
+                    value={`${m.label} · ${fmtDate(e.createdAt)}${e.amount ? ' · ' + (String(e.type).startsWith('free_time_granted') ? `${e.amount} jour${e.amount > 1 ? 's' : ''}` : money(e.amount)) : ''}`}
                   />
                 );
               })
@@ -1187,6 +1253,33 @@ export default function Admin({ onBack }) {
           L'utilisateur recevra une notification l'informant du cadeau.
         </T>
         <DialogButtons cancel="Annuler" confirm={`Offrir ${giftCustom ? giftCustom + ' j' : ({ 7: '1 sem.', 14: '2 sem.', 30: '1 mois', 60: '2 mois', 90: '3 mois', 180: '6 mois' }[giftDays] || giftDays + ' j')}`} onCancel={() => setGiftTarget(null)} onConfirm={doGift} />
+      </Dialog>
+
+      <Dialog visible={!!bulkTargets}>
+        <T size={font.h3} weight="800" color={colors.text} style={{ textAlign: 'center' }}>🎁 Cadeau de temps groupé</T>
+        <T size={font.sm} weight="700" color={colors.success} style={{ textAlign: 'center', marginTop: 6 }}>
+          {(bulkTargets || []).length} compte{(bulkTargets || []).length > 1 ? 's' : ''} · {(bulkTargets || []).filter((u) => u.role === 'client').length} client(s) · {(bulkTargets || []).filter((u) => u.role === 'gerant').length} gérant(s)
+        </T>
+        <T size={font.xs} weight="600" color={colors.muted2} style={{ textAlign: 'center', marginTop: 4, marginBottom: 12 }}>
+          Abonnés : date de fin prolongée · En essai : fin d'essai prolongée · Expirés : nouvelle période gratuite dès aujourd'hui.
+        </T>
+        <View style={{ flexDirection: 'row', flexWrap: 'wrap', justifyContent: 'center' }}>
+          {[{ d: 7, l: '1 semaine' }, { d: 14, l: '2 semaines' }, { d: 30, l: '1 mois' }, { d: 60, l: '2 mois' }, { d: 90, l: '3 mois' }, { d: 180, l: '6 mois' }].map((o) => (
+            <Chip key={o.d} label={o.l} active={!giftCustom && giftDays === o.d} onPress={() => { setGiftDays(o.d); setGiftCustom(''); }} selectedColor={colors.success} />
+          ))}
+        </View>
+        <View style={[s.search, { marginTop: 10 }]}>
+          <Ionicons name="calendar-outline" size={18} color={colors.muted} />
+          <TextInput value={giftCustom} onChangeText={(t) => setGiftCustom(t.replace(/[^0-9]/g, '').slice(0, 4))} placeholder="Ou nombre de jours personnalisé" placeholderTextColor={colors.muted2} keyboardType="number-pad" style={s.searchInput} />
+        </View>
+        <View style={[s.search, { marginTop: 8 }]}>
+          <Ionicons name="chatbubble-ellipses-outline" size={18} color={colors.muted} />
+          <TextInput value={giftNote} onChangeText={setGiftNote} placeholder="Message (optionnel) : ex. Merci d'être parmi les premiers !" placeholderTextColor={colors.muted2} style={s.searchInput} maxLength={120} />
+        </View>
+        <T size={font.xs} weight="600" color={colors.muted2} style={{ textAlign: 'center', marginTop: 10 }}>
+          Chaque compte recevra une notification. Cette action ne peut pas être annulée.
+        </T>
+        <DialogButtons cancel="Annuler" confirm={`Offrir ${giftCustom ? giftCustom + ' j' : ({ 7: '1 sem.', 14: '2 sem.', 30: '1 mois', 60: '2 mois', 90: '3 mois', 180: '6 mois' }[giftDays] || giftDays + ' j')} à ${(bulkTargets || []).length} compte${(bulkTargets || []).length > 1 ? 's' : ''}`} onCancel={() => setBulkTargets(null)} onConfirm={doGiftBulk} />
       </Dialog>
 
       {/* Confirmation d'envoi de message */}

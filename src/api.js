@@ -118,6 +118,7 @@ export const api = {
     resetPassword: (key, phone) => request('POST', '/api/admin/reset-password', { phone }, { 'x-admin-key': key }),
     setCertified: (key, phone, certified) => request('POST', '/api/admin/set-certified', { phone, certified }, { 'x-admin-key': key }),
     grantFreeTime: (key, phone, days, note) => request('POST', '/api/admin/grant-free-time', { phone, days, note }, { 'x-admin-key': key }),
+    grantFreeTimeBulk: (key, phones, days, note) => request('POST', '/api/admin/grant-free-time-bulk', { phones, days, note }, { 'x-admin-key': key }),
     gifts: (key) => request('GET', '/api/admin/gifts', null, { 'x-admin-key': key }),
     deleteAccount: (key, phone) => request('POST', '/api/admin/delete-account', { phone }, { 'x-admin-key': key }),
     blockAccount: (key, phone, reason) => request('POST', '/api/admin/block-account', { phone, reason }, { 'x-admin-key': key }),

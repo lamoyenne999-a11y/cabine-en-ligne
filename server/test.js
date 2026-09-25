@@ -239,6 +239,16 @@ async function main() {
     check('Client notifié du cadeau', (gn.json.notifications || []).some((n) => n.type === 'gift'));
     const bad = await req('POST', '/admin/grant-free-time', { phone: cphone, days: 0 }, null, H);
     check('Durée invalide refusée (400)', bad.status === 400);
+    // Cadeau groupé : client + gérant + numéro inconnu.
+    const b0 = (await req('GET', '/client/subscription', null, ct)).json.subscription;
+    const bulk = await req('POST', '/admin/grant-free-time-bulk', { phones: [cphone, gphone, '0100000000'], days: 7, note: 'Bonus' }, null, H);
+    check('Cadeau groupé : 2 comptes servis, 1 ignoré', bulk.status === 200 && bulk.json.count === 2 && bulk.json.skipped === 1);
+    const b1 = (await req('GET', '/client/subscription', null, ct)).json.subscription;
+    check('Cadeau groupé : essai du client prolongé de 7 jours', b1.trialEndsAt - b0.trialEndsAt >= 7 * 86400000 - 5000);
+    const bulkEmpty = await req('POST', '/admin/grant-free-time-bulk', { phones: [], days: 7 }, null, H);
+    check('Cadeau groupé sans destinataire refusé (400)', bulkEmpty.status === 400);
+    const gifts = await req('GET', '/admin/gifts', null, null, H);
+    check('Historique des cadeaux contient le lot', (gifts.json.gifts || []).filter((g) => g.batchId === bulk.json.batchId).length === 2);
   } else {
     console.log('  (tests admin ignorés : ADMIN_KEY non défini)');
   }

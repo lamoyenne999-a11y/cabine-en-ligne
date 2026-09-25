@@ -483,12 +483,16 @@ export function setUserCertified(phone, certified) {
 //  - Essai en cours  : on prolonge la fin d'essai.
 //  - Abonnement actif: on prolonge la date de fin d'abonnement.
 //  - Expiré          : on rouvre une période gratuite (statut « trial ») à partir d'aujourd'hui.
-export function grantFreeTime(phone, days, note = '') {
+function parseGiftDays(days) {
   const n = parseInt(days, 10);
   if (!(n > 0) || n > 3660) throw Object.assign(new Error('Durée invalide (1 à 3660 jours)'), { status: 400 });
-  const u = findOne('users', (x) => x.phone === String(phone).trim());
-  if (!u) return { ok: false, error: 'Compte introuvable' };
-  const now = Date.now();
+  return n;
+}
+function giftLabel(n) {
+  return n % 30 === 0 ? `${n / 30} mois` : n % 7 === 0 ? `${n / 7} semaine${n / 7 > 1 ? 's' : ''}` : `${n} jour${n > 1 ? 's' : ''}`;
+}
+// Applique un cadeau de n jours à un utilisateur (déjà validé). Utilisé en individuel et en groupé.
+function applyGift(u, n, note, now, batchId = '') {
   const add = n * 86400000;
   const cur = subscriptionFor(u);
   const s = u.subscription || {};
@@ -497,15 +501,41 @@ export function grantFreeTime(phone, days, note = '') {
   else if (cur.status === 'trial') patch = { ...s, status: 'trial', trialEndsAt: (s.trialEndsAt || now) + add, expiryNotified: false, alerts: null };
   else patch = { ...s, status: 'trial', trialEndsAt: now + add, subscribedUntil: 0, expiryNotified: false, alerts: null };
   update('users', (x) => x.id === u.id, { subscription: patch, lastGift: { days: n, at: now, note } });
-  insert('gifts', { userId: u.id, phone: u.phone, name: u.name, role: u.role, days: n, note, createdAt: now });
-  recordEvent({ type: 'free_time_granted', name: u.name, phone: u.phone, role: u.role, amount: n });
-  const label = n % 30 === 0 ? `${n / 30} mois` : n % 7 === 0 ? `${n / 7} semaine${n / 7 > 1 ? 's' : ''}` : `${n} jour${n > 1 ? 's' : ''}`;
+  insert('gifts', { userId: u.id, phone: u.phone, name: u.name, role: u.role, days: n, note, batchId, createdAt: now });
   createNotification({
     userId: u.id,
     type: 'gift',
-    text: `Cadeau ! Cabine En Ligne vous offre ${label} d'utilisation gratuite${note ? ' — ' + note : ''}. Profitez-en !`,
+    text: `Cadeau ! Cabine En Ligne vous offre ${giftLabel(n)} d'utilisation gratuite${note ? ' — ' + note : ''}. Profitez-en !`,
   });
+}
+export function grantFreeTime(phone, days, note = '') {
+  const n = parseGiftDays(days);
+  const u = findOne('users', (x) => x.phone === String(phone).trim());
+  if (!u) return { ok: false, error: 'Compte introuvable' };
+  const now = Date.now();
+  applyGift(u, n, note, now);
+  recordEvent({ type: 'free_time_granted', name: u.name, phone: u.phone, role: u.role, amount: n });
   return { ok: true, phone: u.phone, name: u.name, days: n, subscription: subscriptionFor(findOne('users', (x) => x.id === u.id)) };
+}
+// Cadeau groupé : { phones: [...], days, note }. Les numéros bloqués et les comptes
+// introuvables sont ignorés (comptés dans « skipped »). Un seul événement dans le journal.
+export function grantFreeTimeBulk({ phones = [], days, note = '' } = {}) {
+  const n = parseGiftDays(days);
+  const list = [...new Set((Array.isArray(phones) ? phones : []).map((p) => String(p || '').trim()).filter(Boolean))].slice(0, 5000);
+  if (list.length === 0) return { ok: false, error: 'Aucun destinataire' };
+  const now = Date.now();
+  const batchId = `gift_${now}_${Math.random().toString(36).slice(2, 7)}`;
+  const set = new Set(list);
+  const users = find('users', (u) => u.passwordHash && set.has(u.phone));
+  const results = [];
+  let skipped = list.length - users.length;
+  for (const u of users) {
+    if (u.blocked) { skipped++; continue; }
+    applyGift(u, n, note, now, batchId);
+    results.push({ phone: u.phone, subscription: subscriptionFor(findOne('users', (x) => x.id === u.id)) });
+  }
+  if (results.length > 0) recordEvent({ type: 'free_time_granted_bulk', name: `${results.length} utilisateur(s)`, phone: '', role: '', amount: n });
+  return { ok: true, count: results.length, skipped, days: n, batchId, users: results };
 }
 export function giftsForAdmin(limit = 100) {
   return find('gifts', () => true).sort((a, b) => b.createdAt - a.createdAt).slice(0, limit);
@@ -641,7 +671,7 @@ export function eventsForAdmin(limit = 100) {
 export function eventsCounters() {
   const rows = find('events', () => true);
   const c = { total: rows.length };
-  for (const type of ['user_registered', 'user_deleted', 'subscription_declared', 'subscription_paid', 'user_suspended', 'user_reactivated', 'report_created', 'announcement_sent', 'subscription_expired', 'user_blocked', 'user_unblocked', 'unblock_request', 'free_time_granted', 'gerant_certified']) {
+  for (const type of ['user_registered', 'user_deleted', 'subscription_declared', 'subscription_paid', 'user_suspended', 'user_reactivated', 'report_created', 'announcement_sent', 'subscription_expired', 'user_blocked', 'user_unblocked', 'unblock_request', 'free_time_granted', 'free_time_granted_bulk', 'gerant_certified']) {
     c[type] = rows.filter((r) => r.type === type).length;
   }
   return c;

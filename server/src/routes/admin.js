@@ -1,7 +1,7 @@
 import express from 'express';
 import { hashPassword } from '../middleware/auth.js';
 import { config } from '../config.js';
-import { gerantRating, gerantStats, runSubscriptionAlerts, sendAnnouncement, announcementsForAdmin, announcementAudience, reportsForAdmin, resolveReport, openReportsCountFor, SUSPEND_REASONS, pendingSubscriptionPayments, confirmSubscriptionPayment, rejectSubscriptionPayment, setUserCertified, grantFreeTime, giftsForAdmin, subscriptionPayments, subscriptionTotals, subscriptionFor, referralSummary, referredUsersCount, referralPaymentCount, referralRateFor, deleteAccountAll, setUserFrozen, eventsForAdmin, eventsCounters, referralCodeStats, expiredUsers, reconcileExpiredEvents, isPhoneBlocked, blockUser, unblockUser, blockedList, unblockRequestsPending, resolveUnblockRequest } from '../services/flowService.js';
+import { gerantRating, gerantStats, runSubscriptionAlerts, sendAnnouncement, announcementsForAdmin, announcementAudience, reportsForAdmin, resolveReport, openReportsCountFor, SUSPEND_REASONS, pendingSubscriptionPayments, confirmSubscriptionPayment, rejectSubscriptionPayment, setUserCertified, grantFreeTime, grantFreeTimeBulk, giftsForAdmin, subscriptionPayments, subscriptionTotals, subscriptionFor, referralSummary, referredUsersCount, referralPaymentCount, referralRateFor, deleteAccountAll, setUserFrozen, eventsForAdmin, eventsCounters, referralCodeStats, expiredUsers, reconcileExpiredEvents, isPhoneBlocked, blockUser, unblockUser, blockedList, unblockRequestsPending, resolveUnblockRequest } from '../services/flowService.js';
 import { find, findOne, update, dbStats } from '../db.js';
 import { registerWebPushSubscription, removeWebPushSubscription, OWNER_ID, ownerPushCount, notifyOwner } from '../services/pushService.js';
 
@@ -194,6 +194,14 @@ router.post('/grant-free-time', requireAdmin, (req, res) => {
   try {
     const out = grantFreeTime(phone, req.body?.days, String(req.body?.note || '').slice(0, 120));
     if (!out.ok) return res.status(404).json(out);
+    res.json(out);
+  } catch (e) { res.status(e.status || 500).json({ error: e.message }); }
+});
+// Cadeau groupé. Body : { phones: [...], days, note }.
+router.post('/grant-free-time-bulk', requireAdmin, (req, res) => {
+  try {
+    const out = grantFreeTimeBulk({ phones: req.body?.phones, days: req.body?.days, note: String(req.body?.note || '').slice(0, 120) });
+    if (!out.ok) return res.status(400).json(out);
     res.json(out);
   } catch (e) { res.status(e.status || 500).json({ error: e.message }); }
 });
