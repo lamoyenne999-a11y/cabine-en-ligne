@@ -620,25 +620,24 @@ export default function Admin({ onBack }) {
               <T size={font.xs} weight="600" color={colors.muted} style={{ marginTop: 4, marginBottom: 8 }}>
                 {selMode
                   ? `Cochez les comptes à qui offrir du temps. ${selected.length} sélectionné${selected.length > 1 ? 's' : ''}.`
-                  : `« Offrir à tous » = tous les comptes affichés (${filteredUsers.length}), selon les filtres ci-dessus (Tous / Clients / Gérants, Expirés…). « Choisir » = cocher certains comptes.`}
+                  : `Offrez la même durée à tous les comptes affichés (${filteredUsers.length}) — utilisez les filtres ci-dessus pour cibler (ex. Gérants, Expirés) — ou choisissez-les un par un.`}
               </T>
               {selMode ? (
-                <>
-                  <View style={{ flexDirection: 'row', marginBottom: 8 }}>
-                    <Btn title={`Tout cocher (${filteredUsers.filter((u) => !u.blocked).length})`} icon="checkbox-outline" outline color={colors.success} size="sm" onPress={() => setSelected(filteredUsers.filter((u) => !u.blocked).map((u) => u.phone))} style={{ flex: 1, marginRight: 8 }} />
-                    <Btn title="Tout décocher" icon="square-outline" outline color={colors.muted} size="sm" disabled={selected.length === 0} onPress={() => setSelected([])} style={{ flex: 1 }} />
-                  </View>
-                  <View style={{ flexDirection: 'row' }}>
-                    <Btn title={`Offrir à ${selected.length} compte${selected.length > 1 ? 's' : ''}`} icon="gift-outline" color={colors.success} size="sm" disabled={selected.length === 0} onPress={() => openBulkGift(users.filter((u) => selected.includes(u.phone)))} style={{ flex: 1, marginRight: 8 }} />
-                    <Btn title="Annuler" icon="close-outline" outline color={colors.muted} size="sm" onPress={() => { setSelMode(false); setSelected([]); }} style={{ flex: 1 }} />
-                  </View>
-                </>
+                <View style={{ flexDirection: 'row' }}>
+                  <Btn title={`Offrir à ${selected.length} compte${selected.length > 1 ? 's' : ''}`} icon="gift-outline" color={colors.success} size="sm" disabled={selected.length === 0} onPress={() => openBulkGift(users.filter((u) => selected.includes(u.phone)))} style={{ flex: 1, marginRight: 8 }} />
+                  <Btn title="Annuler" icon="close-outline" outline color={colors.muted} size="sm" onPress={() => { setSelMode(false); setSelected([]); }} style={{ flex: 1 }} />
+                </View>
               ) : (
                 <View style={{ flexDirection: 'row' }}>
-                  <Btn title={`Offrir à tous (${filteredUsers.length})`} icon="gift-outline" color={colors.success} size="sm" onPress={() => openBulkGift(filteredUsers)} style={{ flex: 1, marginRight: 8 }} />
+                  <Btn title={`Offrir aux ${filteredUsers.length} affichés`} icon="gift-outline" color={colors.success} size="sm" onPress={() => openBulkGift(filteredUsers)} style={{ flex: 1, marginRight: 8 }} />
                   <Btn title="Choisir" icon="checkbox-outline" outline color={colors.success} size="sm" onPress={() => { setSelMode(true); setSelected([]); setUExpanded(null); }} style={{ flex: 1 }} />
                 </View>
               )}
+              {selMode && filteredUsers.length > 0 ? (
+                <Pressable onPress={() => setSelected(filteredUsers.filter((u) => !u.blocked).map((u) => u.phone))} style={{ marginTop: 8, alignSelf: 'center' }} hitSlop={8}>
+                  <T size={font.xs} weight="800" color={colors.success}>Tout cocher ({filteredUsers.filter((u) => !u.blocked).length} affichés)</T>
+                </Pressable>
+              ) : null}
             </Card>
           )}
 
