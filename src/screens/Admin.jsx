@@ -890,7 +890,7 @@ export default function Admin({ onBack }) {
               </View>
             ) : null}
             <TextInput value={annTitle} onChangeText={setAnnTitle} placeholder="Titre court (facultatif, 60 car. max)" placeholderTextColor={colors.muted2} maxLength={60} style={s.noteInput} />
-            <TextInput value={annText} onChangeText={setAnnText} placeholder="Message (10 à 400 caractères). Ex : Astuce — ajoutez 1 % au montant pour couvrir les frais Wave, le gérant reçoit ainsi le montant exact." placeholderTextColor={colors.muted2} maxLength={400} multiline style={[s.noteInput, { minHeight: 90, textAlignVertical: 'top' }]} />
+            <TextInput value={annText} onChangeText={setAnnText} placeholder="Message (10 à 400 caractères). Ex : Astuce — ajoutez les frais Wave au montant (5 F jusqu'à 500 F, puis 1 % par tranche de 500 F), le gérant reçoit ainsi le montant exact." placeholderTextColor={colors.muted2} maxLength={400} multiline style={[s.noteInput, { minHeight: 90, textAlignVertical: 'top' }]} />
             <T size={font.xs} weight="600" color={colors.muted2} style={{ textAlign: 'right', marginTop: 4 }}>{annText.length}/400</T>
             {annDone ? <T size={font.sm} weight="800" color={colors.success} style={{ textAlign: 'center', marginTop: 6 }}>{annDone}</T> : null}
             <Btn title="Envoyer" icon="send" size="sm" disabled={annText.trim().length < 10 || (annAudience === 'user' && !annUser)} loading={busy === 'announce'} onPress={() => setAnnConfirm(true)} style={{ marginTop: 10 }} />

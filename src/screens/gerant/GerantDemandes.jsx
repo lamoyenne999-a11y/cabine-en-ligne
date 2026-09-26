@@ -1,4 +1,5 @@
 import React, { useState } from 'react';
+import { waveFee } from '../../wave';
 import { View, Pressable, StyleSheet } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { ReliableBadge } from '../../components/Rating';
@@ -176,7 +177,7 @@ export default function GerantDemandes() {
         : "Le client sera informé que vous n'êtes pas disponible (ce n'est pas un refus) et invité à choisir un autre gérant. Vous passerez « Hors ligne » ; remettez-vous en ligne depuis votre Profil.";
       case 'received': return `Vous confirmez avoir reçu ${fmt(cur.amount)} XOF de ${cur.clientName || 'ce client'} sur votre Wave ? Le client sera notifié.`;
       case 'notreceived': return `Vous n'avez PAS reçu ${fmt(cur.amount)} XOF de ${cur.clientName || 'ce client'} ? Il sera notifié et invité à vérifier son transfert Wave.`;
-      case 'partial': return `Vous avez reçu moins que ${fmt(cur.amount)} XOF (souvent ${fmt(Math.round((cur.amount || 0) * 0.99))} XOF : frais Wave déduits). Le client sera invité à compléter ${fmt(Math.ceil((cur.amount || 0) * 0.01))} XOF.`;
+      case 'partial': return `Vous avez reçu moins que ${fmt(cur.amount)} XOF (souvent ${fmt((cur.amount || 0) - waveFee(cur.amount))} XOF : frais Wave déduits). Le client sera invité à compléter ${fmt(waveFee(cur.amount))} XOF.`;
       case 'complete': return cur.moneyReceived
         ? 'Vous avez bien crédité le client ? Il sera notifié et pourra confirmer la réception.'
         : "Vous avez crédité le client sans avoir encore reçu l'argent ? Il sera notifié qu'il doit encore régler.";

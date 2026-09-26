@@ -1,4 +1,5 @@
 import { getDb, save, insert, findOne, find, update, remove } from '../db.js';
+import { waveFee } from '../waveFee.js';
 import { config } from '../config.js';
 import { sendWebPushToUser, notifyOwner } from './pushService.js';
 
@@ -1227,7 +1228,7 @@ export function requestPayment({ id, gerantUserId }) {
   return upd;
 }
 
-// Le gérant a reçu l'argent mais PAS le montant complet (souvent : frais Wave 1 %
+// Le gérant a reçu l'argent mais PAS le montant complet (souvent : frais Wave
 // déduits par le client). Le client est notifié du complément à envoyer.
 export function markPartial({ id, gerantUserId, received }) {
   const d = findOne('demandes', (x) => x.id === id && x.gerantUserId === gerantUserId);
@@ -1236,7 +1237,7 @@ export function markPartial({ id, gerantUserId, received }) {
   if (!['paid', 'completed', 'accepted'].includes(d.status)) throw Object.assign(new Error('Le client n\'a pas encore signalé de paiement'), { status: 400 });
   const total = d.amount || 0;
   let got = parseInt(received, 10);
-  if (!(got >= 0) || got >= total) got = Math.round(total * 0.99); // défaut : 1 % manquant
+  if (!(got >= 0) || got >= total) got = total - waveFee(total); // défaut : frais Wave manquants
   const missing = total - got;
   update('demandes', (x) => x.id === id, { partialAt: Date.now(), partialReceived: got, partialMissing: missing, clientDisputedAt: 0 });
   const upd = findOne('demandes', (x) => x.id === id);
@@ -1357,7 +1358,7 @@ function alertTexts(u, kind, stage, at) {
 export function sendWelcome(user) {
   const text = user.role === 'gerant'
     ? `Bienvenue sur Cabine En Ligne, ${user.name} ! 3 gestes essentiels : 1) Vérifiez votre numéro Wave dans Profil (c'est là que les clients paient). 2) Restez « En ligne » pour recevoir des demandes. 3) Sur chaque demande : Accepter ou « Payer d'abord », puis « Argent reçu » quand Wave confirme. Votre essai gratuit dure 30 jours.`
-    : `Bienvenue sur Cabine En Ligne, ${user.name} ! Rechargez à distance en 3 gestes : 1) Choisissez un gérant (les « En ligne » répondent vite). 2) Payez le montant + 1 % de frais sur son Wave. 3) Appuyez sur « J'ai payé » : il vous crédite. Votre essai gratuit dure 30 jours.`;
+    : `Bienvenue sur Cabine En Ligne, ${user.name} ! Rechargez à distance en 3 gestes : 1) Choisissez un gérant (les « En ligne » répondent vite). 2) Payez le montant + les frais Wave (5 F jusqu'à 500 F, puis 1 % par tranche de 500 F) sur son Wave. 3) Appuyez sur « J'ai payé » : il vous crédite. Votre essai gratuit dure 30 jours.`;
   return createNotification({ userId: user.id, type: 'welcome', text });
 }
 export function runSubscriptionAlerts(now = Date.now()) {

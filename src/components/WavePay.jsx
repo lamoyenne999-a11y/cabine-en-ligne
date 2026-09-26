@@ -1,4 +1,5 @@
 import React, { useState } from 'react';
+import { waveFee } from '../wave';
 import { View, Text, Pressable, StyleSheet, Linking } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { colors, radius, space, font } from '../theme';
@@ -36,7 +37,7 @@ export function WavePayBox({ amount, merchant, merchantName, payLink, mode = 'nu
   };
   // mode 'number' (défaut) : paiement des DEMANDES par numéro. Le client copie le
   // numéro Wave du gérant et lui transfère le montant depuis son app Wave. Les
-  // frais Wave (1 %) sont prélevés sur LE compte du client ; le gérant reçoit la
+  // frais Wave (5 F jusqu'à 500 F, puis 1 % par tranche de 500 F) sont prélevés sur LE compte du client ; le gérant reçoit la
   // TOTALITÉ du montant (contrairement au lien marchand, qui prélève 1 % sur le gérant).
   // mode 'link' : ouverture du lien de paiement marchand (utilisé pour l'abonnement).
   const pay = () => {
@@ -60,9 +61,9 @@ export function WavePayBox({ amount, merchant, merchantName, payLink, mode = 'nu
   const hasLink = mode === 'link' && isValidPayLink(payLink);
   const fmtN = (n) => (n || 0).toLocaleString('fr-FR').replace(/\u202f/g, ' ');
   const amt = fmtN(amount);
-  // Frais Wave (1 %) à la charge du client : on affiche le TOTAL à envoyer pour
+  // Frais Wave à la charge du client (barème réel, voir src/wave.js) : on affiche le TOTAL à envoyer pour
   // que le gérant reçoive bien le montant exact de la demande.
-  const fees = mode === 'number' && includeFees && amount ? Math.ceil(amount * 0.01) : 0;
+  const fees = mode === 'number' && includeFees && amount ? waveFee(amount) : 0;
   const total = (amount || 0) + fees;
   const btnLabel = amount ? `Payer ${fees ? fmtN(total) : amt} FCFA par Wave` : 'Payer par Wave';
 
@@ -80,9 +81,9 @@ export function WavePayBox({ amount, merchant, merchantName, payLink, mode = 'nu
       ) : (
         <T size={font.xs} weight="600" color={colors.muted} style={{ textAlign: 'center', marginTop: 6 }}>
           {compact
-            ? (fees ? `Envoyez ${fmtN(total)} F (${amt} F + ${fmtN(fees)} F de frais Wave) pour que ${merchantName || 'le gérant'} reçoive ${amt} F.` : 'Frais Wave (1 %) côté client. Copiez le numéro et payez depuis votre app Wave.')
+            ? (fees ? `Envoyez ${fmtN(total)} F (${amt} F + ${fmtN(fees)} F de frais Wave) pour que ${merchantName || 'le gérant'} reçoive ${amt} F.` : 'Frais Wave côté client (5 F jusqu\'à 500 F, puis 1 % par tranche de 500 F). Copiez le numéro et payez depuis votre app Wave.')
             : (fees
-              ? `Envoyez ${fmtN(total)} F au numéro ci-dessous depuis votre app Wave : ${amt} F + ${fmtN(fees)} F de frais Wave (1 %). Ainsi ${merchantName || 'le gérant'} reçoit bien ${amt} F.`
+              ? `Envoyez ${fmtN(total)} F au numéro ci-dessous depuis votre app Wave : ${amt} F + ${fmtN(fees)} F de frais Wave. Ainsi ${merchantName || 'le gérant'} reçoit bien ${amt} F.`
               : `Transférez ${amount ? `${amt} F` : 'le montant'} au numéro ci-dessous depuis votre app Wave.`)}
         </T>
       )}
@@ -110,7 +111,7 @@ export function WavePayBox({ amount, merchant, merchantName, payLink, mode = 'nu
 // ============================================================
 //  Paiement via Wave — l'argent ne passe PAS par l'app.
 //  - Demandes (mode 'number') : affiche le numéro Wave PERSONNEL
-//    du gérant ; le client lui transfère le montant (frais 1 %
+//    du gérant ; le client lui transfère le montant (frais Wave
 //    côté client, le gérant reçoit la totalité).
 //  - Abonnement (mode 'link') : ouvre le lien du compte marchand
 //    Wave de la plateforme (pas de frais sur le gérant ici).

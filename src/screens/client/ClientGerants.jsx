@@ -174,7 +174,7 @@ export default function ClientGerants() {
                   <T size={font.xs} weight="800" color="#fff">{copiedNum === (g.waveNumber || g.phone) ? 'Numéro copié ✓' : 'Copier le numéro Wave'}</T>
                 </Pressable>
                 <T size={font.xs} weight="600" color={colors.muted} style={{ marginTop: 4 }}>
-                  Transférez le montant à ce numéro — les frais Wave (1 %) sont sur votre compte, le gérant reçoit la totalité.
+                  Transférez le montant à ce numéro — les frais Wave (5 F jusqu'à 500 F, puis 1 % par tranche de 500 F) sont sur votre compte, le gérant reçoit la totalité.
                 </T>
               </View>
               <Pressable onPress={() => removeGerant(g.id)} hitSlop={8} style={{ paddingLeft: 12 }}>

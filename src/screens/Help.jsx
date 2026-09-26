@@ -10,7 +10,7 @@ import { useStore } from '../store';
 
 const STEPS = [
   { icon: 'create-outline', title: '1. Faites une demande', text: "Choisissez Unités, Minutes, Internet ou Appel + Internet, le montant et le gérant de votre choix." },
-  { icon: 'water-outline', title: '2. Payez le gérant en direct', text: 'Le gérant accepte votre demande. Vous transférez le montant à son numéro Wave personnel depuis votre app Wave (frais 1 % sur votre compte — le gérant reçoit la totalité). Aucun argent ne passe par l\'app.' },
+  { icon: 'water-outline', title: '2. Payez le gérant en direct', text: 'Le gérant accepte votre demande. Vous transférez le montant à son numéro Wave personnel depuis votre app Wave (frais Wave sur votre compte : 5 F jusqu\'à 500 F, puis 1 % par tranche de 500 F — le gérant reçoit la totalité). Aucun argent ne passe par l\'app.' },
   { icon: 'checkmark-done-outline', title: '3. Le gérant vous sert', text: 'Une fois payé, le gérant crédite le numéro indiqué. Vous suivez tout dans votre Historique.' },
 ];
 

@@ -132,7 +132,7 @@ export default function GerantProfile({ onLogout }) {
       <Card style={{ marginTop: space.lg }}>
         <T size={font.h3} weight="800" color={colors.text} style={{ marginBottom: 4 }}>Votre numéro Wave</T>
         <T size={font.xs} weight="600" color={colors.muted} style={{ marginBottom: 10 }}>
-          C'est le numéro sur lequel vos clients vous transfèrent le montant de leur demande. Cette fois c'est le CLIENT qui paie les frais Wave (1 %) — vous recevez la totalité, vous ne perdez rien.
+          C'est le numéro sur lequel vos clients vous transfèrent le montant de leur demande. Cette fois c'est le CLIENT qui paie les frais Wave (5 F jusqu'à 500 F, puis 1 % par tranche de 500 F) — vous recevez la totalité, vous ne perdez rien.
         </T>
         <View style={s.waveRow}>
           <View style={s.waveIcon}><Ionicons name="water" size={20} color={colors.wave} /></View>

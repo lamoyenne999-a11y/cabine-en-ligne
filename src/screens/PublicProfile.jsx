@@ -90,7 +90,7 @@ export default function PublicProfile({ userId }) {
                 <>
                   <Btn title={copied ? 'Numéro copié ✓' : 'Copier le numéro Wave'} icon={copied ? 'checkmark' : 'copy-outline'} onPress={copyWave} style={{ alignSelf: 'stretch', marginTop: space.md }} />
                   <T size={font.xs} weight="600" color={colors.muted} style={{ marginTop: 6, textAlign: 'center' }}>
-                    Transférez le montant à ce numéro depuis votre app Wave. Les frais Wave (1 %) sont sur votre compte — le gérant reçoit la totalité.
+                    Transférez le montant à ce numéro depuis votre app Wave. Les frais Wave (5 F jusqu'à 500 F, puis 1 % par tranche de 500 F) sont sur votre compte — le gérant reçoit la totalité.
                   </T>
                 </>
               )}
