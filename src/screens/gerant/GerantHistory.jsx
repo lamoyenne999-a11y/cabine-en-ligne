@@ -1,4 +1,5 @@
 import React, { useState } from 'react';
+import { fmtDateTime, finalStep, sortDemandes } from '../../demandeTime';
 import { View, Text, TextInput, Pressable, StyleSheet } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { colors, radius, space, font } from '../../theme';
@@ -75,7 +76,7 @@ export default function GerantHistory() {
     if (group === 'declined') return ['declined', 'unavailable'].includes(d.status);
     return d.status === group;
   };
-  const filtered = demandes.filter(inGroup);
+  const filtered = sortDemandes(demandes.filter(inGroup)); // non réglées en haut
   const visible = q ? filtered.filter((d) => matches(d, q)) : filtered;
 
   return (
@@ -170,6 +171,26 @@ export default function GerantHistory() {
                     ? `${d.benefName && d.benefName !== d.benefPhone ? d.benefName + ' · ' : ''}${d.benefPhone}`
                     : `lui-même${d.benefPhone ? ' · ' + d.benefPhone : ''}`}
                 </T>
+                {/* Deux temps : lancement par le client, puis fin (terminée / annulée / refusée) ou dernière étape */}
+                {(() => { const f = finalStep(d); return (
+                  <View style={{ marginTop: 4 }}>
+                    <View style={{ flexDirection: 'row', alignItems: 'center' }}>
+                      <Ionicons name="play-circle-outline" size={12} color={colors.muted} />
+                      <T size={font.xs} weight="700" color={colors.muted} style={{ marginLeft: 4 }}>Lancée le {fmtDateTime(d.createdAt)}</T>
+                    </View>
+                    {f.at ? (
+                      <View style={{ flexDirection: 'row', alignItems: 'center', marginTop: 1 }}>
+                        <Ionicons name={f.final ? (d.status === 'completed' ? 'checkmark-circle-outline' : 'close-circle-outline') : 'time-outline'} size={12} color={f.final ? (d.status === 'completed' ? colors.success : colors.danger) : colors.primary} />
+                        <T size={font.xs} weight="700" color={f.final ? (d.status === 'completed' ? colors.success : colors.danger) : colors.primary} style={{ marginLeft: 4 }}>{f.label} le {fmtDateTime(f.at)}</T>
+                      </View>
+                    ) : (
+                      <View style={{ flexDirection: 'row', alignItems: 'center', marginTop: 1 }}>
+                        <Ionicons name="hourglass-outline" size={12} color={colors.warn} />
+                        <T size={font.xs} weight="700" color={colors.warn} style={{ marginLeft: 4 }}>En cours — pas encore finalisée</T>
+                      </View>
+                    )}
+                  </View>
+                ); })()}
               </View>
               <View style={{ alignItems: 'flex-end' }}>
                 <T size={font.body} weight="800" color={colors.text}>{money(d.amount)}</T>

@@ -1,4 +1,5 @@
 import React, { useEffect, useState } from 'react';
+import { sortGerantsByRecentUse } from '../../demandeTime';
 import { View, Text, TextInput, Pressable, StyleSheet, ScrollView } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { colors, radius, space, font } from '../../theme';
@@ -47,7 +48,8 @@ export default function ClientHome() {
   const suggested = (state.availableGerants || []).filter((g) => !g.alreadyAdded && !addedIds.has(g.userId));
   // On masque les gérants SUSPENDUS du choix : un gérant suspendu ne doit pas
   // apparaître quand le client veut faire une demande.
-  const myGerants = (state.gerants || []).filter((g) => !g.suspended);
+  // Classés selon la dernière demande faite à chacun (le plus récent en premier).
+  const myGerants = sortGerantsByRecentUse((state.gerants || []).filter((g) => !g.suspended), state.demandes);
 
   // Validation : on n'envoie jamais la demande tant qu'il manque une info.
   const validate = () => {
@@ -221,7 +223,7 @@ export default function ClientHome() {
         {myGerants.length > 0 && (
           <>
             <T size={font.sm} weight="800" color={colors.text} style={{ marginBottom: 4 }}>Vos gérants (priorité)</T>
-            <T size={font.xs} weight="600" color={colors.muted2} style={{ marginBottom: 8 }}>Ceux que vous avez déjà ajoutés — vous les connaissez, c\'est plus sûr.</T>
+            <T size={font.xs} weight="600" color={colors.muted2} style={{ marginBottom: 8 }}>Ceux que vous avez déjà ajoutés, les plus récemment sollicités en premier.</T>
             {myGerants.map((g) => {
               const on = sel?.id === g.id;
               return (
