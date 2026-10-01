@@ -596,7 +596,7 @@ async function main() {
   };
 
   // Abonnement annuel 1000 FCFA (un autre utilisateur)
-  const reg2 = await req('POST', '/auth/register', { role: 'client', name: 'Binta', phone: '08' + uniq, password: '123456' });
+  const reg2 = await req('POST', '/auth/register', { role: 'client', name: 'Binta', phone: '02' + uniq, password: '123456' });
   const sA = await subscribeConfirmed('/client/subscribe', 'annual', reg2.json.token);
   check('Abonnement annuel 1000 FCFA', sA.json.subscription?.status === 'active' && sA.json.subscription?.price === 1000 && sA.json.subscription?.periodLabel === 'annuel');
 
