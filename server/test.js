@@ -253,6 +253,28 @@ async function main() {
     console.log('  (tests admin ignorés : ADMIN_KEY non défini)');
   }
 
+  // ===== Relance « J'attends toujours » (NUDGE_SLOTS_MS=1000,2000,3000 en test) =====
+  const dmN = await req('POST', '/client/demandes', { gerantId, gerantName: 'Gérant Test', gerantWave: gphone, type: 'internet', amount: 300, benefName: 'Awa', benefPhone: '07' + uniq }, ct);
+  const nId = dmN.json.demande?.id;
+  const rl0 = await req('POST', `/client/demandes/${nId}/nudge`, {}, ct);
+  check('Relance trop tôt refusée (429)', rl0.status === 429);
+  await new Promise((r) => setTimeout(r, 1100));
+  const rl1 = await req('POST', `/client/demandes/${nId}/nudge`, {}, ct);
+  check('Relance 1 acceptée après le 1er créneau', rl1.status === 200 && rl1.json.demande?.nudgeCount === 1);
+  const gnN = await req('GET', '/gerant/notifications', null, gt);
+  check('Gérant notifié « attend toujours »', (gnN.json.notifications || []).some((n) => n.type === 'client_waiting' && n.demandeId === nId));
+  await new Promise((r) => setTimeout(r, 2100));
+  const rl2 = await req('POST', `/client/demandes/${nId}/nudge`, {}, ct);
+  const rl3 = await req('POST', `/client/demandes/${nId}/nudge`, {}, ct);
+  check('Relances 2 et 3 acceptées (3 max)', rl2.status === 200 && rl3.status === 200 && rl3.json.demande?.nudgeCount === 3);
+  const rl4 = await req('POST', `/client/demandes/${nId}/nudge`, {}, ct);
+  check('4e relance refusée (400)', rl4.status === 400);
+  await req('POST', `/gerant/demandes/${nId}/accept`, {}, gt);
+  const rl5 = await req('POST', `/client/demandes/${nId}/nudge`, {}, ct);
+  check('Plus de relance une fois le gérant a répondu (400)', rl5.status === 400);
+  const gdN = await req('GET', '/gerant/demandes', null, gt);
+  check('Le gérant voit le compteur de relances', (gdN.json.demandes || []).find((d) => d.id === nId)?.nudgeCount === 3);
+
   // ===== « Payer d'abord » : le gérant demande le paiement avant traitement =====
   const dmRP = await req('POST', '/client/demandes', { gerantId, gerantName: 'Gérant Test', gerantWave: gphone, type: 'internet', amount: 700, benefName: 'Awa', benefPhone: '07' + uniq }, ct);
   const rpId = dmRP.json.demande?.id;

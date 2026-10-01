@@ -56,3 +56,22 @@ export function sortGerantsByRecentUse(gerants, demandes) {
 export const RECENT_MS = 7 * 86400000;
 export const isRecent = (d, now = Date.now()) => (now - lastActivity(d)) <= RECENT_MS;
 export const sortByRecent = (list) => [...(list || [])].sort((a, b) => lastActivity(b) - lastActivity(a));
+
+// ---- Relance « J'attends toujours » (client → gérant) ----
+// Tant que le gérant n'a PAS accusé réception (ni accepté, ni demandé le
+// paiement, ni confirmé/contesté l'argent…), le client peut le relancer :
+// à 1 min, puis 3 min, puis 5 min après le lancement (3 relances maximum).
+export const NUDGE_SLOTS_MS = [60000, 180000, 300000];
+export function awaitingAck(d) {
+  if (!d) return false;
+  if (d.status === 'pending') return true;
+  return d.status === 'paid' && !d.acceptedAt && !d.moneyReceived && !d.notReceivedAt && !d.paymentRequestedAt;
+}
+// { can, count, nextAt, exhausted }
+export function nudgeState(d, now = Date.now()) {
+  const count = d?.nudgeCount || 0;
+  if (!awaitingAck(d)) return { can: false, count, nextAt: 0, exhausted: false };
+  if (count >= NUDGE_SLOTS_MS.length) return { can: false, count, nextAt: 0, exhausted: true };
+  const nextAt = (d.createdAt || 0) + NUDGE_SLOTS_MS[count];
+  return { can: now >= nextAt, count, nextAt, exhausted: false };
+}

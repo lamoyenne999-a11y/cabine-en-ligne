@@ -1045,6 +1045,36 @@ export function gerantHistory(userId) {
   return { demandes, summary: demandeSummary(demandes) };
 }
 
+// Relance « J'attends toujours » : le client rappelle au gérant qu'il attend une
+// réponse. Possible tant que le gérant n'a pas accusé réception (pending, ou
+// payé avant acceptation), à 1 min, 3 min et 5 min après le lancement (3 max).
+// (NUDGE_SLOTS_MS en env, ex. « 1000,2000,3000 », uniquement pour les tests)
+const NUDGE_SLOTS_MS = process.env.NUDGE_SLOTS_MS ? process.env.NUDGE_SLOTS_MS.split(',').map(Number) : [60000, 180000, 300000];
+export function demandeAwaitingAck(d) {
+  if (!d) return false;
+  if (d.status === 'pending') return true;
+  return d.status === 'paid' && !d.acceptedAt && !d.moneyReceived && !d.notReceivedAt && !d.paymentRequestedAt;
+}
+export function nudgeDemande({ id, clientId }) {
+  const d = findOne('demandes', (x) => x.id === id && x.clientId === clientId);
+  if (!d) throw Object.assign(new Error('Demande introuvable'), { status: 404 });
+  if (!demandeAwaitingAck(d)) throw Object.assign(new Error('Le gérant a déjà répondu à cette demande'), { status: 400 });
+  const count = d.nudgeCount || 0;
+  if (count >= NUDGE_SLOTS_MS.length) throw Object.assign(new Error('Vous avez déjà relancé 3 fois. Vous pouvez annuler et choisir un autre gérant.'), { status: 400 });
+  const now = Date.now();
+  const nextAt = (d.createdAt || 0) + NUDGE_SLOTS_MS[count];
+  const tolerance = Math.min(3000, NUDGE_SLOTS_MS[0] / 10);
+  if (now < nextAt - tolerance) throw Object.assign(new Error(`Relance possible dans ${Math.ceil((nextAt - now) / 1000)} s`), { status: 429 });
+  update('demandes', (x) => x.id === id, { nudgeCount: count + 1, lastNudgeAt: now });
+  const upd = findOne('demandes', (x) => x.id === id);
+  const mins = Math.max(1, Math.round((now - (d.createdAt || now)) / 60000));
+  if (upd.gerantUserId) createNotification({
+    userId: upd.gerantUserId, type: 'client_waiting', demandeId: upd.id,
+    text: `${upd.clientName} attend toujours votre réponse (relance ${count + 1}/3) — ${TYPE_LABEL[upd.type] || upd.type} ${upd.amount} F lancée il y a ${mins} min${upd.status === 'paid' ? ', déjà payée' : ''}. Appuyez sur « Accepter » ou « Payer d'abord » pour le rassurer.`,
+  });
+  return upd;
+}
+
 // Le client peut annuler sa demande tant qu'il n'a PAS ENCORE PAYÉ
 // (statut 'pending' ou 'accepted'). Dès qu'il a payé ('paid') ou que la
 // demande est déjà traitée ('completed') / refusée ('declined') / annulée,

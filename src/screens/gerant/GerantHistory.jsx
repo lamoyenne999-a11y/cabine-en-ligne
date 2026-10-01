@@ -78,10 +78,12 @@ export default function GerantHistory() {
     if (group === 'declined') return ['declined', 'unavailable'].includes(d.status);
     return d.status === group;
   };
-  // « Toutes » : les demandes EN COURS (en attente / acceptée / payée, pas encore
-  // servies) en haut, puis les autres de la plus récente à la plus ancienne.
+  // « Toutes » : les demandes EN COURS en haut, puis les autres de la plus
+  // récente à la plus ancienne.
   // « Récents » : 7 derniers jours, purement par date.
-  const isOpen = (d) => ['pending', 'accepted', 'paid'].includes(d.status);
+  // « En cours » côté gérant = la demande attend SA réponse (en attente, ou payée
+  // avant qu'il ait réagi). Le reste se lit dans l'historique à la date et l'heure.
+  const isOpen = (d) => d.status === 'pending' || (d.status === 'paid' && !d.acceptedAt && !d.moneyReceived && !d.notReceivedAt && !d.paymentRequestedAt);
   const filtered = group === 'recent' ? sortByRecent(demandes.filter(inGroup)) : sortDemandes(demandes.filter(inGroup), isOpen);
   const visible = q ? filtered.filter((d) => matches(d, q)) : filtered;
 

@@ -316,6 +316,13 @@ export function StoreProvider({ children }) {
     if (online) { try { await api.client.markPaid(id); } catch {} }
   }, [online]);
 
+  // Relance « J'attends toujours » : le serveur décide (créneaux 1/3/5 min).
+  const nudgeDemande = useCallback(async (id) => {
+    const out = await api.client.nudgeDemande(id);
+    if (out?.demande) dispatch({ type: 'CLIENT_UPDATE_DEMANDE', payload: { id, nudgeCount: out.demande.nudgeCount, lastNudgeAt: out.demande.lastNudgeAt } });
+    return out?.demande;
+  }, []);
+
   const cancelDemande = useCallback(async (id) => {
     dispatch({ type: 'CANCEL_DEMANDE', payload: id });
     if (online) { try { await api.client.cancelDemande(id); } catch { /* silencieux */ } }
@@ -507,7 +514,7 @@ export function StoreProvider({ children }) {
   }, [state.role]);
 
   const value = useMemo(
-    () => ({ state, dispatch, online, checking, recheck: probe, login, register, logout, refresh, addGerant, removeGerant, createDemande, markPaid, cancelDemande, acceptDemande, declineDemande, unavailableDemande, requestPaymentDemande, setAvailability, completeDemande, receiveDemande, notReceiveDemande, partialDemande, paymentReply, notServedDemande, confirmServedDemande, subscribe, updateGerantProfile, registerPushToken, registerPushSubscription, unregisterPushSubscription, unregisterPushToken, loadNotifications, markNotificationRead, markAllNotificationsRead, loadClientNotifications, markClientNotificationRead, markAllClientNotificationsRead, loadReferral, updateReferralCode }),
+    () => ({ state, dispatch, online, checking, recheck: probe, login, register, logout, refresh, addGerant, removeGerant, createDemande, markPaid, nudgeDemande, cancelDemande, acceptDemande, declineDemande, unavailableDemande, requestPaymentDemande, setAvailability, completeDemande, receiveDemande, notReceiveDemande, partialDemande, paymentReply, notServedDemande, confirmServedDemande, subscribe, updateGerantProfile, registerPushToken, registerPushSubscription, unregisterPushSubscription, unregisterPushToken, loadNotifications, markNotificationRead, markAllNotificationsRead, loadClientNotifications, markClientNotificationRead, markAllClientNotificationsRead, loadReferral, updateReferralCode }),
     [state, online, checking, probe, login, register, logout, refresh, addGerant, removeGerant, createDemande, markPaid, cancelDemande, acceptDemande, declineDemande, unavailableDemande, requestPaymentDemande, setAvailability, completeDemande, receiveDemande, notReceiveDemande, partialDemande, paymentReply, notServedDemande, confirmServedDemande, subscribe, updateGerantProfile, registerPushToken, registerPushSubscription, unregisterPushSubscription, unregisterPushToken, loadNotifications, markNotificationRead, markAllNotificationsRead, loadClientNotifications, markClientNotificationRead, markAllClientNotificationsRead, loadReferral, updateReferralCode],
   );
   return <Ctx.Provider value={value}>{children}</Ctx.Provider>;

@@ -55,6 +55,7 @@ function stateLine(d) {
   if (d.clientDisputedAt) return { tone: 'warn', icon: 'help-circle', text: `Le client affirme avoir payé la totalité (${amt}). Revérifiez votre Wave.` };
   if (d.partialAt && d.partialCompletedAt > d.partialAt) return { tone: 'info', icon: 'add-circle', text: `Le client dit avoir complété ${fmt(d.partialMissing)} XOF. Vérifiez votre Wave.` };
   if (d.partialAt) return { tone: 'warn', icon: 'remove-circle', text: `Incomplet : ${fmt(d.partialReceived)} reçus / ${amt}. Client invité à compléter ${fmt(d.partialMissing)} XOF.` };
+  if (d.status === 'paid' && d.nudgeCount) return { tone: 'warn', icon: 'notifications', text: `🔔 Le client a payé ${amt} et vous a relancé ${d.nudgeCount} fois : il attend votre réponse. Vérifiez votre Wave puis répondez.` };
   if (d.status === 'paid') return { tone: 'info', icon: 'water', text: `Le client déclare avoir payé ${amt}. Vérifiez votre Wave.` };
   if (d.status === 'completed' && d.clientPaidDeclaredAt && !d.notReceivedAt) return { tone: 'info', icon: 'water', text: `Client servi. Il affirme avoir payé ${amt}${d.clientPaidDeclaredCount > 1 ? ' (' + d.clientPaidDeclaredCount + 'e fois)' : ''}. Vérifiez votre Wave : « Argent reçu » clôture la demande.` };
   if (d.status === 'completed' && d.notReceivedAt) return { tone: 'danger', icon: 'warning', text: `Client servi — vous avez signalé « Pas reçu » (${amt}). En attente de sa réponse.` };
@@ -62,6 +63,7 @@ function stateLine(d) {
   if (d.status === 'accepted' && d.notReceivedAt) return { tone: 'danger', icon: 'warning', text: 'Vous avez signalé « non reçu ». Le client vérifie son transfert.' };
   if (d.status === 'accepted' && d.paymentRequestedAt) return { tone: 'info', icon: 'card', text: 'Paiement demandé au client. En attente de son transfert Wave.' };
   if (d.status === 'accepted') return { tone: 'muted', icon: 'time-outline', text: `En attente du paiement Wave du client${d.gerantWave ? ' (' + d.gerantWave + ')' : ''}.` };
+  if (d.nudgeCount) return { tone: 'warn', icon: 'notifications', text: `🔔 Le client attend toujours — il vous a relancé ${d.nudgeCount} fois. Appuyez sur « Accepter » (je m'en occupe) ou « Payer d'abord ».` };
   return { tone: 'muted', icon: 'mail-unread-outline', text: 'Nouvelle demande — répondez au client.' };
 }
 const TONES = {
@@ -244,7 +246,7 @@ export default function GerantDemandes() {
             {/* Ligne d'état (1 phrase) */}
             <View style={[s.stateLine, { backgroundColor: tone.bg }]}>
               <Ionicons name={line.icon} size={14} color={tone.color} />
-              <T size={font.xs} weight="700" color={tone.color} style={{ marginLeft: 6, flex: 1 }} numberOfLines={line.tone === 'danger' ? 5 : 2}>{line.text}</T>
+              <T size={font.xs} weight="700" color={tone.color} style={{ marginLeft: 6, flex: 1 }} numberOfLines={line.tone === 'danger' || line.tone === 'warn' ? 5 : 2}>{line.text}</T>
             </View>
 
             {/* Actions : ≤ 2 boutons petits + « ⋯ » */}

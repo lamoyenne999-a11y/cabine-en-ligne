@@ -1,6 +1,6 @@
 import { Router } from 'express';
 import { requireAuth, requireRole } from '../middleware/auth.js';
-import { gerantsFor, addGerant, removeGerant, createDemande, demandesForClient, clientHistory, demandeSummary, subscriptionFor, paySubscription, publicProfile, markPaid, cancelDemande, clientPaymentReply, clientNotServed, clientConfirmServed, notificationsFor, unreadCount, markNotificationRead, markAllNotificationsRead, availableGerants  , createReport, suspendReasonText, rateDemande } from '../services/flowService.js';
+import { gerantsFor, addGerant, removeGerant, createDemande, demandesForClient, clientHistory, demandeSummary, subscriptionFor, paySubscription, publicProfile, markPaid, nudgeDemande, cancelDemande, clientPaymentReply, clientNotServed, clientConfirmServed, notificationsFor, unreadCount, markNotificationRead, markAllNotificationsRead, availableGerants  , createReport, suspendReasonText, rateDemande } from '../services/flowService.js';
 
 const router = Router();
 router.use(requireAuth, requireRole('client'));
@@ -45,6 +45,13 @@ router.get('/history', (req, res) => res.json(clientHistory(req.user.id)));
 router.post('/demandes/:id/paid', (req, res) => {
   try {
     res.json({ demande: markPaid({ id: req.params.id, clientId: req.user.id }) });
+  } catch (e) { res.status(e.status || 400).json({ error: e.message }); }
+});
+
+// Relance « J'attends toujours » (1 min / 3 min / 5 min après le lancement)
+router.post('/demandes/:id/nudge', (req, res) => {
+  try {
+    res.json({ demande: nudgeDemande({ id: req.params.id, clientId: req.user.id }) });
   } catch (e) { res.status(e.status || 400).json({ error: e.message }); }
 });
 

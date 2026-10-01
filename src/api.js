@@ -61,6 +61,7 @@ export const api = {
     myDemandes: () => request('GET', '/api/client/demandes'),
     history: () => request('GET', '/api/client/history'),
     markPaid: (id) => request('POST', `/api/client/demandes/${id}/paid`),
+    nudgeDemande: (id) => request('POST', `/api/client/demandes/${id}/nudge`),
     confirmServed: (id) => request('POST', `/api/client/demandes/${id}/confirm-served`),
     rateDemande: (id, stars) => request('POST', `/api/client/demandes/${id}/rate`, { stars }),
     notServed: (id) => request('POST', `/api/client/demandes/${id}/not-served`),

@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from 'react';
-import { fmtDateTime, finalStep, sortDemandes, isRecent, sortByRecent } from '../../demandeTime';
+import { fmtDateTime, finalStep, sortDemandes, isRecent, sortByRecent, awaitingAck, nudgeState } from '../../demandeTime';
 import { View, Text, TextInput, Pressable, StyleSheet } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { colors, radius, space, font } from '../../theme';
@@ -77,7 +77,17 @@ function matches(d, q) {
 }
 
 export default function ClientHistory() {
-  const { state, markPaid, cancelDemande, paymentReply, notServedDemande, confirmServedDemande, refresh , dispatch } = useStore();
+  const { state, markPaid, nudgeDemande, cancelDemande, paymentReply, notServedDemande, confirmServedDemande, refresh , dispatch } = useStore();
+  const [busyNudge, setBusyNudge] = useState(null);
+  const [nudgeMsg, setNudgeMsg] = useState(null); // { id, ok, text }
+  const doNudge = async (d) => {
+    setBusyNudge(d.id);
+    try {
+      const upd = await nudgeDemande(d.id);
+      setNudgeMsg({ id: d.id, ok: true, text: `Relance ${upd?.nudgeCount || ''} envoyée : ${d.gerantName} vient d'être notifié(e).` });
+    } catch (e) { setNudgeMsg({ id: d.id, ok: false, text: e?.message || 'Relance impossible pour le moment.' }); }
+    finally { setBusyNudge(null); setTimeout(() => setNudgeMsg(null), 5000); }
+  };
   const [notServedTarget, setNotServedTarget] = useState(null);
   const [paying, setPaying] = useState(null);
   const [canceling, setCanceling] = useState(null);
@@ -110,7 +120,9 @@ export default function ClientHistory() {
   // « Toutes » : les demandes EN COURS (En attente / À payer) en haut, puis les
   // autres de la plus récente à la plus ancienne. « Récents » : 7 derniers jours,
   // purement par date.
-  const isOpen = (d) => d.status === 'pending' || d.status === 'accepted';
+  // « En cours » = le client peut encore agir / notifier le gérant : en attente
+  // (relancer, payer, annuler), à payer, ou payée avant que le gérant ait réagi.
+  const isOpen = (d) => d.status === 'pending' || d.status === 'accepted' || awaitingAck(d);
   const filtered = group === 'recent' ? sortByRecent(demandes.filter(inGroup)) : sortDemandes(demandes.filter(inGroup), isOpen);
   const visible = q ? filtered.filter((d) => matches(d, q)) : filtered;
 
@@ -267,6 +279,44 @@ export default function ClientHistory() {
                 </T>
               </>
             )}
+            {/* Relance « J'attends toujours » : 1 min, 3 min, 5 min après le lancement,
+                tant que le gérant n'a pas accusé réception (accepté / payer d'abord). */}
+            {awaitingAck(d) && (() => {
+              const ns = nudgeState(d, now);
+              const leftS = ns.nextAt ? Math.max(0, Math.ceil((ns.nextAt - now) / 1000)) : 0;
+              const mmss = `${Math.floor(leftS / 60)}:${String(leftS % 60).padStart(2, '0')}`;
+              return (
+                <View style={[s.timerBox, { marginTop: 8, backgroundColor: colors.warnBg }]}>
+                  <Ionicons name="notifications-outline" size={16} color={colors.warn} />
+                  <View style={{ flex: 1, marginLeft: 8 }}>
+                    <T size={font.sm} weight="600" color={colors.text}>
+                      {ns.exhausted
+                        ? `Vous avez relancé ${d.gerantName} 3 fois sans réponse. Vous pouvez annuler et choisir un autre gérant.`
+                        : ns.count > 0
+                          ? `Relance ${ns.count}/3 envoyée à ${d.gerantName}.${ns.can ? ' Toujours rien ? Relancez à nouveau.' : ` Prochaine relance possible dans ${mmss}.`}`
+                          : ns.can
+                            ? `${d.gerantName} n'a pas encore réagi. Faites-lui savoir que vous attendez.`
+                            : `Pas de réponse après 1 min ? Vous pourrez relancer ${d.gerantName} dans ${mmss}.`}
+                    </T>
+                    {!ns.exhausted && (
+                      <Btn
+                        title={ns.count > 0 ? 'J\'attends toujours — relancer' : 'J\'attends toujours'}
+                        icon="notifications"
+                        color={colors.warn}
+                        size="sm"
+                        disabled={!ns.can || busyNudge === d.id}
+                        loading={busyNudge === d.id}
+                        onPress={() => doNudge(d)}
+                        style={{ marginTop: 8 }}
+                      />
+                    )}
+                    {nudgeMsg && nudgeMsg.id === d.id ? (
+                      <T size={font.xs} weight="700" color={nudgeMsg.ok ? colors.success : colors.danger} style={{ marginTop: 6 }}>{nudgeMsg.text}</T>
+                    ) : null}
+                  </View>
+                </View>
+              );
+            })()}
             {d.status === 'accepted' && (
               <>
                 <View style={[s.timerBox, d.notReceivedAt && { backgroundColor: colors.dangerBg }, d.paymentRequestedAt && !d.notReceivedAt && { backgroundColor: '#E7F0FE' }]}>
