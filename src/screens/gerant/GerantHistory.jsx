@@ -13,7 +13,7 @@ const STATUS = {
   pending: { label: 'En attente', color: colors.warn, bg: colors.warnBg, icon: 'time' },
   accepted: { label: 'Acceptée', color: colors.primary, bg: colors.primarySoft, icon: 'checkmark-circle' },
   declined: { label: 'Refusée', color: colors.danger, bg: colors.dangerBg, icon: 'close-circle' },
-  unavailable: { label: 'Gérant indisponible', color: colors.warn, bg: colors.warnBg, icon: 'moon' },
+  unavailable: { label: 'Indisponible', color: colors.warn, bg: colors.warnBg, icon: 'moon' },
   paid: { label: 'Payée', color: '#2E7BF6', bg: '#E7F0FE', icon: 'wallet' },
   completed: { label: 'Complétée', color: colors.success, bg: colors.successBg, icon: 'checkmark-done' },
   canceled: { label: 'Annulée', color: colors.muted, bg: colors.gray, icon: 'close-circle-outline' },
@@ -179,32 +179,34 @@ export default function GerantHistory() {
                     ? `${d.benefName && d.benefName !== d.benefPhone ? d.benefName + ' · ' : ''}${d.benefPhone}`
                     : `lui-même${d.benefPhone ? ' · ' + d.benefPhone : ''}`}
                 </T>
-                {/* Deux temps : lancement par le client, puis fin (terminée / annulée / refusée) ou dernière étape */}
-                {(() => { const f = finalStep(d); return (
-                  <View style={{ marginTop: 4 }}>
-                    <View style={{ flexDirection: 'row', alignItems: 'center' }}>
-                      <Ionicons name="play-circle-outline" size={12} color={colors.muted} />
-                      <T size={font.xs} weight="700" color={colors.muted} style={{ marginLeft: 4 }}>Lancée le {fmtDateTime(d.createdAt)}</T>
-                    </View>
-                    {f.at ? (
-                      <View style={{ flexDirection: 'row', alignItems: 'center', marginTop: 1 }}>
-                        <Ionicons name={f.final ? (d.status === 'completed' ? 'checkmark-circle-outline' : 'close-circle-outline') : 'time-outline'} size={12} color={f.final ? (d.status === 'completed' ? colors.success : colors.danger) : colors.primary} />
-                        <T size={font.xs} weight="700" color={f.final ? (d.status === 'completed' ? colors.success : colors.danger) : colors.primary} style={{ marginLeft: 4 }}>{f.label} le {fmtDateTime(f.at)}</T>
-                      </View>
-                    ) : (
-                      <View style={{ flexDirection: 'row', alignItems: 'center', marginTop: 1 }}>
-                        <Ionicons name="hourglass-outline" size={12} color={colors.warn} />
-                        <T size={font.xs} weight="700" color={colors.warn} style={{ marginLeft: 4 }}>En cours — pas encore finalisée</T>
-                      </View>
-                    )}
-                  </View>
-                ); })()}
               </View>
-              <View style={{ alignItems: 'flex-end' }}>
+              <View style={{ alignItems: 'flex-end', maxWidth: '42%', marginLeft: 6 }}>
                 <T size={font.body} weight="800" color={colors.text}>{money(d.amount)}</T>
                 <Pill icon={st.icon} color={st.color} bg={st.bg} style={{ marginTop: 6 }}>{st.label}</Pill>
               </View>
             </View>
+            {/* Deux temps, en pleine largeur : lancement, puis fin (ou dernière étape) */}
+            {(() => { const f = finalStep(d); const done = d.status === 'completed'; const col = f.final ? (done ? colors.success : colors.danger) : colors.primary; return (
+              <View style={{ marginTop: 8, paddingTop: 8, borderTopWidth: 1, borderTopColor: colors.border }}>
+                <View style={{ flexDirection: 'row', alignItems: 'center' }}>
+                  <Ionicons name="play-circle-outline" size={12} color={colors.muted} />
+                  <T size={font.xs} weight="700" color={colors.muted} style={{ marginLeft: 4 }}>Lancée le {fmtDateTime(d.createdAt)}</T>
+                </View>
+                <View style={{ flexDirection: 'row', alignItems: 'center', marginTop: 2 }}>
+                  {f.at ? (
+                    <>
+                      <Ionicons name={f.final ? (done ? 'checkmark-circle-outline' : 'close-circle-outline') : 'time-outline'} size={12} color={col} />
+                      <T size={font.xs} weight="700" color={col} style={{ marginLeft: 4 }}>{f.label} le {fmtDateTime(f.at)}</T>
+                    </>
+                  ) : (
+                    <>
+                      <Ionicons name="hourglass-outline" size={12} color={colors.warn} />
+                      <T size={font.xs} weight="700" color={colors.warn} style={{ marginLeft: 4 }}>En cours — pas encore finalisée</T>
+                    </>
+                  )}
+                </View>
+              </View>
+            ); })()}
             <T size={font.xs} weight="600" color={colors.muted} style={{ marginTop: 10, textAlign: 'center' }}>
               {(
                 {
