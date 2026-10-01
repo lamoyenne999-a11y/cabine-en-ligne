@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from 'react';
-import { fmtDateTime, finalStep, sortDemandes } from '../../demandeTime';
+import { fmtDateTime, finalStep, sortDemandes, isRecent, sortByRecent } from '../../demandeTime';
 import { View, Text, TextInput, Pressable, StyleSheet } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { colors, radius, space, font } from '../../theme';
@@ -93,6 +93,7 @@ export default function ClientHistory() {
   // Refusées / Annulées) pour ne jamais mélanger les statuts.
   const GROUPS = [
     { value: 'all', label: `Toutes (${demandes.length})` },
+    { value: 'recent', label: `Récents (${demandes.filter((d) => isRecent(d)).length})` },
     { value: 'pending', label: `En attente (${sum.counts.pending})` },
     { value: 'accepted', label: `À payer (${sum.counts.accepted})` },
     { value: 'treated', label: `Traitées (${sum.counts.paid + sum.counts.completed})` },
@@ -101,12 +102,16 @@ export default function ClientHistory() {
   ];
   const inGroup = (d) => {
     if (group === 'all') return true;
+    if (group === 'recent') return isRecent(d);
     if (group === 'treated') return ['paid', 'completed'].includes(d.status);
     if (group === 'declined') return ['declined', 'unavailable'].includes(d.status);
     return d.status === group;
   };
-  // Non réglées en haut, puis les réglées par dernier mouvement.
-  const filtered = sortDemandes(demandes.filter(inGroup));
+  // « Toutes » : les demandes EN COURS (En attente / À payer) en haut, puis les
+  // autres de la plus récente à la plus ancienne. « Récents » : 7 derniers jours,
+  // purement par date.
+  const isOpen = (d) => d.status === 'pending' || d.status === 'accepted';
+  const filtered = group === 'recent' ? sortByRecent(demandes.filter(inGroup)) : sortDemandes(demandes.filter(inGroup), isOpen);
   const visible = q ? filtered.filter((d) => matches(d, q)) : filtered;
 
   return (

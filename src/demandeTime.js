@@ -31,11 +31,14 @@ export function finalStep(d) {
   }
 }
 
-// Ordre : d'abord les demandes NON réglées (plus récentes en haut), puis les
-// réglées (terminées / annulées / refusées) par dernier mouvement décroissant.
-export function sortDemandes(list) {
+// Ordre : d'abord les demandes EN COURS (plus récentes en haut), puis les
+// autres par dernier mouvement décroissant.
+// `isOpen` permet de définir ce qui est « en cours » selon l'écran :
+//  - client : En attente / À payer (= compteur « En cours ») ;
+//  - gérant : tout ce qui attend encore une action de sa part (défaut).
+export function sortDemandes(list, isOpen = (d) => !isSettled(d)) {
   return [...(list || [])].sort((a, b) => {
-    const sa = isSettled(a) ? 1 : 0, sb = isSettled(b) ? 1 : 0;
+    const sa = isOpen(a) ? 0 : 1, sb = isOpen(b) ? 0 : 1;
     if (sa !== sb) return sa - sb;
     return sa === 0 ? (b.createdAt || 0) - (a.createdAt || 0) : lastActivity(b) - lastActivity(a);
   });
@@ -48,3 +51,8 @@ export function sortGerantsByRecentUse(gerants, demandes) {
   (demandes || []).forEach((d) => { if (d.gerantUserId) last[d.gerantUserId] = Math.max(last[d.gerantUserId] || 0, d.createdAt || 0); });
   return (gerants || []).map((g, i) => ({ g, i })).sort((a, b) => ((last[b.g.userId] || 0) - (last[a.g.userId] || 0)) || (a.i - b.i)).map((x) => x.g);
 }
+
+// « Récents » : demandes des 7 derniers jours, purement par date (plus récent en haut).
+export const RECENT_MS = 7 * 86400000;
+export const isRecent = (d, now = Date.now()) => (now - lastActivity(d)) <= RECENT_MS;
+export const sortByRecent = (list) => [...(list || [])].sort((a, b) => lastActivity(b) - lastActivity(a));
