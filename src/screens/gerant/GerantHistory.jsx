@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { fmtDateTime, finalStep, sortDemandes } from '../../demandeTime';
+import { fmtDateTime, finalStep, sortDemandes, isRecent, sortByRecent } from '../../demandeTime';
 import { View, Text, TextInput, Pressable, StyleSheet } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { colors, radius, space, font } from '../../theme';
@@ -63,6 +63,7 @@ export default function GerantHistory() {
   // pour ne jamais mélanger les statuts. La recherche s'applique ensuite.
   const GROUPS = [
     { value: 'all', label: `Toutes (${demandes.length})` },
+    { value: 'recent', label: `Récents (${demandes.filter((d) => isRecent(d)).length})` },
     { value: 'pending', label: `En attente (${sum.counts.pending})` },
     { value: 'treated', label: `Servies (${sum.counts.completed})` },
     { value: 'unpaid', label: `À encaisser (${demandes.filter((d) => d.status === 'completed' && !d.moneyReceived).length})` },
@@ -71,12 +72,17 @@ export default function GerantHistory() {
   ];
   const inGroup = (d) => {
     if (group === 'all') return true;
+    if (group === 'recent') return isRecent(d);
     if (group === 'treated') return d.status === 'completed';
     if (group === 'unpaid') return d.status === 'completed' && !d.moneyReceived;
     if (group === 'declined') return ['declined', 'unavailable'].includes(d.status);
     return d.status === group;
   };
-  const filtered = sortDemandes(demandes.filter(inGroup)); // non réglées en haut
+  // « Toutes » : les demandes EN COURS (en attente / acceptée / payée, pas encore
+  // servies) en haut, puis les autres de la plus récente à la plus ancienne.
+  // « Récents » : 7 derniers jours, purement par date.
+  const isOpen = (d) => ['pending', 'accepted', 'paid'].includes(d.status);
+  const filtered = group === 'recent' ? sortByRecent(demandes.filter(inGroup)) : sortDemandes(demandes.filter(inGroup), isOpen);
   const visible = q ? filtered.filter((d) => matches(d, q)) : filtered;
 
   return (
