@@ -88,7 +88,8 @@ export default function Admin({ onBack }) {
   const [txPeriod, setTxPeriod] = useState('30');    // 7 | 30 | all
   const [txType, setTxType] = useState('all');       // all | unites | minutes | internet | forfait
   const [txCount, setTxCount] = useState(30);
-  const [txActiveRole, setTxActiveRole] = useState('client'); // classement des plus actifs
+  const [txActiveRole, setTxActiveRole] = useState('client');
+  const [txFocus, setTxFocus] = useState(null); // { name, phone } : liste filtrée sur une personne, classement replié // classement des plus actifs
   const loadTx = async (k = key) => {
     setTxLoading(true);
     try { const out = await api.admin.demandes(String(k || '').trim()); setTx({ demandes: out.demandes || [], activity: out.activity || [] }); }
@@ -906,7 +907,19 @@ export default function Admin({ onBack }) {
               Montant servi sur la période : {money(servedAmount)} · en cours : {cnt((d) => ['pending', 'accepted', 'paid'].includes(d.status))} · annulées : {cnt((d) => d.status === 'canceled')} · refusées/indispo : {cnt((d) => d.status === 'declined' || d.status === 'unavailable')}
             </T>
 
-            {/* Les plus actifs */}
+            {/* Les plus actifs (replié quand on regarde les demandes d'une personne) */}
+            {txFocus ? (
+              <Card style={{ marginBottom: space.sm, backgroundColor: colors.primarySoft }}>
+                <View style={{ flexDirection: 'row', alignItems: 'center' }}>
+                  <Ionicons name="funnel-outline" size={18} color={colors.primary} />
+                  <View style={{ flex: 1, marginLeft: 8 }}>
+                    <T size={font.body} weight="800" color={colors.primary}>Demandes de {txFocus.name || txFocus.phone}</T>
+                    <T size={font.xs} weight="600" color={colors.muted}>{txFocus.phone} · toutes ses demandes sont listées ci-dessous.</T>
+                  </View>
+                  <Btn title="Fermer" icon="close" outline color={colors.primary} size="sm" onPress={() => { setTxFocus(null); setTxSearch(''); setTxCount(30); }} />
+                </View>
+              </Card>
+            ) : (
             <Card style={{ marginBottom: space.sm }}>
               <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' }}>
                 <T size={font.body} weight="800" color={colors.text}>🏆 Les plus actifs</T>
@@ -936,15 +949,16 @@ export default function Admin({ onBack }) {
                     <View style={{ flexDirection: 'row', marginTop: 6, marginLeft: 26 }}>
                       <Btn title="Offrir" icon="gift-outline" color={colors.success} size="sm" disabled={!u} onPress={() => { if (u) { setGiftTarget(u); setGiftDays(30); setGiftCustom(''); setGiftNote(''); } }} style={{ flex: 1, marginRight: 6 }} />
                       <Btn title="Compte" icon="person-outline" outline color={colors.primary} size="sm" onPress={() => { setUSearch(a.phone); setURole('all'); setUFilter('all'); setUCount(U_PAGE); setUExpanded(a.phone); setAdminTab('utilisateurs'); }} style={{ flex: 1, marginRight: 6 }} />
-                      <Btn title="Ses demandes" icon="list-outline" outline color={colors.muted} size="sm" onPress={() => { setTxSearch(a.phone); setTxCount(30); }} style={{ flex: 1 }} />
+                      <Btn title="Demandes" icon="list-outline" outline color={colors.muted} size="sm" onPress={() => { setTxFocus({ name: a.name, phone: a.phone }); setTxSearch(a.phone); setTxStatus('all'); setTxType('all'); setTxCount(30); }} style={{ flex: 1 }} />
                     </View>
                   </View>
                 );
               })}
               <T size={font.xs} weight="600" color={colors.muted2} style={{ marginTop: 8 }}>
-                « Offrir » = offrir du temps d'abonnement · « Compte » = fiche dans Utilisateurs (suspendre, bloquer, certifier…) · « Ses demandes » = filtrer la liste ci-dessous.
+                « Offrir » = offrir du temps d'abonnement · « Compte » = fiche dans Utilisateurs (suspendre, bloquer, certifier…) · « Demandes » = voir toutes ses demandes.
               </T>
             </Card>
+            )}
 
             {/* Recherche */}
             <Card style={s.searchCard}>
@@ -952,7 +966,7 @@ export default function Admin({ onBack }) {
                 <Ionicons name="search" size={18} color={colors.muted} />
                 <TextInput
                   value={txSearch}
-                  onChangeText={(t) => { setTxSearch(t); setTxCount(30); }}
+                  onChangeText={(t) => { setTxSearch(t); setTxFocus(null); setTxCount(30); }}
                   placeholder="Nom, numéro, montant, type, n° de demande…"
                   placeholderTextColor={colors.muted2}
                   style={s.searchInput}
@@ -960,7 +974,7 @@ export default function Admin({ onBack }) {
                   autoCapitalize="none"
                 />
                 {txSearch ? (
-                  <Pressable onPress={() => { setTxSearch(''); setTxCount(30); }} hitSlop={8}>
+                  <Pressable onPress={() => { setTxSearch(''); setTxFocus(null); setTxCount(30); }} hitSlop={8}>
                     <Ionicons name="close-circle" size={18} color={colors.muted2} />
                   </Pressable>
                 ) : null}
