@@ -1,7 +1,7 @@
 import express from 'express';
 import { hashPassword } from '../middleware/auth.js';
 import { config } from '../config.js';
-import { gerantRating, gerantStats, runSubscriptionAlerts, sendAnnouncement, announcementsForAdmin, announcementAudience, reportsForAdmin, resolveReport, openReportsCountFor, SUSPEND_REASONS, pendingSubscriptionPayments, confirmSubscriptionPayment, rejectSubscriptionPayment, setUserCertified, grantFreeTime, grantFreeTimeBulk, giftsForAdmin, subscriptionPayments, subscriptionTotals, subscriptionFor, referralSummary, referredUsersCount, referralPaymentCount, referralRateFor, deleteAccountAll, setUserFrozen, eventsForAdmin, eventsCounters, referralCodeStats, expiredUsers, reconcileExpiredEvents, isPhoneBlocked, blockUser, unblockUser, blockedList, unblockRequestsPending, resolveUnblockRequest } from '../services/flowService.js';
+import { gerantRating, gerantStats, runSubscriptionAlerts, sendAnnouncement, announcementsForAdmin, announcementAudience, reportsForAdmin, resolveReport, openReportsCountFor, SUSPEND_REASONS, pendingSubscriptionPayments, confirmSubscriptionPayment, rejectSubscriptionPayment, setUserCertified, grantFreeTime, grantFreeTimeBulk, giftsForAdmin, demandesForAdmin, subscriptionPayments, subscriptionTotals, subscriptionFor, referralSummary, referredUsersCount, referralPaymentCount, referralRateFor, deleteAccountAll, setUserFrozen, eventsForAdmin, eventsCounters, referralCodeStats, expiredUsers, reconcileExpiredEvents, isPhoneBlocked, blockUser, unblockUser, blockedList, unblockRequestsPending, resolveUnblockRequest } from '../services/flowService.js';
 import { find, findOne, update, dbStats } from '../db.js';
 import { registerWebPushSubscription, removeWebPushSubscription, OWNER_ID, ownerPushCount, notifyOwner } from '../services/pushService.js';
 
@@ -205,6 +205,8 @@ router.post('/grant-free-time-bulk', requireAdmin, (req, res) => {
     res.json(out);
   } catch (e) { res.status(e.status || 500).json({ error: e.message }); }
 });
+// Toutes les transactions + activité par utilisateur (suivi, bonus, sanctions).
+router.get('/demandes', requireAdmin, (req, res) => res.json(demandesForAdmin()));
 router.get('/gifts', requireAdmin, (req, res) => res.json({ gifts: giftsForAdmin(200) }));
 
 // Suspend / réactive un compte (bloque les activités sans supprimer les données).

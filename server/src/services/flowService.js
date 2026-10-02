@@ -538,6 +538,45 @@ export function grantFreeTimeBulk({ phones = [], days, note = '' } = {}) {
   if (results.length > 0) recordEvent({ type: 'free_time_granted_bulk', name: `${results.length} utilisateur(s)`, phone: '', role: '', amount: n });
   return { ok: true, count: results.length, skipped, days: n, batchId, users: results };
 }
+// Toutes les transactions (demandes) pour l'Espace propriétaire + activité par
+// utilisateur (pour repérer les plus actifs / les comportements à problème).
+export function demandesForAdmin(limit = 3000) {
+  const rows = find('demandes', () => true).sort((a, b) => (b.createdAt || 0) - (a.createdAt || 0)).slice(0, limit);
+  const users = new Map(find('users', () => true).map((u) => [u.id, u]));
+  const list = rows.map((d) => {
+    const c = users.get(d.clientId), g = users.get(d.gerantUserId);
+    return {
+      id: d.id, type: d.type, amount: d.amount || 0, status: d.status,
+      clientId: d.clientId, clientName: d.clientName || c?.name || '', clientPhone: d.clientPhone || c?.phone || '',
+      gerantUserId: d.gerantUserId, gerantName: d.gerantName || g?.name || '', gerantPhone: d.gerantPhone || g?.phone || '',
+      benefName: d.benefName || '', benefPhone: d.benefPhone || '',
+      createdAt: d.createdAt || 0, acceptedAt: d.acceptedAt || 0, paidAt: d.paidAt || 0, completedAt: d.completedAt || 0,
+      canceledAt: d.canceledAt || 0, receivedAt: d.receivedAt || 0, clientConfirmedAt: d.clientConfirmedAt || 0,
+      moneyReceived: !!d.moneyReceived, paymentRequestedAt: d.paymentRequestedAt || 0,
+      nudgeCount: d.nudgeCount || 0, partialAt: d.partialAt || 0, partialMissing: d.partialMissing || 0,
+      notReceivedAt: d.notReceivedAt || 0, notReceivedCount: d.notReceivedCount || 0,
+      notServedAt: d.notServedAt || 0, notServedCount: d.notServedCount || 0,
+      reportedAt: d.reportedAt || 0, reportedBy: d.reportedBy || '', rating: d.rating || 0,
+      unavailableReason: d.unavailableReason || '',
+    };
+  });
+  // Activité par utilisateur.
+  const act = new Map();
+  const bump = (id, role, name, phone, d) => {
+    if (!id) return;
+    if (!act.has(id)) act.set(id, { userId: id, role, name, phone, total: 0, completed: 0, canceled: 0, declined: 0, problems: 0, nudges: 0, amountServed: 0, lastAt: 0 });
+    const a = act.get(id);
+    a.total += 1;
+    if (d.status === 'completed') { a.completed += 1; a.amountServed += d.amount || 0; }
+    if (d.status === 'canceled') a.canceled += 1;
+    if (d.status === 'declined' || d.status === 'unavailable') a.declined += 1;
+    if (d.partialAt || d.notReceivedAt || d.notServedAt || d.reportedAt) a.problems += 1;
+    a.nudges += d.nudgeCount || 0;
+    a.lastAt = Math.max(a.lastAt, d.createdAt || 0);
+  };
+  for (const d of list) { bump(d.clientId, 'client', d.clientName, d.clientPhone, d); bump(d.gerantUserId, 'gerant', d.gerantName, d.gerantPhone, d); }
+  return { demandes: list, activity: [...act.values()].sort((a, b) => b.total - a.total) };
+}
 export function giftsForAdmin(limit = 100) {
   return find('gifts', () => true).sort((a, b) => b.createdAt - a.createdAt).slice(0, limit);
 }

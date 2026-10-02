@@ -239,6 +239,11 @@ async function main() {
     check('Client notifié du cadeau', (gn.json.notifications || []).some((n) => n.type === 'gift'));
     const bad = await req('POST', '/admin/grant-free-time', { phone: cphone, days: 0 }, null, H);
     check('Durée invalide refusée (400)', bad.status === 400);
+    const txA = await req('GET', '/admin/demandes', null, null, H);
+    check('Admin : liste des transactions + activité', txA.status === 200 && Array.isArray(txA.json.demandes) && txA.json.demandes.length > 0 && Array.isArray(txA.json.activity) && txA.json.activity[0].total > 0);
+    check('Admin : transaction avec client, gérant, montant et horodatage', txA.json.demandes.every((d) => d.clientPhone && d.gerantName && d.amount > 0 && d.createdAt > 0));
+    const txNo = await req('GET', '/admin/demandes', null, null, {});
+    check('Admin : transactions protégées (403)', txNo.status === 403);
     // Cadeau groupé : client + gérant + numéro inconnu.
     const b0 = (await req('GET', '/client/subscription', null, ct)).json.subscription;
     const bulk = await req('POST', '/admin/grant-free-time-bulk', { phones: [cphone, gphone, '0100000000'], days: 7, note: 'Bonus' }, null, H);

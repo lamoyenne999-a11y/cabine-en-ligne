@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import { fmtDateTime } from '../demandeTime';
 import { View, TextInput, Pressable, ScrollView, StyleSheet } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { colors, radius, space, font } from '../theme';
@@ -79,7 +80,22 @@ export default function Admin({ onBack }) {
   const U_PAGE = 25;
 
   // Navigation interne entre les sections de l'Espace propriétaire.
+  // ---- Transactions (toutes les demandes) ----
+  const [tx, setTx] = useState({ demandes: [], activity: [] });
+  const [txLoading, setTxLoading] = useState(false);
+  const [txSearch, setTxSearch] = useState('');
+  const [txStatus, setTxStatus] = useState('all');   // all | open | completed | paid | declined | canceled | problems
+  const [txPeriod, setTxPeriod] = useState('30');    // 7 | 30 | all
+  const [txType, setTxType] = useState('all');       // all | unites | minutes | internet | forfait
+  const [txCount, setTxCount] = useState(30);
+  const [txActiveRole, setTxActiveRole] = useState('client'); // classement des plus actifs
+  const loadTx = async (k = key) => {
+    setTxLoading(true);
+    try { const out = await api.admin.demandes(String(k || '').trim()); setTx({ demandes: out.demandes || [], activity: out.activity || [] }); }
+    catch { /* silencieux */ } finally { setTxLoading(false); }
+  };
   const [adminTab, setAdminTab] = useState('apercu'); // apercu | utilisateurs | activite | parrainage | paiements | systeme
+  useEffect(() => { if (authed && adminTab === 'transactions') loadTx(); }, [adminTab]); // eslint-disable-line react-hooks/exhaustive-deps
   const goUsers = (role) => { setURole(role); setUFilter('all'); setUCount(U_PAGE); setAdminTab('utilisateurs'); };
 
   const loadWith = async (k) => {
@@ -93,6 +109,7 @@ export default function Admin({ onBack }) {
         const u = await api.admin.users(kk);
         setUsers(u.users || []);
       } catch { setUsers([]); }
+      loadTx(kk);
       setAuthed(true);
       try { await storage.set('cel_owner_key', kk); } catch { /* silencieux */ }
     } catch (e) {
@@ -454,6 +471,7 @@ export default function Admin({ onBack }) {
   const ADMIN_TABS = [
     { key: 'apercu', label: 'Aperçu', icon: 'grid-outline', filled: 'grid' },
     { key: 'utilisateurs', label: 'Utilisateurs', icon: 'people-outline', filled: 'people', badge: users.length },
+    { key: 'transactions', label: 'Transactions', icon: 'swap-horizontal-outline', filled: 'swap-horizontal', badge: tx.demandes.length },
     { key: 'notes', label: 'Notes', icon: 'star-outline', filled: 'star', badge: 0 },
     { key: 'messages', label: 'Messages', icon: 'megaphone-outline', filled: 'megaphone', badge: 0 },
     { key: 'signalements', label: 'Signalements', icon: 'flag-outline', filled: 'flag', badge: openReports.length },
@@ -791,6 +809,242 @@ export default function Admin({ onBack }) {
       )}
 
       {/* ===== Déblocages (demandes + numéros bloqués) ===== */}
+      {/* ===== Transactions ===== */}
+      {adminTab === 'transactions' && (() => {
+        const now = Date.now();
+        const periodMs = txPeriod === 'all' ? Infinity : Number(txPeriod) * 86400000;
+        const TX_STATUS = {
+          pending: { label: 'En attente', color: colors.warn, bg: colors.warnBg },
+          accepted: { label: 'À payer', color: colors.primary, bg: colors.primarySoft },
+          paid: { label: 'Payée', color: '#2E7BF6', bg: '#E7F0FE' },
+          completed: { label: 'Servie', color: colors.success, bg: colors.successBg },
+          declined: { label: 'Refusée', color: colors.danger, bg: colors.dangerBg },
+          unavailable: { label: 'Indisponible', color: colors.warn, bg: colors.warnBg },
+          canceled: { label: 'Annulée', color: colors.muted, bg: colors.gray },
+        };
+        const TX_TYPE = { unites: 'Unités', minutes: 'Minutes', internet: 'Internet', forfait: 'Appel + Internet' };
+        const isProblem = (d) => !!(d.partialAt || d.notReceivedAt || d.notServedAt || d.reportedAt || (d.status === 'completed' && !d.moneyReceived) || d.nudgeCount >= 3);
+        const inStatus = (d) => {
+          if (txStatus === 'all') return true;
+          if (txStatus === 'open') return ['pending', 'accepted', 'paid'].includes(d.status);
+          if (txStatus === 'completed') return d.status === 'completed';
+          if (txStatus === 'declined') return d.status === 'declined' || d.status === 'unavailable';
+          if (txStatus === 'canceled') return d.status === 'canceled';
+          if (txStatus === 'problems') return isProblem(d);
+          return true;
+        };
+        const q = norm(txSearch);
+        const inSearch = (d) => !q || norm(`${d.clientName} ${d.clientPhone} ${d.gerantName} ${d.gerantPhone} ${d.benefName} ${d.benefPhone} ${d.amount} ${TX_TYPE[d.type] || d.type} ${d.id}`).includes(q);
+        const inPeriod = (d) => (now - (d.createdAt || 0)) <= periodMs;
+        const inType = (d) => txType === 'all' || d.type === txType;
+        const base = tx.demandes.filter(inPeriod);
+        const list = base.filter((d) => inStatus(d) && inType(d) && inSearch(d));
+        const shown = list.slice(0, txCount);
+        const cnt = (f) => base.filter(f).length;
+        const servedAmount = base.filter((d) => d.status === 'completed').reduce((a, d) => a + (d.amount || 0), 0);
+        const endOf = (d) => {
+          if (d.status === 'completed') return { l: 'Servie', at: d.clientConfirmedAt || d.completedAt, c: colors.success };
+          if (d.status === 'canceled') return { l: 'Annulée', at: d.canceledAt, c: colors.danger };
+          if (d.status === 'declined') return { l: 'Refusée', at: d.acceptedAt, c: colors.danger };
+          if (d.status === 'unavailable') return { l: 'Indisponible', at: d.acceptedAt, c: colors.danger };
+          if (d.status === 'paid') return { l: 'Payée', at: d.paidAt, c: '#2E7BF6' };
+          if (d.status === 'accepted' && d.paidAt) return { l: 'Client a payé', at: d.paidAt, c: '#2E7BF6' };
+          if (d.status === 'accepted') return { l: d.paymentRequestedAt ? 'Paiement demandé' : 'Acceptée', at: d.paymentRequestedAt || d.acceptedAt, c: colors.primary };
+          return { l: '', at: 0, c: colors.muted };
+        };
+        const flags = (d) => {
+          const f = [];
+          if (d.nudgeCount) f.push({ t: `🔔 ${d.nudgeCount} relance${d.nudgeCount > 1 ? 's' : ''}`, c: colors.warn });
+          if (d.partialAt) f.push({ t: `Montant incomplet (manque ${money(d.partialMissing)})`, c: colors.warn });
+          if (d.notReceivedAt) f.push({ t: `Gérant : paiement non reçu${d.notReceivedCount > 1 ? ' ×' + d.notReceivedCount : ''}`, c: colors.danger });
+          if (d.notServedAt) f.push({ t: `Client : pas servi${d.notServedCount > 1 ? ' ×' + d.notServedCount : ''}`, c: colors.danger });
+          if (d.status === 'completed' && !d.moneyReceived) f.push({ t: 'Servie mais paiement non confirmé', c: colors.warn });
+          if (d.reportedAt) f.push({ t: `⚑ Signalée par le ${d.reportedBy === 'gerant' ? 'gérant' : 'client'}`, c: colors.danger });
+          if (d.rating) f.push({ t: `Note client : ${d.rating}/5`, c: colors.muted });
+          return f;
+        };
+        // Les plus actifs (sur la période), par rôle.
+        const actIds = new Map();
+        for (const d of base) {
+          for (const [id, role, name, phone] of [[d.clientId, 'client', d.clientName, d.clientPhone], [d.gerantUserId, 'gerant', d.gerantName, d.gerantPhone]]) {
+            if (!id) continue;
+            if (!actIds.has(id)) actIds.set(id, { id, role, name, phone, total: 0, completed: 0, canceled: 0, declined: 0, problems: 0, amount: 0 });
+            const a = actIds.get(id); a.total += 1;
+            if (d.status === 'completed') { a.completed += 1; a.amount += d.amount || 0; }
+            if (d.status === 'canceled') a.canceled += 1;
+            if (d.status === 'declined' || d.status === 'unavailable') a.declined += 1;
+            if (isProblem(d)) a.problems += 1;
+          }
+        }
+        const topActive = [...actIds.values()].filter((a) => a.role === txActiveRole).sort((a, b) => b.total - a.total).slice(0, 8);
+        const userByPhone = (ph) => users.find((u) => u.phone === ph);
+        return (
+          <>
+            <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: space.sm }}>
+              <View style={{ flex: 1 }}>
+                <T size={font.h3} weight="800" color={colors.text}>Transactions</T>
+                <T size={font.sm} weight="600" color={colors.muted} style={{ marginTop: 2 }}>Toutes les demandes des clients, pour suivre et trancher en cas de souci.</T>
+              </View>
+              <Btn title="Actualiser" icon="refresh-outline" outline color={colors.primary} size="sm" loading={txLoading} onPress={() => loadTx()} />
+            </View>
+
+            {/* Période */}
+            <View style={{ flexDirection: 'row', flexWrap: 'wrap', alignItems: 'center', marginBottom: 6 }}>
+              <T size={font.xs} weight="700" color={colors.muted} style={{ marginRight: 8 }}>Période :</T>
+              {[{ v: '7', l: '7 jours' }, { v: '30', l: '30 jours' }, { v: 'all', l: 'Tout' }].map((o) => (
+                <Chip key={o.v} label={o.l} active={txPeriod === o.v} onPress={() => { setTxPeriod(o.v); setTxCount(30); }} />
+              ))}
+            </View>
+
+            {/* Compteurs de la période */}
+            <View style={{ flexDirection: 'row', marginBottom: 8 }}>
+              <View style={{ flex: 1, marginRight: 8 }}><StatTile icon="swap-horizontal-outline" value={base.length} label="Demandes" tone="purple" /></View>
+              <View style={{ flex: 1, marginRight: 8 }}><StatTile icon="checkmark-done-outline" value={cnt((d) => d.status === 'completed')} label="Servies" tone="green" /></View>
+              <View style={{ flex: 1 }}><StatTile icon="alert-circle-outline" value={cnt(isProblem)} label="Problèmes" tone="orange" /></View>
+            </View>
+            <T size={font.xs} weight="700" color={colors.muted} style={{ textAlign: 'center', marginBottom: space.sm }}>
+              Montant servi sur la période : {money(servedAmount)} · en cours : {cnt((d) => ['pending', 'accepted', 'paid'].includes(d.status))} · annulées : {cnt((d) => d.status === 'canceled')} · refusées/indispo : {cnt((d) => d.status === 'declined' || d.status === 'unavailable')}
+            </T>
+
+            {/* Les plus actifs */}
+            <Card style={{ marginBottom: space.sm }}>
+              <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' }}>
+                <T size={font.body} weight="800" color={colors.text}>🏆 Les plus actifs</T>
+                <View style={{ flexDirection: 'row' }}>
+                  <Chip label="Clients" active={txActiveRole === 'client'} onPress={() => setTxActiveRole('client')} />
+                  <Chip label="Gérants" active={txActiveRole === 'gerant'} onPress={() => setTxActiveRole('gerant')} />
+                </View>
+              </View>
+              <T size={font.xs} weight="600" color={colors.muted2} style={{ marginTop: 2, marginBottom: 6 }}>
+                Sur la période choisie. « Problèmes » = montant incomplet, paiement non reçu, pas servi, signalement, servie non payée, 3 relances.
+              </T>
+              {topActive.length === 0 ? (
+                <T size={font.sm} weight="600" color={colors.muted}>Aucune activité sur cette période.</T>
+              ) : topActive.map((a, i) => {
+                const u = userByPhone(a.phone);
+                return (
+                  <View key={a.id} style={{ paddingVertical: 8, borderTopWidth: i > 0 ? 1 : 0, borderTopColor: colors.border }}>
+                    <View style={{ flexDirection: 'row', alignItems: 'center' }}>
+                      <T size={font.body} weight="900" color={colors.primary} style={{ width: 26 }}>{i + 1}.</T>
+                      <View style={{ flex: 1 }}>
+                        <T size={font.body} weight="800" color={colors.text}>{a.name || '—'} <T size={font.xs} weight="600" color={colors.muted}>· {a.phone}</T></T>
+                        <T size={font.xs} weight="600" color={colors.muted} style={{ marginTop: 1 }}>
+                          {a.total} demande{a.total > 1 ? 's' : ''} · {a.completed} servie{a.completed > 1 ? 's' : ''} ({money(a.amount)}) · {a.canceled} annulée{a.canceled > 1 ? 's' : ''} · {a.declined} refusée{a.declined > 1 ? 's' : ''}{a.problems ? ` · ⚠ ${a.problems} problème${a.problems > 1 ? 's' : ''}` : ''}
+                        </T>
+                      </View>
+                    </View>
+                    <View style={{ flexDirection: 'row', marginTop: 6, marginLeft: 26 }}>
+                      <Btn title="Offrir" icon="gift-outline" color={colors.success} size="sm" disabled={!u} onPress={() => { if (u) { setGiftTarget(u); setGiftDays(30); setGiftCustom(''); setGiftNote(''); } }} style={{ flex: 1, marginRight: 6 }} />
+                      <Btn title="Compte" icon="person-outline" outline color={colors.primary} size="sm" onPress={() => { setUSearch(a.phone); setURole('all'); setUFilter('all'); setUCount(U_PAGE); setUExpanded(a.phone); setAdminTab('utilisateurs'); }} style={{ flex: 1, marginRight: 6 }} />
+                      <Btn title="Ses demandes" icon="list-outline" outline color={colors.muted} size="sm" onPress={() => { setTxSearch(a.phone); setTxCount(30); }} style={{ flex: 1 }} />
+                    </View>
+                  </View>
+                );
+              })}
+              <T size={font.xs} weight="600" color={colors.muted2} style={{ marginTop: 8 }}>
+                « Offrir » = offrir du temps d'abonnement · « Compte » = fiche dans Utilisateurs (suspendre, bloquer, certifier…) · « Ses demandes » = filtrer la liste ci-dessous.
+              </T>
+            </Card>
+
+            {/* Recherche */}
+            <Card style={s.searchCard}>
+              <View style={s.search}>
+                <Ionicons name="search" size={18} color={colors.muted} />
+                <TextInput
+                  value={txSearch}
+                  onChangeText={(t) => { setTxSearch(t); setTxCount(30); }}
+                  placeholder="Nom, numéro, montant, type, n° de demande…"
+                  placeholderTextColor={colors.muted2}
+                  style={s.searchInput}
+                  autoCorrect={false}
+                  autoCapitalize="none"
+                />
+                {txSearch ? (
+                  <Pressable onPress={() => { setTxSearch(''); setTxCount(30); }} hitSlop={8}>
+                    <Ionicons name="close-circle" size={18} color={colors.muted2} />
+                  </Pressable>
+                ) : null}
+              </View>
+            </Card>
+
+            {/* Filtres statut / type */}
+            <View style={{ flexDirection: 'row', flexWrap: 'wrap', alignItems: 'center', marginBottom: 6 }}>
+              <T size={font.xs} weight="700" color={colors.muted} style={{ marginRight: 8 }}>Statut :</T>
+              {[
+                { v: 'all', l: `Toutes (${base.length})` },
+                { v: 'open', l: `En cours (${cnt((d) => ['pending', 'accepted', 'paid'].includes(d.status))})` },
+                { v: 'completed', l: `Servies (${cnt((d) => d.status === 'completed')})` },
+                { v: 'problems', l: `Problèmes (${cnt(isProblem)})` },
+                { v: 'declined', l: `Refusées / indispo (${cnt((d) => d.status === 'declined' || d.status === 'unavailable')})` },
+                { v: 'canceled', l: `Annulées (${cnt((d) => d.status === 'canceled')})` },
+              ].map((o) => (
+                <Chip key={o.v} label={o.l} active={txStatus === o.v} onPress={() => { setTxStatus(o.v); setTxCount(30); }} />
+              ))}
+            </View>
+            <View style={{ flexDirection: 'row', flexWrap: 'wrap', alignItems: 'center', marginBottom: 6 }}>
+              <T size={font.xs} weight="700" color={colors.muted} style={{ marginRight: 8 }}>Type :</T>
+              {[{ v: 'all', l: 'Tous' }, { v: 'unites', l: 'Unités' }, { v: 'minutes', l: 'Minutes' }, { v: 'internet', l: 'Internet' }, { v: 'forfait', l: 'Appel + Internet' }].map((o) => (
+                <Chip key={o.v} label={o.l} active={txType === o.v} onPress={() => { setTxType(o.v); setTxCount(30); }} />
+              ))}
+            </View>
+            <T size={font.sm} weight="700" color={colors.muted} style={{ marginBottom: 6 }}>{list.length} transaction{list.length > 1 ? 's' : ''}{txSearch ? ` pour « ${txSearch} »` : ''}</T>
+
+            {/* Liste */}
+            {list.length === 0 ? (
+              <Card style={{ alignItems: 'center', paddingVertical: 22 }}>
+                <Ionicons name="swap-horizontal-outline" size={34} color={colors.muted2} />
+                <T size={font.sm} weight="600" color={colors.muted} style={{ marginTop: 8, textAlign: 'center' }}>
+                  {tx.demandes.length === 0 ? 'Aucune transaction pour le moment.' : 'Aucune transaction ne correspond à ces filtres.'}
+                </T>
+              </Card>
+            ) : (
+              <Card style={{ paddingVertical: 4 }}>
+                {shown.map((d, idx) => {
+                  const st = (d.status === 'accepted' && d.paidAt) ? { label: 'Payée (client)', color: '#2E7BF6', bg: '#E7F0FE' } : (TX_STATUS[d.status] || TX_STATUS.pending);
+                  const e = endOf(d);
+                  const fl = flags(d);
+                  return (
+                    <View key={d.id} style={[s.uRow, idx > 0 && s.uDivider]}>
+                      <View style={{ flexDirection: 'row', alignItems: 'flex-start' }}>
+                        <View style={{ flex: 1 }}>
+                          <T size={font.body} weight="800" color={colors.text}>{TX_TYPE[d.type] || d.type} · {money(d.amount)}</T>
+                          <T size={font.xs} weight="600" color={colors.muted} style={{ marginTop: 2 }}>
+                            Client : {d.clientName || '—'}{d.clientPhone ? ` · ${d.clientPhone}` : ''}
+                          </T>
+                          <T size={font.xs} weight="600" color={colors.muted}>
+                            Gérant : {d.gerantName || '—'}{d.gerantPhone ? ` · ${d.gerantPhone}` : ''}
+                          </T>
+                          {d.benefPhone && d.benefPhone !== d.clientPhone ? (
+                            <T size={font.xs} weight="600" color={colors.muted}>Pour : {d.benefName && d.benefName !== d.benefPhone ? d.benefName + ' · ' : ''}{d.benefPhone}</T>
+                          ) : null}
+                        </View>
+                        <View style={{ alignItems: 'flex-end', maxWidth: '40%', marginLeft: 6 }}>
+                          <Pill color={st.color} bg={st.bg}>{st.label}</Pill>
+                          {isProblem(d) ? <Pill color={colors.danger} bg={colors.dangerBg} style={{ marginTop: 4 }}>⚠ Problème</Pill> : null}
+                        </View>
+                      </View>
+                      <View style={{ marginTop: 6 }}>
+                        <T size={font.xs} weight="700" color={colors.muted}>▶ Lancée le {fmtDateTime(d.createdAt)}</T>
+                        {e.at ? <T size={font.xs} weight="700" color={e.c}>{e.l} le {fmtDateTime(e.at)}</T> : <T size={font.xs} weight="700" color={colors.warn}>En attente de réponse du gérant</T>}
+                      </View>
+                      {fl.length > 0 ? (
+                        <View style={{ flexDirection: 'row', flexWrap: 'wrap', marginTop: 4 }}>
+                          {fl.map((f, i) => <T key={i} size={font.xs} weight="700" color={f.c} style={{ marginRight: 10 }}>{f.t}</T>)}
+                        </View>
+                      ) : null}
+                      <T size={font.xs} weight="500" color={colors.muted2} style={{ marginTop: 3 }}>Réf. {d.id}</T>
+                    </View>
+                  );
+                })}
+                {list.length > txCount ? (
+                  <Btn title={`Voir plus (${list.length - txCount} restantes)`} icon="chevron-down" outline color={colors.primary} size="sm" onPress={() => setTxCount((c) => c + 30)} style={{ marginVertical: 8 }} />
+                ) : null}
+              </Card>
+            )}
+          </>
+        );
+      })()}
+
       {adminTab === 'notes' && (
         <>
           <T size={font.h3} weight="800" color={colors.text} style={{ marginBottom: 4 }}>Notes des gérants</T>
