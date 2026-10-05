@@ -1,15 +1,12 @@
 # ============================================================
 #  Render — déploiement "tout-en-un"
-#  Web Service (sert le front PWA + l'API) + base PostgreSQL.
-#  Render crée la base et injecte DATABASE_URL automatiquement.
-#  Tableau de bord Render -> New -> Blueprint -> ce fichier.
+#  Web Service (sert le front PWA + l'API).
+#  La base PostgreSQL est hébergée chez Neon (gratuit, sans expiration) :
+#  DATABASE_URL est renseignée À LA MAIN dans le dashboard Render
+#  (sync: false) et n'est jamais modifiée par ce Blueprint.
+#  (Depuis le 05/10/2026 ; l'ancienne base Render "cabine-en-ligne-db"
+#  n'est plus utilisée et peut être supprimée.)
 # ============================================================
-databases:
-  - name: cabine-en-ligne-db
-    plan: free
-    databaseName: cabine
-    user: cabine
-
 services:
   - type: web
     name: cabine-en-ligne
@@ -27,9 +24,7 @@ services:
       - key: NODE_ENV
         value: production
       - key: DATABASE_URL
-        fromDatabase:
-          name: cabine-en-ligne-db
-          property: connectionString
+        sync: false        # URL Neon, saisie dans le dashboard Render
       - key: WAVE_MODE
         value: mock        # passez à "live" + clés API pour le vrai paiement
       - key: WAVE_API_KEY
