@@ -1,4 +1,5 @@
 import React, { createContext, useContext, useMemo, useReducer, useState, useEffect, useCallback } from 'react';
+import { AppState, Platform } from 'react-native';
 import { api, setToken, clearToken, getToken } from './api';
 import { DATA_MODE } from './config';
 import { storage } from './storage';
@@ -166,6 +167,33 @@ export function StoreProvider({ children }) {
   }, []);
   useEffect(() => { probe(); }, [probe]);
 
+  // CORRECTIF (hors-ligne « collé ») : avant, le serveur n'était sondé qu'UNE fois
+  // au lancement. Si ce premier appel échouait (réseau 3G faible, serveur en
+  // réveil, mode avion…), l'app restait considérée hors-ligne jusqu'à ce que
+  // l'utilisateur la ferme complètement : historique vide, notifications et
+  // demandes jamais rafraîchies. On re-sonde donc toutes les 5 s tant qu'on est
+  // hors-ligne, et à chaque retour au premier plan (iPhone/Android/web).
+  useEffect(() => {
+    if (DATA_MODE === 'mock' || online) return;
+    const t = setInterval(() => probe(), 5000);
+    return () => clearInterval(t);
+  }, [online, probe]);
+  useEffect(() => {
+    if (DATA_MODE === 'mock') return;
+    const onActive = () => { probe(); };
+    const sub = AppState.addEventListener('change', (st) => { if (st === 'active') onActive(); });
+    let onVis = null;
+    if (Platform.OS === 'web' && typeof document !== 'undefined') {
+      onVis = () => { if (document.visibilityState === 'visible') onActive(); };
+      document.addEventListener('visibilitychange', onVis);
+      window.addEventListener('focus', onActive);
+    }
+    return () => {
+      sub && sub.remove && sub.remove();
+      if (onVis) { document.removeEventListener('visibilitychange', onVis); window.removeEventListener('focus', onActive); }
+    };
+  }, [probe]);
+
   // ---- Auth ----
   // Pas de compte de démonstration : la connexion exige le vrai backend.
   // Hors ligne, on affiche un message clair au lieu de créer un faux compte.
@@ -267,6 +295,21 @@ export function StoreProvider({ children }) {
       }
     } catch (e) { safe(e); }
   }, [online, state.role, state.loggedIn]);
+
+  // Au retour au premier plan, si on est en ligne, on rafraîchit tout de suite
+  // (sans attendre le prochain cycle de 10 s) : l'historique et les
+  // notifications sont à jour dès l'ouverture.
+  useEffect(() => {
+    if (DATA_MODE === 'mock' || !online || !state.loggedIn) return;
+    const onActive = () => refresh();
+    const sub = AppState.addEventListener('change', (st) => { if (st === 'active') onActive(); });
+    let onVis = null;
+    if (Platform.OS === 'web' && typeof document !== 'undefined') {
+      onVis = () => { if (document.visibilityState === 'visible') onActive(); };
+      document.addEventListener('visibilitychange', onVis);
+    }
+    return () => { sub && sub.remove && sub.remove(); if (onVis) document.removeEventListener('visibilitychange', onVis); };
+  }, [online, state.loggedIn, refresh]);
 
   useEffect(() => { if (online && state.loggedIn) refresh(); }, [online, state.loggedIn]); // eslint-disable-line
 
