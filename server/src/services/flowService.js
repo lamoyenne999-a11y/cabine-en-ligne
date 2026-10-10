@@ -399,6 +399,13 @@ export const REPORT_REASONS = {
   paid_declined_no_refund: { by: 'client', label: 'J\'ai payé, le gérant a refusé / était indisponible mais ne m\'a pas remboursé' },
   // Gérant signale un client
   served_not_paid: { by: 'gerant', label: 'J\'ai servi le client, il n\'a pas payé' },
+  // Motifs libres du gérant (possibles quel que soit l'état de la demande) :
+  // le gérant doit pouvoir signaler un client à tout moment (mauvais comportement,
+  // demandes fantaisistes à répétition…). Le propriétaire tranche.
+  client_fake_requests: { by: 'gerant', label: 'Demandes répétées non sérieuses (annule, ne paie jamais, fait perdre du temps)' },
+  client_abuse: { by: 'gerant', label: 'Comportement abusif (insultes, menaces, harcèlement)' },
+  client_fraud: { by: 'gerant', label: 'Tentative de fraude (fausse preuve de paiement, montant incomplet volontaire…)' },
+  client_other: { by: 'gerant', label: 'Autre problème avec ce client' },
 };
 export function createReport({ reporter, demandeId, reason, message = '' }) {
   const r = REPORT_REASONS[reason];

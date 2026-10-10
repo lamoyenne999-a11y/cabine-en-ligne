@@ -341,6 +341,12 @@ async function main() {
     const id = dm.json.demande?.id;
     const early = await req('POST', '/gerant/reports', { demandeId: id, reason: 'served_not_paid' }, gt);
     check('Signalement refusé si l\'état ne correspond pas (pas encore servi) → 400', early.status === 400);
+    // Motif libre : possible quel que soit l'état (ici demande encore en attente)
+    const dmF = await req('POST', '/client/demandes', { gerantId, gerantName: 'Gérant Test', gerantWave: gphone, type: 'unites', amount: 120, benefName: 'Moi', benefPhone: '07' + uniq }, ct);
+    const free = await req('POST', '/gerant/reports', { demandeId: dmF.json.demande?.id, reason: 'client_fake_requests', message: 'Annule à chaque fois' }, gt);
+    check('Gérant signale un client avec un motif libre, demande en attente → 201', free.status === 201 && free.json.report?.reason === 'client_fake_requests' && free.json.report?.targetRole === 'client');
+    const freeC = await req('POST', '/client/reports', { demandeId: dmF.json.demande?.id, reason: 'client_other' }, ct);
+    check('Motif libre gérant refusé côté client → 400', freeC.status === 400);
     await req('POST', `/gerant/demandes/${id}/complete`, {}, gt);
     const rep = await req('POST', '/gerant/reports', { demandeId: id, reason: 'served_not_paid', message: 'Servi hier, toujours rien' }, gt);
     check('Gérant signale un client servi non payé', rep.status === 201 && rep.json.report?.status === 'open' && rep.json.report?.targetRole === 'client');
