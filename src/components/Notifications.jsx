@@ -26,6 +26,8 @@ const ICONS = {
   client_completed: 'add-circle-outline',
   client_says_full: 'help-circle-outline',
   client_not_served: 'alert-circle-outline',
+  client_wave_canceled: 'arrow-undo-circle-outline',
+  client_closed: 'checkmark-done-circle-outline',
   client_confirmed: 'happy-outline',
   gift: 'gift-outline',
   welcome: 'hand-left-outline',
@@ -63,6 +65,8 @@ const COLORS = {
   client_completed: colors.success,
   client_says_full: colors.warn,
   client_not_served: colors.danger,
+  client_wave_canceled: colors.danger,
+  client_closed: colors.success,
   client_confirmed: colors.success,
   gift: colors.success,
   welcome: colors.primary,
@@ -88,7 +92,7 @@ const COLORS = {
 };
 
 // Catégorie d'une notification : « alert » (à traiter / important), « tip » (astuce, info), sinon activité.
-const ALERT_TYPES = new Set(['alert_expiring', 'alert_expired', 'announce_alert', 'account_suspended', 'reported', 'demande_not_received', 'client_not_served', 'subscription_rejected', 'payment_requested', 'demande_served_unpaid']);
+const ALERT_TYPES = new Set(['alert_expiring', 'alert_expired', 'announce_alert', 'account_suspended', 'reported', 'demande_not_received', 'client_not_served', 'client_wave_canceled', 'subscription_rejected', 'payment_requested', 'demande_served_unpaid']);
 const TIP_TYPES = new Set(['welcome', 'announce_tip', 'announce_info', 'rating_received', 'milestone']);
 export const notifCategory = (t) => (ALERT_TYPES.has(t) ? 'alert' : TIP_TYPES.has(t) ? 'tip' : 'activity');
 

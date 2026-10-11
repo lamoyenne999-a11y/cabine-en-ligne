@@ -77,7 +77,7 @@ function matches(d, q) {
 }
 
 export default function ClientHistory() {
-  const { state, markPaid, nudgeDemande, cancelDemande, paymentReply, notServedDemande, confirmServedDemande, closeDemande, refresh , dispatch } = useStore();
+  const { state, markPaid, nudgeDemande, cancelDemande, paymentReply, notServedDemande, confirmServedDemande, closeDemande, waveCanceledDemande, refresh , dispatch } = useStore();
   const [busyNudge, setBusyNudge] = useState(null);
   const [nudgeMsg, setNudgeMsg] = useState(null); // { id, ok, text }
   const doNudge = async (d) => {
@@ -89,7 +89,8 @@ export default function ClientHistory() {
     finally { setBusyNudge(null); setTimeout(() => setNudgeMsg(null), 5000); }
   };
   const [notServedTarget, setNotServedTarget] = useState(null);
-  const [closeTarget, setCloseTarget] = useState(null); // « Terminer — tout est réglé »
+  const [closeTarget, setCloseTarget] = useState(null);
+  const [waveTarget, setWaveTarget] = useState(null); // « J'ai annulé mon transfert Wave » // « Terminer — tout est réglé »
   const [paying, setPaying] = useState(null);
   const [canceling, setCanceling] = useState(null);
   const [q, setQ] = useState('');
@@ -453,6 +454,11 @@ export default function ClientHistory() {
             {['pending', 'accepted', 'paid'].includes(d.status) || (d.status === 'completed' && !d.clientConfirmedAt) ? (
               <Btn title="Terminer — tout est réglé" icon="checkmark-done-circle" color={colors.success} size="sm" onPress={() => setCloseTarget(d)} style={{ marginTop: 10 }} />
             ) : null}
+            {/* Payé mais pas servi : Wave permet d'annuler un envoi dans l'heure. Le client
+                prévient le gérant qu'il a repris son argent et qu'il ne faut plus le servir. */}
+            {(d.status === 'paid' || (d.status === 'completed' && !d.clientConfirmedAt)) && (
+              <Btn title="J'ai annulé mon transfert Wave" icon="arrow-undo-circle" variant="outline" color={colors.danger} size="sm" onPress={() => setWaveTarget(d)} style={{ marginTop: 8 }} />
+            )}
             <ReportButton role="client" demande={d} otherName={d.gerantName} onDone={refresh} style={{ marginTop: 8 }} />
             {!!d.notServedAt && d.status !== 'completed' && !['declined', 'canceled'].includes(d.status) && (
               <View style={[s.timerBox, { backgroundColor: colors.dangerBg }]}>
@@ -463,8 +469,10 @@ export default function ClientHistory() {
               </View>
             )}
             {d.status === 'canceled' && (
-              <T size={font.sm} weight="600" color={colors.muted} style={{ marginTop: 12, textAlign: 'center' }}>
-                Demande annulée : le gérant n'a pas traité votre demande à temps.
+              <T size={font.sm} weight="600" color={d.waveCanceledAt ? colors.danger : colors.muted} style={{ marginTop: 12, textAlign: 'center' }}>
+                {d.waveCanceledAt
+                  ? `Annulée : vous avez annulé votre transfert Wave. ${d.gerantName} a été prévenu(e) de ne plus vous recharger pour cette demande.`
+                  : "Demande annulée : le gérant n'a pas traité votre demande à temps."}
               </T>
             )}
           </Card>
@@ -477,6 +485,17 @@ export default function ClientHistory() {
           {closeTarget ? `Vous confirmez que ${closeTarget.gerantName} vous a servi (${TYPE_LABEL[closeTarget.type] || 'demande'} ${money(closeTarget.amount)}) et que vous l'avez payé. La demande sera marquée « Terminée » pour vous deux ; ${closeTarget.gerantName} sera prévenu(e).` : ''}
         </T>
         <DialogButtons cancel="Annuler" confirm="Oui, tout est réglé" onCancel={() => setCloseTarget(null)} onConfirm={() => { if (closeTarget) closeDemande(closeTarget.id); setCloseTarget(null); }} />
+      </Dialog>
+
+      <Dialog visible={!!waveTarget}>
+        <T size={font.h3} weight="800" color={colors.text} style={{ textAlign: 'center' }}>Transfert Wave annulé ?</T>
+        <T size={font.sm} weight="600" color={colors.muted} style={{ textAlign: 'center', marginTop: 6, marginBottom: 6 }}>
+          {waveTarget ? `Vous confirmez avoir annulé dans Wave votre envoi de ${money(waveTarget.amount)} à ${waveTarget.gerantName} parce que vous n'avez pas été rechargé(e) à temps. La demande sera annulée et ${waveTarget.gerantName} sera prévenu(e) de ne plus vous servir.` : ''}
+        </T>
+        <T size={font.xs} weight="600" color={colors.muted2} style={{ textAlign: 'center', marginBottom: 6 }}>
+          Faites-le seulement si l'annulation est bien effectuée dans l'application Wave (possible dans l'heure qui suit l'envoi).
+        </T>
+        <DialogButtons cancel="Non, pas encore" confirm="Oui, j'ai annulé" onCancel={() => setWaveTarget(null)} onConfirm={() => { if (waveTarget) waveCanceledDemande(waveTarget.id); setWaveTarget(null); }} />
       </Dialog>
 
       <Dialog visible={!!notServedTarget}>

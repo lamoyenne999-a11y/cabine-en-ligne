@@ -377,6 +377,21 @@ async function main() {
     check('Client signale un gérant avec un motif libre sur une demande terminée → 201', repFree.status === 201 && repFree.json.report?.targetRole === 'gerant');
   }
 
+  // ===== Client : « J'ai annulé mon transfert Wave » =====
+  {
+    const dm = await req('POST', '/client/demandes', { gerantId, gerantName: 'Gérant Test', gerantWave: gphone, type: 'internet', amount: 1000, benefName: 'Moi', benefPhone: '07' + uniq }, ct);
+    const id = dm.json.demande?.id;
+    const early = await req('POST', `/client/demandes/${id}/wave-canceled`, {}, ct);
+    check('Annulation Wave refusée tant que le client n\'a pas payé → 400', early.status === 400);
+    await req('POST', `/client/demandes/${id}/paid`, {}, ct);
+    const wc = await req('POST', `/client/demandes/${id}/wave-canceled`, {}, ct);
+    check('Payée non servie + Wave annulé → demande annulée, argent non reçu', wc.status === 200 && wc.json.demande?.status === 'canceled' && wc.json.demande?.waveCanceledAt > 0 && wc.json.demande?.moneyReceived === false);
+    const gn = await req('GET', '/gerant/notifications', null, gt);
+    check('Gérant prévenu « NE LE SERVEZ PLUS »', (gn.json.notifications || []).some((n) => n.type === 'client_wave_canceled' && n.demandeId === id && /SERVEZ PLUS/.test(n.text)));
+    const srv = await req('POST', `/gerant/demandes/${id}/complete`, {}, gt);
+    check('Le gérant ne peut plus servir la demande annulée → 400', srv.status === 400);
+  }
+
   // ===== Signalements + suspension motivée =====
   {
     const A = { 'x-admin-key': 'testkey' };

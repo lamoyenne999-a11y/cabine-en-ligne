@@ -1409,6 +1409,26 @@ export function clientCloseDemande({ id, clientId }) {
   return upd;
 }
 
+// Le client a ANNULÉ son transfert Wave (Wave permet d'annuler un envoi dans l'heure)
+// parce qu'il n'a pas été servi à temps. La demande est close (annulée), l'argent n'est
+// plus considéré reçu, et le gérant est prévenu qu'il ne doit PLUS servir.
+export function clientWaveCanceled({ id, clientId }) {
+  const d = findOne('demandes', (x) => x.id === id && x.clientId === clientId);
+  if (!d) throw Object.assign(new Error('Demande introuvable'), { status: 404 });
+  if (d.status === 'canceled' && d.waveCanceledAt) return d;
+  const paidNotServed = d.status === 'paid' || (d.status === 'completed' && !d.clientConfirmedAt) || (d.status === 'accepted' && d.paidAt);
+  if (!paidNotServed) throw Object.assign(new Error('Cette demande n\'est pas en attente de recharge après paiement'), { status: 400 });
+  const now = Date.now();
+  update('demandes', (x) => x.id === id, { status: 'canceled', canceledAt: now, waveCanceledAt: now, moneyReceived: false, receivedAt: 0, completedAt: 0, clientConfirmedAt: 0 });
+  const upd = findOne('demandes', (x) => x.id === id);
+  if (upd.gerantUserId) createNotification({
+    userId: upd.gerantUserId, type: 'client_wave_canceled', demandeId: upd.id,
+    text: `⚠️ ${upd.clientName} a ANNULÉ son transfert Wave de ${upd.amount} F : il n'a pas été rechargé à temps. NE LE SERVEZ PLUS pour cette demande (${TYPE_LABEL[upd.type] || upd.type} ${upd.amount} F, numéro ${upd.benefPhone || ''}) — elle est annulée. Si vous l'aviez déjà servi, signalez-le depuis votre historique.`,
+  });
+  recordEvent({ type: 'demande_wave_canceled', name: upd.clientName, phone: upd.clientPhone, role: 'client', amount: upd.amount, demandeType: upd.type });
+  return upd;
+}
+
 // Le client conteste : le gérant a marqué « servi » mais le client n'a rien reçu.
 // La demande repasse en « à traiter » (paid si l'argent est confirmé/déclaré,
 // sinon accepted) et le gérant est notifié. Le client garde la trace (notServedAt).

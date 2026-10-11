@@ -65,6 +65,7 @@ export const api = {
     confirmServed: (id) => request('POST', `/api/client/demandes/${id}/confirm-served`),
     closeDemande: (id) => request('POST', `/api/client/demandes/${id}/close`),
     rateDemande: (id, stars) => request('POST', `/api/client/demandes/${id}/rate`, { stars }),
+    waveCanceled: (id) => request('POST', `/api/client/demandes/${id}/wave-canceled`),
     notServed: (id) => request('POST', `/api/client/demandes/${id}/not-served`),
     paymentReply: (id, kind) => request('POST', `/api/client/demandes/${id}/payment-reply`, { kind }),
     cancelDemande: (id) => request('POST', `/api/client/demandes/${id}/cancel`),

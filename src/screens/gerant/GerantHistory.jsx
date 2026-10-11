@@ -216,7 +216,7 @@ export default function GerantHistory() {
                   completed: d.clientConfirmedAt ? `✅ Le client a confirmé avoir reçu sa recharge${d.moneyReceived ? ' — réglée.' : ' — paiement encore à encaisser.'}` : d.moneyReceived ? `Réglée : ${money(d.amount)} reçus sur votre Wave, client servi.` : `Client servi, paiement de ${money(d.amount)} PAS ENCORE reçu.`,
                   declined: 'Vous avez refusé cette demande.',
                   unavailable: 'Vous n\'étiez pas disponible : le client a été invité à choisir un autre gérant.',
-                  canceled: 'Le client a annulé cette demande.',
+                  canceled: d.waveCanceledAt ? '⚠️ Le client a ANNULÉ son transfert Wave (pas rechargé à temps) : ne le servez plus pour cette demande. Si vous l\'aviez déjà servi, signalez-le.' : 'Le client a annulé cette demande.',
                 }[d.status] || 'Payé en direct via Wave.'
               )}
             </T>
