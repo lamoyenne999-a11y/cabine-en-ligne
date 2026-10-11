@@ -20,6 +20,10 @@ const LABELS = {
   paid_not_served: 'J\'ai payé, le gérant ne m\'a pas servi (ni remboursé)',
   paid_declined_no_refund: 'J\'ai payé, le gérant a refusé / était indisponible mais ne m\'a pas remboursé',
   served_not_paid: 'J\'ai servi le client, il n\'a pas payé',
+  gerant_no_response: 'Le gérant ne répond jamais / me fait perdre mon temps',
+  gerant_overcharge: 'Le gérant réclame plus que le montant convenu',
+  gerant_abuse: 'Comportement abusif (insultes, menaces, harcèlement)',
+  gerant_other: 'Autre problème avec ce gérant',
   client_fake_requests: 'Demandes répétées non sérieuses (annule, ne paie jamais, fait perdre du temps)',
   client_abuse: 'Comportement abusif (insultes, menaces, harcèlement)',
   client_fraud: 'Tentative de fraude (fausse preuve de paiement, montant incomplet volontaire…)',
@@ -27,6 +31,7 @@ const LABELS = {
 };
 // Motifs que le gérant peut invoquer quel que soit l'état de la demande.
 const GERANT_FREE_REASONS = ['client_fake_requests', 'client_abuse', 'client_fraud', 'client_other'];
+const CLIENT_FREE_REASONS = ['gerant_no_response', 'gerant_overcharge', 'gerant_abuse', 'gerant_other'];
 
 // Retourne le motif applicable, ou null si aucun signalement n'est possible.
 export function reportReasonFor(role, d) {
@@ -34,7 +39,7 @@ export function reportReasonFor(role, d) {
   if (role === 'client') {
     if (d.moneyReceived && d.status !== 'completed') return 'paid_not_served';
     if (d.paidAt && ['declined', 'unavailable'].includes(d.status)) return 'paid_declined_no_refund';
-    return null;
+    return 'gerant_other';
   }
   if (role === 'gerant') {
     // Motif automatique quand il s'applique ; sinon le gérant choisit un motif libre.
@@ -45,7 +50,12 @@ export function reportReasonFor(role, d) {
 }
 // Liste des motifs proposés au choix (gérant) : motif automatique en premier.
 function reasonChoicesFor(role, d) {
-  if (role !== 'gerant') return [];
+  if (role === 'client') {
+    const auto = [];
+    if (d && d.moneyReceived && d.status !== 'completed') auto.push('paid_not_served');
+    if (d && d.paidAt && ['declined', 'unavailable'].includes(d.status)) auto.push('paid_declined_no_refund');
+    return [...auto, ...CLIENT_FREE_REASONS];
+  }
   const auto = d && d.status === 'completed' && !d.moneyReceived ? ['served_not_paid'] : [];
   return [...auto, ...GERANT_FREE_REASONS];
 }

@@ -397,6 +397,11 @@ export const REPORT_REASONS = {
   // Client signale un gérant
   paid_not_served: { by: 'client', label: 'J\'ai payé, le gérant ne m\'a pas servi (ni remboursé)' },
   paid_declined_no_refund: { by: 'client', label: 'J\'ai payé, le gérant a refusé / était indisponible mais ne m\'a pas remboursé' },
+  // Motifs libres du client (possibles quel que soit l'état de la demande)
+  gerant_no_response: { by: 'client', label: 'Le gérant ne répond jamais / me fait perdre mon temps' },
+  gerant_overcharge: { by: 'client', label: 'Le gérant réclame plus que le montant convenu' },
+  gerant_abuse: { by: 'client', label: 'Comportement abusif (insultes, menaces, harcèlement)' },
+  gerant_other: { by: 'client', label: 'Autre problème avec ce gérant' },
   // Gérant signale un client
   served_not_paid: { by: 'gerant', label: 'J\'ai servi le client, il n\'a pas payé' },
   // Motifs libres du gérant (possibles quel que soit l'état de la demande) :
@@ -1372,6 +1377,35 @@ export function clientConfirmServed({ id, clientId }) {
     userId: upd.gerantUserId, type: 'client_confirmed', demandeId: upd.id,
     text: `${upd.clientName} confirme avoir bien reçu ${TYPE_LABEL[upd.type] || upd.type} ${upd.amount} F. Merci pour votre service !`,
   });
+  return upd;
+}
+
+// Le client CLÔTURE lui-même la demande : « Terminer — tout est réglé ».
+// Cas réel : la transaction s'est faite (servi + payé) sans que les deux parties
+// cliquent sur chaque étape. Le client met un terme à tout en une fois :
+// demande servie, argent considéré reçu, réception confirmée. Le gérant est
+// prévenu et peut toujours signaler le client si ce n'est pas vrai.
+export function clientCloseDemande({ id, clientId }) {
+  const d = findOne('demandes', (x) => x.id === id && x.clientId === clientId);
+  if (!d) throw Object.assign(new Error('Demande introuvable'), { status: 404 });
+  if (d.status === 'completed' && d.clientConfirmedAt) return d;
+  if (!['pending', 'accepted', 'paid', 'completed'].includes(d.status)) throw Object.assign(new Error('Cette demande est déjà close'), { status: 400 });
+  const now = Date.now();
+  const patch = { status: 'completed', clientConfirmedAt: now, clientClosedAt: now, notServedAt: 0 };
+  if (!d.completedAt) patch.completedAt = now;
+  if (!d.acceptedAt) patch.acceptedAt = now;
+  if (!d.paidAt) patch.paidAt = now;
+  if (!d.moneyReceived) { patch.moneyReceived = true; patch.receivedAt = now; patch.moneyReceivedByClient = true; }
+  update('demandes', (x) => x.id === id, patch);
+  const upd = findOne('demandes', (x) => x.id === id);
+  if (upd.gerantUserId) {
+    try { checkGerantMilestone(upd.gerantUserId); } catch {}
+    createNotification({
+      userId: upd.gerantUserId, type: 'client_closed', demandeId: upd.id,
+      text: `${upd.clientName} a clôturé la demande ${TYPE_LABEL[upd.type] || upd.type} ${upd.amount} F : servi et payé, tout est réglé. Si ce n'est pas le cas, signalez-le depuis votre historique.`,
+    });
+  }
+  recordEvent({ type: 'demande_closed_by_client', name: upd.clientName, phone: upd.clientPhone, role: 'client', amount: upd.amount, demandeType: upd.type });
   return upd;
 }
 

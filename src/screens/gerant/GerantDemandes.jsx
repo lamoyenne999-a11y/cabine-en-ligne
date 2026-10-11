@@ -49,6 +49,7 @@ const fmtDT = (t) => (t ? new Date(t).toLocaleString('fr-FR', { day: 'numeric', 
 function stateLine(d) {
   const amt = `${fmt(d.amount)} XOF`;
   if (d.notServedAt && d.status !== 'completed') return { tone: 'danger', icon: 'alert-circle', text: `PAS une nouvelle demande : demande de ${fmtDT(d.createdAt)} (${ago(d.createdAt)}). Le client dit NE PAS avoir reçu sa recharge (${d.benefPhone}) — signalé ${ago(d.notServedAt)}. Vérifiez le numéro, servez-le puis « J'ai servi ».` };
+  if (d.status === 'completed' && d.clientClosedAt) return { tone: 'success', icon: 'checkmark-done-circle', text: 'Terminée — le client a clôturé : servi et payé. Si ce n\'est pas exact, signalez-le depuis l\'Historique.' };
   if (d.moneyReceived && d.status === 'completed' && d.clientConfirmedAt) return { tone: 'success', icon: 'checkmark-done-circle', text: 'Terminée — le client a confirmé la réception.' };
   if (d.moneyReceived && d.status === 'completed') return { tone: 'success', icon: 'checkmark-circle', text: `Servie et payée (${amt}). En attente de la confirmation du client.` };
   if (d.moneyReceived && d.paidNudgeCount) return { tone: 'warn', icon: 'notifications', text: `🔔 Argent reçu (${amt}) mais le client attend toujours sa recharge — il vous a relancé ${d.paidNudgeCount} fois. Servez le ${d.benefPhone} puis « J'ai servi ».` };

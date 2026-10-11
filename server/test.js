@@ -356,6 +356,27 @@ async function main() {
     check('Servie : plus de relance possible → 400', after.status === 400);
   }
 
+  // ===== Clôture par le client : « Terminer — tout est réglé » =====
+  {
+    const dm = await req('POST', '/client/demandes', { gerantId, gerantName: 'Gérant Test', gerantWave: gphone, type: 'minutes', amount: 250, benefName: 'Moi', benefPhone: '07' + uniq }, ct);
+    const id = dm.json.demande?.id;
+    const cl = await req('POST', `/client/demandes/${id}/close`, {}, ct);
+    check('Client clôture une demande en attente → Terminée, payée, confirmée', cl.status === 200 && cl.json.demande?.status === 'completed' && cl.json.demande?.moneyReceived === true && cl.json.demande?.clientConfirmedAt > 0 && cl.json.demande?.clientClosedAt > 0);
+    const gn = await req('GET', '/gerant/notifications', null, gt);
+    check('Gérant prévenu de la clôture', (gn.json.notifications || []).some((n) => n.type === 'client_closed' && n.demandeId === id));
+    const again = await req('POST', `/client/demandes/${id}/close`, {}, ct);
+    check('Clôture idempotente', again.status === 200 && again.json.demande?.status === 'completed');
+    const gh = await req('GET', '/gerant/history', null, gt);
+    check('Historique gérant : demande terminée (plus « à encaisser »)', (gh.json.demandes || []).some((d) => d.id === id && d.status === 'completed' && d.moneyReceived));
+    const dmC = await req('POST', '/client/demandes', { gerantId, gerantName: 'Gérant Test', gerantWave: gphone, type: 'unites', amount: 100, benefName: 'Moi', benefPhone: '07' + uniq }, ct);
+    await req('POST', `/client/demandes/${dmC.json.demande?.id}/cancel`, {}, ct);
+    const clC = await req('POST', `/client/demandes/${dmC.json.demande?.id}/close`, {}, ct);
+    check('Clôture impossible sur une demande annulée → 400', clC.status === 400);
+    // Signalement libre côté client, demande déjà terminée
+    const repFree = await req('POST', '/client/reports', { demandeId: id, reason: 'gerant_overcharge', message: 'Il a demandé 300 au lieu de 250' }, ct);
+    check('Client signale un gérant avec un motif libre sur une demande terminée → 201', repFree.status === 201 && repFree.json.report?.targetRole === 'gerant');
+  }
+
   // ===== Signalements + suspension motivée =====
   {
     const A = { 'x-admin-key': 'testkey' };

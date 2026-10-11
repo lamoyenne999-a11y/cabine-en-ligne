@@ -77,7 +77,7 @@ function matches(d, q) {
 }
 
 export default function ClientHistory() {
-  const { state, markPaid, nudgeDemande, cancelDemande, paymentReply, notServedDemande, confirmServedDemande, refresh , dispatch } = useStore();
+  const { state, markPaid, nudgeDemande, cancelDemande, paymentReply, notServedDemande, confirmServedDemande, closeDemande, refresh , dispatch } = useStore();
   const [busyNudge, setBusyNudge] = useState(null);
   const [nudgeMsg, setNudgeMsg] = useState(null); // { id, ok, text }
   const doNudge = async (d) => {
@@ -89,6 +89,7 @@ export default function ClientHistory() {
     finally { setBusyNudge(null); setTimeout(() => setNudgeMsg(null), 5000); }
   };
   const [notServedTarget, setNotServedTarget] = useState(null);
+  const [closeTarget, setCloseTarget] = useState(null); // « Terminer — tout est réglé »
   const [paying, setPaying] = useState(null);
   const [canceling, setCanceling] = useState(null);
   const [q, setQ] = useState('');
@@ -447,7 +448,12 @@ export default function ClientHistory() {
                 </T>
               </View>
             )}
-            <ReportButton role="client" demande={d} otherName={d.gerantName} onDone={refresh} style={{ marginTop: 10 }} />
+            {/* « Terminer » : le client clôture lui-même quand tout s'est réglé (servi + payé)
+                sans que chaque étape ait été cliquée. Visible tant que la demande est ouverte. */}
+            {['pending', 'accepted', 'paid'].includes(d.status) || (d.status === 'completed' && !d.clientConfirmedAt) ? (
+              <Btn title="Terminer — tout est réglé" icon="checkmark-done-circle" color={colors.success} size="sm" onPress={() => setCloseTarget(d)} style={{ marginTop: 10 }} />
+            ) : null}
+            <ReportButton role="client" demande={d} otherName={d.gerantName} onDone={refresh} style={{ marginTop: 8 }} />
             {!!d.notServedAt && d.status !== 'completed' && !['declined', 'canceled'].includes(d.status) && (
               <View style={[s.timerBox, { backgroundColor: colors.dangerBg }]}>
                 <Ionicons name="alert-circle" size={16} color={colors.danger} />
@@ -464,6 +470,14 @@ export default function ClientHistory() {
           </Card>
         );
       })}
+
+      <Dialog visible={!!closeTarget}>
+        <T size={font.h3} weight="800" color={colors.text} style={{ textAlign: 'center' }}>Terminer cette demande ?</T>
+        <T size={font.sm} weight="600" color={colors.muted} style={{ textAlign: 'center', marginTop: 6, marginBottom: 6 }}>
+          {closeTarget ? `Vous confirmez que ${closeTarget.gerantName} vous a servi (${TYPE_LABEL[closeTarget.type] || 'demande'} ${money(closeTarget.amount)}) et que vous l'avez payé. La demande sera marquée « Terminée » pour vous deux ; ${closeTarget.gerantName} sera prévenu(e).` : ''}
+        </T>
+        <DialogButtons cancel="Annuler" confirm="Oui, tout est réglé" onCancel={() => setCloseTarget(null)} onConfirm={() => { if (closeTarget) closeDemande(closeTarget.id); setCloseTarget(null); }} />
+      </Dialog>
 
       <Dialog visible={!!notServedTarget}>
         <T size={font.h3} weight="800" color={colors.text} style={{ textAlign: 'center' }}>Rien reçu ?</T>
