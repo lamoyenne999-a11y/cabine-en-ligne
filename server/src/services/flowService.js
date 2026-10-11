@@ -560,7 +560,7 @@ export function demandesForAdmin(limit = 3000) {
       createdAt: d.createdAt || 0, acceptedAt: d.acceptedAt || 0, paidAt: d.paidAt || 0, completedAt: d.completedAt || 0,
       canceledAt: d.canceledAt || 0, receivedAt: d.receivedAt || 0, clientConfirmedAt: d.clientConfirmedAt || 0,
       moneyReceived: !!d.moneyReceived, paymentRequestedAt: d.paymentRequestedAt || 0,
-      nudgeCount: d.nudgeCount || 0, partialAt: d.partialAt || 0, partialMissing: d.partialMissing || 0,
+      nudgeCount: (d.nudgeCount || 0) + (d.paidNudgeCount || 0), partialAt: d.partialAt || 0, partialMissing: d.partialMissing || 0,
       notReceivedAt: d.notReceivedAt || 0, notReceivedCount: d.notReceivedCount || 0,
       notServedAt: d.notServedAt || 0, notServedCount: d.notServedCount || 0,
       reportedAt: d.reportedAt || 0, reportedBy: d.reportedBy || '', rating: d.rating || 0,
@@ -1101,22 +1101,38 @@ export function demandeAwaitingAck(d) {
   if (d.status === 'pending') return true;
   return d.status === 'paid' && !d.acceptedAt && !d.moneyReceived && !d.notReceivedAt && !d.paymentRequestedAt;
 }
+// Phase 2 : payé mais pas encore servi (le gérant a déjà accusé réception).
+export function demandeAwaitingService(d) {
+  if (!d || d.status !== 'paid' || demandeAwaitingAck(d)) return false;
+  return !d.notReceivedAt && !d.partialAt && !d.clientDisputedAt;
+}
 export function nudgeDemande({ id, clientId }) {
   const d = findOne('demandes', (x) => x.id === id && x.clientId === clientId);
   if (!d) throw Object.assign(new Error('Demande introuvable'), { status: 404 });
-  if (!demandeAwaitingAck(d)) throw Object.assign(new Error('Le gérant a déjà répondu à cette demande'), { status: 400 });
-  const count = d.nudgeCount || 0;
-  if (count >= NUDGE_SLOTS_MS.length) throw Object.assign(new Error('Vous avez déjà relancé 3 fois. Vous pouvez annuler et choisir un autre gérant.'), { status: 400 });
+  const phase = demandeAwaitingAck(d) ? 'ack' : demandeAwaitingService(d) ? 'service' : null;
+  if (!phase) throw Object.assign(new Error('Cette demande n\'attend plus de réponse du gérant'), { status: 400 });
+  const count = (phase === 'ack' ? d.nudgeCount : d.paidNudgeCount) || 0;
+  if (count >= NUDGE_SLOTS_MS.length) {
+    throw Object.assign(new Error(phase === 'ack'
+      ? 'Vous avez déjà relancé 3 fois. Vous pouvez annuler et choisir un autre gérant.'
+      : 'Vous avez déjà relancé 3 fois. Si vous n\'êtes toujours pas servi, signalez le gérant à Cabine En Ligne.'), { status: 400 });
+  }
   const now = Date.now();
-  const nextAt = (d.createdAt || 0) + NUDGE_SLOTS_MS[count];
+  const base = phase === 'ack' ? (d.createdAt || 0) : (d.paidAt || d.createdAt || 0);
+  const nextAt = base + NUDGE_SLOTS_MS[count];
   const tolerance = Math.min(3000, NUDGE_SLOTS_MS[0] / 10);
   if (now < nextAt - tolerance) throw Object.assign(new Error(`Relance possible dans ${Math.ceil((nextAt - now) / 1000)} s`), { status: 429 });
-  update('demandes', (x) => x.id === id, { nudgeCount: count + 1, lastNudgeAt: now });
+  update('demandes', (x) => x.id === id, phase === 'ack' ? { nudgeCount: count + 1, lastNudgeAt: now } : { paidNudgeCount: count + 1, lastPaidNudgeAt: now });
   const upd = findOne('demandes', (x) => x.id === id);
-  const mins = Math.max(1, Math.round((now - (d.createdAt || now)) / 60000));
+  const mins = Math.max(1, Math.round((now - base) / 60000));
+  const label = `${TYPE_LABEL[upd.type] || upd.type} ${upd.amount} F`;
   if (upd.gerantUserId) createNotification({
     userId: upd.gerantUserId, type: 'client_waiting', demandeId: upd.id,
-    text: `${upd.clientName} attend toujours votre réponse (relance ${count + 1}/3) — ${TYPE_LABEL[upd.type] || upd.type} ${upd.amount} F lancée il y a ${mins} min${upd.status === 'paid' ? ', déjà payée' : ''}. Appuyez sur « Accepter » ou « Payer d'abord » pour le rassurer.`,
+    text: phase === 'ack'
+      ? `${upd.clientName} attend toujours votre réponse (relance ${count + 1}/3) — ${label} lancée il y a ${mins} min${upd.status === 'paid' ? ', déjà payée' : ''}. Appuyez sur « Accepter » ou « Payer d'abord » pour le rassurer.`
+      : upd.moneyReceived
+        ? `${upd.clientName} attend toujours sa recharge (relance ${count + 1}/3) — ${label} pour le ${upd.benefPhone}, payée il y a ${mins} min et argent déjà confirmé reçu. Servez-le puis appuyez sur « J'ai servi ».`
+        : `${upd.clientName} a payé ${label} il y a ${mins} min et attend toujours (relance ${count + 1}/3). Vérifiez votre Wave, appuyez sur « Argent reçu », servez le ${upd.benefPhone} puis « J'ai servi ».`,
   });
   return upd;
 }

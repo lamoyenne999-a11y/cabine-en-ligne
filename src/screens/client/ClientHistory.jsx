@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from 'react';
-import { fmtDateTime, finalStep, sortDemandes, isRecent, sortByRecent, awaitingAck, nudgeState } from '../../demandeTime';
+import { fmtDateTime, finalStep, sortDemandes, isRecent, sortByRecent, awaitingAck, awaitingService, nudgeState } from '../../demandeTime';
 import { View, Text, TextInput, Pressable, StyleSheet } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { colors, radius, space, font } from '../../theme';
@@ -84,7 +84,7 @@ export default function ClientHistory() {
     setBusyNudge(d.id);
     try {
       const upd = await nudgeDemande(d.id);
-      setNudgeMsg({ id: d.id, ok: true, text: `Relance ${upd?.nudgeCount || ''} envoyée : ${d.gerantName} vient d'être notifié(e).` });
+      setNudgeMsg({ id: d.id, ok: true, text: `Relance ${(awaitingService(upd || d) ? upd?.paidNudgeCount : upd?.nudgeCount) || ''} envoyée : ${d.gerantName} vient d'être notifié(e).` });
     } catch (e) { setNudgeMsg({ id: d.id, ok: false, text: e?.message || 'Relance impossible pour le moment.' }); }
     finally { setBusyNudge(null); setTimeout(() => setNudgeMsg(null), 5000); }
   };
@@ -122,7 +122,7 @@ export default function ClientHistory() {
   // purement par date.
   // « En cours » = le client peut encore agir / notifier le gérant : en attente
   // (relancer, payer, annuler), à payer, ou payée avant que le gérant ait réagi.
-  const isOpen = (d) => d.status === 'pending' || d.status === 'accepted' || awaitingAck(d);
+  const isOpen = (d) => d.status === 'pending' || d.status === 'accepted' || awaitingAck(d) || awaitingService(d);
   const filtered = group === 'recent' ? sortByRecent(demandes.filter(inGroup)) : sortDemandes(demandes.filter(inGroup), isOpen);
   const visible = q ? filtered.filter((d) => matches(d, q)) : filtered;
 
@@ -283,26 +283,37 @@ export default function ClientHistory() {
             )}
             {/* Relance « J'attends toujours » : 1 min, 3 min, 5 min après le lancement,
                 tant que le gérant n'a pas accusé réception (accepté / payer d'abord). */}
-            {awaitingAck(d) && (() => {
+            {(awaitingAck(d) || awaitingService(d)) && (() => {
               const ns = nudgeState(d, now);
+              const svc = ns.phase === 'service';
               const leftS = ns.nextAt ? Math.max(0, Math.ceil((ns.nextAt - now) / 1000)) : 0;
               const mmss = `${Math.floor(leftS / 60)}:${String(leftS % 60).padStart(2, '0')}`;
+              const g = d.gerantName;
+              const text = svc
+                ? (ns.exhausted
+                    ? `Vous avez relancé ${g} 3 fois après avoir payé, sans être servi. Si rien ne vient, signalez-le à Cabine En Ligne.`
+                    : ns.count > 0
+                      ? `Relance ${ns.count}/3 envoyée à ${g} : « J'ai payé, j'attends toujours ».${ns.can ? ' Toujours rien ? Relancez à nouveau.' : ` Prochaine relance possible dans ${mmss}.`}`
+                      : ns.can
+                        ? `Vous avez payé et vous n'êtes pas encore servi ? Faites savoir à ${g} que vous attendez toujours.`
+                        : `Vous avez payé. Pas servi après 1 min ? Vous pourrez relancer ${g} dans ${mmss}.`)
+                : (ns.exhausted
+                    ? `Vous avez relancé ${g} 3 fois sans réponse. Vous pouvez annuler et choisir un autre gérant.`
+                    : ns.count > 0
+                      ? `Relance ${ns.count}/3 envoyée à ${g}.${ns.can ? ' Toujours rien ? Relancez à nouveau.' : ` Prochaine relance possible dans ${mmss}.`}`
+                      : ns.can
+                        ? `${g} n'a pas encore réagi. Faites-lui savoir que vous attendez.`
+                        : `Pas de réponse après 1 min ? Vous pourrez relancer ${g} dans ${mmss}.`);
               return (
                 <View style={[s.timerBox, { marginTop: 8, backgroundColor: colors.warnBg }]}>
                   <Ionicons name="notifications-outline" size={16} color={colors.warn} />
                   <View style={{ flex: 1, marginLeft: 8 }}>
-                    <T size={font.sm} weight="600" color={colors.text}>
-                      {ns.exhausted
-                        ? `Vous avez relancé ${d.gerantName} 3 fois sans réponse. Vous pouvez annuler et choisir un autre gérant.`
-                        : ns.count > 0
-                          ? `Relance ${ns.count}/3 envoyée à ${d.gerantName}.${ns.can ? ' Toujours rien ? Relancez à nouveau.' : ` Prochaine relance possible dans ${mmss}.`}`
-                          : ns.can
-                            ? `${d.gerantName} n'a pas encore réagi. Faites-lui savoir que vous attendez.`
-                            : `Pas de réponse après 1 min ? Vous pourrez relancer ${d.gerantName} dans ${mmss}.`}
-                    </T>
+                    <T size={font.sm} weight="600" color={colors.text}>{text}</T>
                     {!ns.exhausted && (
                       <Btn
-                        title={ns.count > 0 ? 'J\'attends toujours — relancer' : 'J\'attends toujours'}
+                        title={svc
+                          ? (ns.count > 0 ? 'J\'ai payé, j\'attends toujours — relancer' : 'J\'ai payé, j\'attends toujours')
+                          : (ns.count > 0 ? 'J\'attends toujours — relancer' : 'J\'attends toujours')}
                         icon="notifications"
                         color={colors.warn}
                         size="sm"

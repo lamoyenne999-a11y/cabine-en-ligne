@@ -362,7 +362,7 @@ export function StoreProvider({ children }) {
   // Relance « J'attends toujours » : le serveur décide (créneaux 1/3/5 min).
   const nudgeDemande = useCallback(async (id) => {
     const out = await api.client.nudgeDemande(id);
-    if (out?.demande) dispatch({ type: 'CLIENT_UPDATE_DEMANDE', payload: { id, nudgeCount: out.demande.nudgeCount, lastNudgeAt: out.demande.lastNudgeAt } });
+    if (out?.demande) dispatch({ type: 'CLIENT_UPDATE_DEMANDE', payload: { id, nudgeCount: out.demande.nudgeCount, lastNudgeAt: out.demande.lastNudgeAt, paidNudgeCount: out.demande.paidNudgeCount, lastPaidNudgeAt: out.demande.lastPaidNudgeAt } });
     return out?.demande;
   }, []);
 

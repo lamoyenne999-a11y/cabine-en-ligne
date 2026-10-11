@@ -333,6 +333,29 @@ async function main() {
     check('Après réception confirmée, plus de déclaration possible (400)', say3.status === 400);
   }
 
+  // ===== Relance « J'ai payé, j'attends toujours » (phase 2) =====
+  {
+    const dm = await req('POST', '/client/demandes', { gerantId, gerantName: 'Gérant Test', gerantWave: gphone, type: 'unites', amount: 800, benefName: 'Moi', benefPhone: '07' + uniq }, ct);
+    const id = dm.json.demande?.id;
+    await req('POST', `/gerant/demandes/${id}/accept`, {}, gt);
+    await req('POST', `/client/demandes/${id}/paid`, {}, ct);
+    const tooEarly = await req('POST', `/client/demandes/${id}/nudge`, {}, ct);
+    check('Payée : relance trop tôt → 429', tooEarly.status === 429);
+    await new Promise((r) => setTimeout(r, 1100));
+    const n1 = await req('POST', `/client/demandes/${id}/nudge`, {}, ct);
+    check('Payée : relance « j\'ai payé, j\'attends toujours » acceptée (paidNudgeCount=1)', n1.status === 200 && n1.json.demande?.paidNudgeCount === 1 && !n1.json.demande?.nudgeCount);
+    const gn1 = await req('GET', '/gerant/notifications', null, gt);
+    check('Gérant notifié : « a payé … attend toujours »', (gn1.json.notifications || []).some((n) => n.type === 'client_waiting' && n.demandeId === id && /a payé/.test(n.text)));
+    await req('POST', `/gerant/demandes/${id}/received`, {}, gt);
+    await new Promise((r) => setTimeout(r, 1000));
+    const n2 = await req('POST', `/client/demandes/${id}/nudge`, {}, ct);
+    const gn2 = await req('GET', '/gerant/notifications', null, gt);
+    check('Argent reçu mais pas servi : relance 2 → « attend toujours sa recharge »', n2.status === 200 && n2.json.demande?.paidNudgeCount === 2 && (gn2.json.notifications || []).some((n) => n.demandeId === id && /attend toujours sa recharge/.test(n.text)));
+    await req('POST', `/gerant/demandes/${id}/complete`, {}, gt);
+    const after = await req('POST', `/client/demandes/${id}/nudge`, {}, ct);
+    check('Servie : plus de relance possible → 400', after.status === 400);
+  }
+
   // ===== Signalements + suspension motivée =====
   {
     const A = { 'x-admin-key': 'testkey' };

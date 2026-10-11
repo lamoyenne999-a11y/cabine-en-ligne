@@ -67,11 +67,21 @@ export function awaitingAck(d) {
   if (d.status === 'pending') return true;
   return d.status === 'paid' && !d.acceptedAt && !d.moneyReceived && !d.notReceivedAt && !d.paymentRequestedAt;
 }
-// { can, count, nextAt, exhausted }
+// Phase 2 : le client a PAYÉ, le gérant a accusé réception de la demande
+// (ou de l'argent) mais le client n'a toujours pas été servi. Il doit pouvoir
+// relancer : « J'ai payé, j'attends toujours ». Les cas qui ont déjà leur propre
+// dialogue (montant non reçu / incomplet / contesté) sont exclus.
+export function awaitingService(d) {
+  if (!d || d.status !== 'paid' || awaitingAck(d)) return false;
+  return !d.notReceivedAt && !d.partialAt && !d.clientDisputedAt;
+}
+// { can, count, nextAt, exhausted, phase: 'ack' | 'service' | null }
 export function nudgeState(d, now = Date.now()) {
-  const count = d?.nudgeCount || 0;
-  if (!awaitingAck(d)) return { can: false, count, nextAt: 0, exhausted: false };
-  if (count >= NUDGE_SLOTS_MS.length) return { can: false, count, nextAt: 0, exhausted: true };
-  const nextAt = (d.createdAt || 0) + NUDGE_SLOTS_MS[count];
-  return { can: now >= nextAt, count, nextAt, exhausted: false };
+  const phase = awaitingAck(d) ? 'ack' : awaitingService(d) ? 'service' : null;
+  if (!phase) return { can: false, count: 0, nextAt: 0, exhausted: false, phase };
+  const count = (phase === 'ack' ? d.nudgeCount : d.paidNudgeCount) || 0;
+  if (count >= NUDGE_SLOTS_MS.length) return { can: false, count, nextAt: 0, exhausted: true, phase };
+  const base = phase === 'ack' ? (d.createdAt || 0) : (d.paidAt || d.createdAt || 0);
+  const nextAt = base + NUDGE_SLOTS_MS[count];
+  return { can: now >= nextAt, count, nextAt, exhausted: false, phase };
 }
