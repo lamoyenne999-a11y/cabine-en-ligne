@@ -95,8 +95,21 @@ export default function Admin({ onBack }) {
     try { const out = await api.admin.demandes(String(k || '').trim()); setTx({ demandes: out.demandes || [], activity: out.activity || [] }); }
     catch { /* silencieux */ } finally { setTxLoading(false); }
   };
+  // Historique des actions sur les utilisateurs (suspension, blocage, cadeau, …)
+  const [ua, setUa] = useState({ actions: [], counters: {}, users: [], total: 0 });
+  const [uaLoading, setUaLoading] = useState(false);
+  const [uaType, setUaType] = useState('');     // '' = toutes
+  const [uaPhone, setUaPhone] = useState('');   // '' = tous les utilisateurs
+  const [uaQ, setUaQ] = useState('');
+  const [uaCount, setUaCount] = useState(40);
+  const loadUa = async (k = key, phone = uaPhone, type = uaType) => {
+    setUaLoading(true);
+    try { const out = await api.admin.userActions(String(k || '').trim(), phone, type); setUa({ actions: out.actions || [], counters: out.counters || {}, users: out.users || [], total: out.total || 0 }); }
+    catch { /* silencieux */ } finally { setUaLoading(false); }
+  };
   const [adminTab, setAdminTab] = useState('apercu'); // apercu | utilisateurs | activite | parrainage | paiements | systeme
   useEffect(() => { if (authed && adminTab === 'transactions') loadTx(); }, [adminTab]); // eslint-disable-line react-hooks/exhaustive-deps
+  useEffect(() => { if (authed && adminTab === 'actions') { setUaCount(40); loadUa(key, uaPhone, uaType); } }, [adminTab, uaPhone, uaType]); // eslint-disable-line react-hooks/exhaustive-deps
   const goUsers = (role) => { setURole(role); setUFilter('all'); setUCount(U_PAGE); setAdminTab('utilisateurs'); };
 
   const loadWith = async (k) => {
@@ -197,6 +210,14 @@ export default function Admin({ onBack }) {
     gerant_certified: { label: 'Gérant(e) certifié(e)', icon: 'shield-checkmark-outline', color: colors.primary, bg: colors.primarySoft },
     free_time_granted_bulk: { label: 'Cadeau de temps groupé', icon: 'gift-outline', color: colors.success, bg: colors.successBg },
     user_blocked: { label: 'Compte bloqué', icon: 'ban-outline', color: colors.danger, bg: colors.dangerBg },
+    gerant_uncertified: { label: 'Certification retirée', icon: 'shield-outline', color: colors.warn, bg: colors.warnBg },
+    password_reset: { label: 'Mot de passe réinitialisé', icon: 'key-outline', color: colors.primary, bg: colors.primarySoft },
+    report_resolved: { label: 'Signalement traité', icon: 'flag', color: colors.success, bg: colors.successBg },
+    report_dismissed: { label: 'Signalement classé sans suite', icon: 'flag-outline', color: colors.muted, bg: colors.gray },
+    subscription_rejected: { label: 'Paiement d\'abonnement rejeté', icon: 'close-circle-outline', color: colors.danger, bg: colors.dangerBg },
+    referral_code_cleared: { label: 'Code parrain retiré', icon: 'pricetag-outline', color: colors.warn, bg: colors.warnBg },
+    demande_closed_by_client: { label: 'Demande clôturée par le client', icon: 'checkmark-done-outline', color: colors.success, bg: colors.successBg },
+    demande_wave_canceled: { label: 'Transfert Wave annulé par le client', icon: 'arrow-undo-outline', color: colors.danger, bg: colors.dangerBg },
     user_unblocked: { label: 'Compte débloqué', icon: 'checkmark-circle-outline', color: colors.success, bg: colors.successBg },
     unblock_request: { label: 'Demande de déblocage', icon: 'mail-unread-outline', color: colors.primary, bg: colors.primarySoft },
   };
@@ -478,6 +499,7 @@ export default function Admin({ onBack }) {
     { key: 'signalements', label: 'Signalements', icon: 'flag-outline', filled: 'flag', badge: openReports.length },
     { key: 'deblocages', label: 'Déblocages', icon: 'lock-open-outline', filled: 'lock-open', badge: unblockRequests.length },
     { key: 'activite', label: 'Activité', icon: 'pulse-outline', filled: 'pulse', badge: events.length },
+    { key: 'actions', label: 'Actions', icon: 'shield-half-outline', filled: 'shield-half', badge: (data?.eventCounters?.user_suspended || 0) + (data?.eventCounters?.user_blocked || 0) },
     { key: 'parrainage', label: 'Parrainage', icon: 'gift-outline', filled: 'gift', badge: referral.referrers.length },
     { key: 'paiements', label: 'Paiements', icon: 'cash-outline', filled: 'cash', badge: pendingPayments.length || payments.length },
     { key: 'systeme', label: 'Système', icon: 'server-outline', filled: 'server' },
@@ -1302,6 +1324,135 @@ export default function Admin({ onBack }) {
           )}
         </>
       )}
+
+      {/* ===== Actions sur les utilisateurs ===== */}
+      {adminTab === 'actions' && (() => {
+        const UA_FILTERS = [
+          { v: '', l: 'Toutes' },
+          { v: 'user_suspended', l: 'Suspensions' },
+          { v: 'user_reactivated', l: 'Réactivations' },
+          { v: 'user_blocked', l: 'Blocages' },
+          { v: 'user_unblocked', l: 'Déblocages' },
+          { v: 'free_time_granted', l: 'Cadeaux' },
+          { v: 'gerant_certified', l: 'Certifications' },
+          { v: 'report_created', l: 'Signalements' },
+          { v: 'password_reset', l: 'Mots de passe' },
+          { v: 'user_deleted', l: 'Suppressions' },
+        ];
+        const REASON = {
+          unpaid_subscription: 'abonnement impayé', client_unpaid_demandes: 'demandes non payées', gerant_not_served: 'payé sans servir', other: 'autre manquement',
+          paid_not_served: 'payé, pas servi', paid_declined_no_refund: 'refusé sans remboursement', client_fake_requests: 'demandes non sérieuses', client_unpaid: 'servi sans payer', client_abuse: 'comportement abusif', client_other: 'autre',
+          gerant_no_response: 'ne répond pas', gerant_overcharge: 'surfacturation', gerant_abuse: 'comportement abusif', gerant_other: 'autre',
+        };
+        const q = uaQ.trim().toLowerCase();
+        const users = ua.users.filter((u) => !q || (u.name || '').toLowerCase().includes(q) || (u.phone || '').includes(q));
+        const focused = uaPhone ? ua.users.find((u) => u.phone === uaPhone) : null;
+        const describe = (e) => {
+          const m = EVENT_META[e.type] || { label: e.type };
+          let extra = '';
+          if (String(e.type).startsWith('free_time_granted') && e.amount) extra = ` · ${e.amount} jour${e.amount > 1 ? 's' : ''}`;
+          else if (e.amount) extra = ` · ${money(e.amount)}`;
+          if (e.reason) extra += ` · ${REASON[e.reason] || e.reason}`;
+          if (e.type === 'report_created' && e.targetName) extra += ` → ${e.targetName}`;
+          if ((e.type === 'report_resolved' || e.type === 'report_dismissed') && e.targetName) extra += ` (signalé par ${e.targetName})`;
+          return m.label + extra;
+        };
+        const roleLabel = (r) => (r === 'gerant' ? 'Gérant(e)' : r === 'client' ? 'Client(e)' : '');
+        // Ligne lisible sur iPhone : icône, puis nom en gras et détail dessous (pas deux colonnes serrées).
+        const ARow = ({ m, title, sub, onPress }) => (
+          <Pressable onPress={onPress} style={{ flexDirection: 'row', alignItems: 'center', paddingVertical: 8, borderBottomWidth: 1, borderBottomColor: colors.border }}>
+            <View style={{ width: 34, height: 34, borderRadius: 17, backgroundColor: m.bg, alignItems: 'center', justifyContent: 'center' }}>
+              <Ionicons name={m.icon} size={17} color={m.color} />
+            </View>
+            <View style={{ flex: 1, marginLeft: 10 }}>
+              <T size={font.sm} weight="800" color={colors.text}>{title}</T>
+              <T size={font.xs} weight="600" color={m.color} style={{ marginTop: 1 }}>{sub}</T>
+            </View>
+            {onPress ? <Ionicons name="chevron-forward" size={16} color={colors.muted2} /> : null}
+          </Pressable>
+        );
+        return (
+          <>
+            <T size={font.h3} weight="800" color={colors.text}>Actions sur les utilisateurs</T>
+            <T size={font.xs} weight="600" color={colors.muted} style={{ marginTop: 2, marginBottom: space.sm }}>
+              Tout ce qui a été fait sur chaque compte, pour suivre son évolution.
+            </T>
+
+            {/* Compteurs */}
+            <View style={{ flexDirection: 'row', marginBottom: space.sm }}>
+              <View style={{ flex: 1, marginRight: 8 }}><StatTile icon="ban-outline" value={(ua.counters.user_suspended || 0) + (ua.counters.user_blocked || 0)} label="Suspens. + bloc." tone="red" /></View>
+              <View style={{ flex: 1, marginRight: 8 }}><StatTile icon="gift-outline" value={(ua.counters.free_time_granted || 0) + (ua.counters.free_time_granted_bulk || 0)} label="Cadeaux" tone="green" /></View>
+              <View style={{ flex: 1 }}><StatTile icon="flag-outline" value={ua.counters.report_created || 0} label="Signalements" tone="orange" /></View>
+            </View>
+
+            {/* Filtre par type */}
+            <View style={{ flexDirection: 'row', flexWrap: 'wrap', alignItems: 'center', marginBottom: 6 }}>
+              {UA_FILTERS.map((o) => (
+                <Chip key={o.v} label={o.l + (o.v && ua.counters[o.v] && !uaType ? ` (${ua.counters[o.v]})` : '')} active={uaType === o.v} onPress={() => setUaType(o.v)} />
+              ))}
+            </View>
+
+            {/* Un utilisateur ciblé */}
+            {focused || uaPhone ? (
+              <Card style={{ marginBottom: space.sm, backgroundColor: colors.primarySoft }}>
+                <View style={{ flexDirection: 'row', alignItems: 'center' }}>
+                  <Ionicons name="person-circle-outline" size={22} color={colors.primary} />
+                  <View style={{ flex: 1, marginLeft: 8 }}>
+                    <T size={font.body} weight="800" color={colors.text}>{focused?.name || '—'}</T>
+                    <T size={font.xs} weight="600" color={colors.muted}>{uaPhone}{focused?.role ? ' · ' + roleLabel(focused.role) : ''} · {ua.total} action{ua.total > 1 ? 's' : ''}</T>
+                  </View>
+                  <Btn title="Tous" icon="close" size="sm" outline onPress={() => setUaPhone('')} />
+                </View>
+              </Card>
+            ) : (
+              <>
+                {/* Recherche + classement par utilisateur */}
+                <View style={s.search}>
+                  <Ionicons name="search" size={16} color={colors.muted2} />
+                  <TextInput value={uaQ} onChangeText={setUaQ} placeholder="Nom ou numéro…" placeholderTextColor={colors.muted2} style={s.searchInput} />
+                  {uaQ ? <Pressable onPress={() => setUaQ('')} hitSlop={8}><Ionicons name="close-circle" size={16} color={colors.muted2} /></Pressable> : null}
+                </View>
+                {users.length > 0 && (
+                  <Card style={{ marginBottom: space.sm }}>
+                    <T size={font.sm} weight="800" color={colors.text} style={{ marginBottom: 4 }}>Par utilisateur — appuyez pour voir son historique</T>
+                    {users.slice(0, 12).map((u) => {
+                      const m = EVENT_META[u.lastType] || { label: u.lastType, icon: 'ellipse-outline', color: colors.muted, bg: colors.gray };
+                      return (
+                        <ARow key={u.phone} m={m} onPress={() => setUaPhone(u.phone)}
+                          title={`${u.name || '—'} · ${u.phone}${u.role ? ' · ' + roleLabel(u.role) : ''}`}
+                          sub={`${u.count} action${u.count > 1 ? 's' : ''} · dernière : ${m.label} le ${fmtDate(u.lastAt)}`} />
+                      );
+                    })}
+                  </Card>
+                )}
+              </>
+            )}
+
+            {/* Chronologie */}
+            <T size={font.sm} weight="800" color={colors.text} style={{ marginBottom: 4 }}>Chronologie{uaLoading ? ' — chargement…' : ` (${ua.total})`}</T>
+            <Card>
+              {ua.actions.length === 0 ? (
+                <View style={{ alignItems: 'center', paddingVertical: 16 }}>
+                  <Ionicons name="shield-half-outline" size={30} color={colors.muted2} />
+                  <T size={font.sm} weight="600" color={colors.muted} style={{ marginTop: 8, textAlign: 'center' }}>Aucune action enregistrée pour ce filtre.</T>
+                </View>
+              ) : (
+                ua.actions.slice(0, uaCount).map((e) => {
+                  const m = EVENT_META[e.type] || { label: e.type, icon: 'ellipse-outline', color: colors.muted, bg: colors.gray };
+                  return (
+                    <ARow key={e.id} m={m} onPress={e.phone && !uaPhone ? () => setUaPhone(e.phone) : null}
+                      title={`${e.name || '—'}${e.phone ? ' · ' + e.phone : ''}${e.role ? ' · ' + roleLabel(e.role) : ''}`}
+                      sub={`${describe(e)} · ${fmtDateTime(e.createdAt)}`} />
+                  );
+                })
+              )}
+              {ua.actions.length > uaCount && (
+                <Btn title={`Voir plus (${ua.actions.length - uaCount} restantes)`} outline size="sm" onPress={() => setUaCount((c) => c + 40)} style={{ marginTop: 8 }} />
+              )}
+            </Card>
+          </>
+        );
+      })()}
 
       {/* ===== Activité ===== */}
       {adminTab === 'activite' && (

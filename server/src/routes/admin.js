@@ -1,7 +1,7 @@
 import express from 'express';
 import { hashPassword } from '../middleware/auth.js';
 import { config } from '../config.js';
-import { gerantRating, gerantStats, runSubscriptionAlerts, sendAnnouncement, announcementsForAdmin, announcementAudience, reportsForAdmin, resolveReport, openReportsCountFor, SUSPEND_REASONS, pendingSubscriptionPayments, confirmSubscriptionPayment, rejectSubscriptionPayment, setUserCertified, grantFreeTime, grantFreeTimeBulk, giftsForAdmin, demandesForAdmin, subscriptionPayments, subscriptionTotals, subscriptionFor, referralSummary, referredUsersCount, referralPaymentCount, referralRateFor, deleteAccountAll, setUserFrozen, eventsForAdmin, eventsCounters, referralCodeStats, expiredUsers, reconcileExpiredEvents, isPhoneBlocked, blockUser, unblockUser, blockedList, unblockRequestsPending, resolveUnblockRequest } from '../services/flowService.js';
+import { gerantRating, gerantStats, runSubscriptionAlerts, sendAnnouncement, announcementsForAdmin, announcementAudience, reportsForAdmin, resolveReport, openReportsCountFor, SUSPEND_REASONS, pendingSubscriptionPayments, confirmSubscriptionPayment, rejectSubscriptionPayment, setUserCertified, grantFreeTime, grantFreeTimeBulk, giftsForAdmin, demandesForAdmin, subscriptionPayments, subscriptionTotals, subscriptionFor, referralSummary, referredUsersCount, referralPaymentCount, referralRateFor, deleteAccountAll, setUserFrozen, eventsForAdmin, eventsCounters, referralCodeStats, expiredUsers, reconcileExpiredEvents, isPhoneBlocked, blockUser, unblockUser, blockedList, unblockRequestsPending, resolveUnblockRequest, recordEvent, userActionsForAdmin } from '../services/flowService.js';
 import { find, findOne, update, dbStats } from '../db.js';
 import { registerWebPushSubscription, removeWebPushSubscription, OWNER_ID, ownerPushCount, notifyOwner } from '../services/pushService.js';
 
@@ -147,6 +147,7 @@ router.post('/reset-password', requireAdmin, async (req, res) => {
   // 6 chiffres : simple à dicter au téléphone, l'utilisateur pourra le changer.
   const tempPassword = String(Math.floor(100000 + Math.random() * 900000));
   update('users', (u) => u.id === user.id, { passwordHash: await hashPassword(tempPassword), passwordResetAt: Date.now() });
+  recordEvent({ type: 'password_reset', name: user.name, phone: user.phone, role: user.role });
   res.json({ ok: true, name: user.name, phone: user.phone, tempPassword });
 });
 
@@ -284,7 +285,14 @@ router.post('/clear-referral-code', requireAdmin, (req, res) => {
   const u = findOne('users', (x) => x.phone === phone);
   if (!u) return res.status(404).json({ error: 'Compte introuvable' });
   update('users', (x) => x.id === u.id, { referralCode: '' });
+  recordEvent({ type: 'referral_code_cleared', name: u.name, phone: u.phone, role: u.role });
   res.json({ ok: true, phone, referralCode: '' });
+});
+
+// Historique des actions sur les utilisateurs (suspension, blocage, cadeau, …).
+// ?phone= pour un seul compte, ?type= pour un seul type d'action.
+router.get('/user-actions', requireAdmin, (req, res) => {
+  res.json(userActionsForAdmin({ phone: String(req.query.phone || '').trim(), type: String(req.query.type || '').trim(), limit: Math.min(Number(req.query.limit) || 300, 1000) }));
 });
 
 export default router;

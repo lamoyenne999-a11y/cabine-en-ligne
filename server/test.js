@@ -392,6 +392,26 @@ async function main() {
     check('Le gérant ne peut plus servir la demande annulée → 400', srv.status === 400);
   }
 
+  // ===== Espace propriétaire : historique des actions sur les utilisateurs =====
+  {
+    const uaPhone = '0988' + uniq.slice(2);
+    await req('POST', '/auth/register', { role: 'gerant', name: 'Gérant Actions', phone: uaPhone, password: '123456' });
+    const gphone = uaPhone; // utilisateur dédié : le reset du mot de passe ne touche pas les autres tests
+    await req('POST', '/admin/grant-free-time', { phone: gphone, days: 3, note: 'test' }, null, { 'x-admin-key': 'testkey' });
+    await req('POST', '/admin/set-frozen', { phone: gphone, frozen: true, reason: 'other', note: 'x' }, null, { 'x-admin-key': 'testkey' });
+    await req('POST', '/admin/set-frozen', { phone: gphone, frozen: false }, null, { 'x-admin-key': 'testkey' });
+    await req('POST', '/admin/reset-password', { phone: gphone }, null, { 'x-admin-key': 'testkey' });
+    const all = await req('GET', '/admin/user-actions', null, null, { 'x-admin-key': 'testkey' });
+    check('Historique des actions : liste + compteurs', all.status === 200 && Array.isArray(all.json.actions) && all.json.counters.user_suspended >= 1 && all.json.counters.password_reset >= 1);
+    const one = await req('GET', `/admin/user-actions?phone=${gphone}`, null, null, { 'x-admin-key': 'testkey' });
+    const types = (one.json.actions || []).map((a) => a.type);
+    check('Historique d\'un utilisateur : cadeau, suspension (avec motif), réactivation, mot de passe', ['free_time_granted', 'user_suspended', 'user_reactivated', 'password_reset'].every((t) => types.includes(t)) && (one.json.actions || []).some((a) => a.type === 'user_suspended' && a.reason === 'other'));
+    const onlyGift = await req('GET', `/admin/user-actions?phone=${gphone}&type=free_time_granted`, null, null, { 'x-admin-key': 'testkey' });
+    check('Filtre par type', (onlyGift.json.actions || []).length >= 1 && onlyGift.json.actions.every((a) => a.type === 'free_time_granted'));
+    check('Résumé par utilisateur', (one.json.users || []).some((u) => u.phone === gphone && u.count >= 4));
+    // remettre le mot de passe de test (connexion ultérieure)
+  }
+
   // ===== Signalements + suspension motivée =====
   {
     const A = { 'x-admin-key': 'testkey' };

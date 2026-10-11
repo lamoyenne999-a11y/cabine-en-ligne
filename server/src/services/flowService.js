@@ -157,6 +157,7 @@ export function rejectSubscriptionPayment(paymentId, note) {
   if (!p) return { ok: false, error: 'Paiement introuvable.' };
   if (p.status !== 'pending') return { ok: false, error: 'Ce paiement n\'est plus en attente.' };
   const payment = update('subscriptions', (x) => x.id === p.id, { status: 'rejected', rejectedAt: Date.now(), rejectNote: note || '' });
+  { const u = findOne('users', (x) => x.id === p.userId); recordEvent({ type: 'subscription_rejected', name: u?.name || '', phone: u?.phone || '', role: u?.role || '', amount: p.amount, reference: p.reference, reason: note || '' }); }
   createNotification({
     userId: p.userId, type: 'subscription_rejected',
     text: `Nous n'avons pas trouvé votre paiement de ${p.amount} F (réf. ${p.reference}). Vérifiez votre transfert Wave puis déclarez-le à nouveau depuis « S'abonner ».${note ? ' Message : ' + note : ''}`,
@@ -464,6 +465,7 @@ export function resolveReport(id, decision) {
   if (r.status !== 'open') return { ok: false, error: 'Déjà traité' };
   const status = decision === 'dismiss' ? 'dismissed' : 'resolved';
   const upd = update('reports', (x) => x.id === id, { status, resolvedAt: Date.now() });
+  recordEvent({ type: status === 'resolved' ? 'report_resolved' : 'report_dismissed', name: r.targetName || '', phone: r.targetPhone || '', role: r.targetRole || '', reason: r.reason || '', targetName: r.reporterName || '', targetPhone: r.reporterPhone || '' });
   createNotification({ userId: r.reporterId, type: 'report_update', demandeId: r.demandeId,
     text: status === 'resolved' ? `Votre signalement concernant ${r.targetName} a été traité par Cabine En Ligne. Merci de contribuer à la confiance sur l'app.` : `Votre signalement concernant ${r.targetName} a été examiné et classé sans suite.` });
   return { ok: true, report: upd };
@@ -713,8 +715,34 @@ export function recordEvent({ type, name = '', phone = '', role = '', amount = 0
     type,                 // user_registered | user_deleted | subscription_paid | subscription_expired | user_blocked | user_unblocked | unblock_request
     name, phone, role,
     amount, plan, reference,
+    reason, targetName, targetPhone,
     createdAt: Date.now(),
   });
+}
+
+// ------------------------------------------------------------------
+//  HISTORIQUE DES ACTIONS SUR LES UTILISATEURS (Espace propriétaire).
+//  Suspensions, réactivations, blocages, cadeaux, certifications, mots de passe,
+//  suppressions, décisions sur les signalements… regroupés par utilisateur pour
+//  voir comment chaque compte évolue.
+// ------------------------------------------------------------------
+export const USER_ACTION_TYPES = ['user_suspended', 'user_reactivated', 'user_blocked', 'user_unblocked', 'unblock_request', 'free_time_granted', 'free_time_granted_bulk', 'gerant_certified', 'gerant_uncertified', 'password_reset', 'user_deleted', 'report_created', 'report_resolved', 'report_dismissed', 'subscription_paid', 'subscription_rejected', 'referral_code_cleared'];
+export function userActionsForAdmin({ phone = '', type = '', limit = 300 } = {}) {
+  const rows = find('events', (e) => USER_ACTION_TYPES.includes(e.type))
+    .filter((e) => !phone || e.phone === phone || e.targetPhone === phone)
+    .filter((e) => !type || e.type === type)
+    .sort((a, b) => b.createdAt - a.createdAt);
+  const counters = {};
+  for (const e of rows) counters[e.type] = (counters[e.type] || 0) + 1;
+  // Par utilisateur : nombre d'actions + dernière action, pour repérer les comptes « à problèmes ».
+  const perUser = {};
+  for (const e of rows) {
+    const key = e.phone || e.targetPhone; if (!key) continue;
+    const u = perUser[key] || (perUser[key] = { phone: key, name: e.name || '', role: e.role || '', count: 0, lastAt: 0, lastType: '', types: {} });
+    u.count += 1; u.types[e.type] = (u.types[e.type] || 0) + 1;
+    if (e.createdAt > u.lastAt) { u.lastAt = e.createdAt; u.lastType = e.type; if (e.name) u.name = e.name; }
+  }
+  return { actions: rows.slice(0, limit), counters, total: rows.length, users: Object.values(perUser).sort((a, b) => b.lastAt - a.lastAt) };
 }
 export function eventsForAdmin(limit = 100) {
   return find('events', () => true).sort((a, b) => b.createdAt - a.createdAt).slice(0, limit);

@@ -210,17 +210,19 @@ export default function GerantHistory() {
             <T size={font.xs} weight="600" color={colors.muted} style={{ marginTop: 10, textAlign: 'center' }}>
               {(
                 {
-                  pending: 'En attente de votre réponse — le client peut encore annuler.',
-                  accepted: 'Demande acceptée. Le client paiera via Wave.',
+                  pending: 'En attente de votre réponse.',
+                  accepted: 'Acceptée — en attente du paiement Wave.',
                   paid: d.notServedAt ? `⚠️ Le client dit ne pas avoir reçu sa recharge — à re-servir (voir Demandes).` : d.moneyReceived ? `Argent reçu (${money(d.amount)}) — reste à servir le client.` : `Le client déclare avoir payé ${money(d.amount)} — réception à confirmer.`,
                   completed: d.clientConfirmedAt ? `✅ Le client a confirmé avoir reçu sa recharge${d.moneyReceived ? ' — réglée.' : ' — paiement encore à encaisser.'}` : d.moneyReceived ? `Réglée : ${money(d.amount)} reçus sur votre Wave, client servi.` : `Client servi, paiement de ${money(d.amount)} PAS ENCORE reçu.`,
                   declined: 'Vous avez refusé cette demande.',
-                  unavailable: 'Vous n\'étiez pas disponible : le client a été invité à choisir un autre gérant.',
-                  canceled: d.waveCanceledAt ? '⚠️ Le client a ANNULÉ son transfert Wave (pas rechargé à temps) : ne le servez plus pour cette demande. Si vous l\'aviez déjà servi, signalez-le.' : 'Le client a annulé cette demande.',
+                  unavailable: 'Vous n\'étiez pas disponible.',
+                  canceled: d.waveCanceledAt ? '⚠️ Le client a ANNULÉ son transfert Wave : ne le servez plus. Déjà servi ? Signalez-le.' : 'Annulée par le client.',
                 }[d.status] || 'Payé en direct via Wave.'
               )}
             </T>
-            <ReportButton role="gerant" demande={d} otherName={d.clientName} onDone={refresh} style={{ marginTop: 10 }} />
+            <View style={{ flexDirection: 'row', justifyContent: 'flex-end', marginTop: 8 }}>
+              <ReportButton compact role="gerant" demande={d} otherName={d.clientName} onDone={refresh} />
+            </View>
           </Card>
         );
       })}

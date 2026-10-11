@@ -60,7 +60,17 @@ function reasonChoicesFor(role, d) {
   return [...auto, ...GERANT_FREE_REASONS];
 }
 
-export default function ReportButton({ role, demande, otherName, onDone, style }) {
+// Petit bouton « lien » compact : icône + libellé court, pour les lignes d'actions secondaires.
+export function GhostAction({ title, icon, color = colors.primary, onPress, style }) {
+  return (
+    <Pressable onPress={onPress} hitSlop={6} style={[s.ghost, { borderColor: color + '55' }, style]}>
+      <Ionicons name={icon} size={14} color={color} />
+      <T size={font.xs} weight="800" color={color} style={{ marginLeft: 5 }}>{title}</T>
+    </Pressable>
+  );
+}
+
+export default function ReportButton({ role, demande, otherName, onDone, style, compact }) {
   const [open, setOpen] = useState(false);
   const [msg, setMsg] = useState('');
   const [busy, setBusy] = useState(false);
@@ -83,6 +93,12 @@ export default function ReportButton({ role, demande, otherName, onDone, style }
   };
 
   if (done || demande.reportedAt) {
+    if (compact) return (
+      <View style={[{ flexDirection: 'row', alignItems: 'center' }, style]}>
+        <Ionicons name="flag" size={12} color={colors.muted} />
+        <T size={font.xs} weight="700" color={colors.muted} style={{ marginLeft: 4 }}>Signalement envoyé</T>
+      </View>
+    );
     return (
       <View style={[s.doneBox, style]}>
         <Ionicons name="flag" size={14} color={colors.muted} />
@@ -95,7 +111,9 @@ export default function ReportButton({ role, demande, otherName, onDone, style }
 
   return (
     <>
-      <Btn title={`Signaler ${otherName}`} icon="flag-outline" outline color={colors.danger} size="sm" onPress={() => setOpen(true)} style={style} />
+      {compact
+        ? <GhostAction title="Signaler" icon="flag-outline" color={colors.danger} onPress={() => setOpen(true)} style={style} />
+        : <Btn title={`Signaler ${otherName}`} icon="flag-outline" outline color={colors.danger} size="sm" onPress={() => setOpen(true)} style={style} />}
       <Dialog visible={open}>
         <T size={font.h3} weight="800" color={colors.text} style={{ textAlign: 'center' }}>Signaler {otherName} ?</T>
         {choices.length > 1 ? (
@@ -136,5 +154,6 @@ const s = StyleSheet.create({
   input: { marginTop: 10, minHeight: 70, borderWidth: 1.4, borderColor: colors.border, borderRadius: radius.md, padding: 10, fontSize: font.sm, color: colors.text, textAlignVertical: 'top', backgroundColor: colors.bg },
   choice: { flexDirection: 'row', alignItems: 'center', borderWidth: 1.4, borderColor: colors.border, borderRadius: radius.md, padding: 10, marginTop: 6, backgroundColor: colors.bg },
   choiceOn: { borderColor: colors.danger, backgroundColor: colors.dangerBg },
+  ghost: { flexDirection: 'row', alignItems: 'center', borderWidth: 1.2, borderRadius: 999, paddingHorizontal: 10, paddingVertical: 6, backgroundColor: '#fff' },
   doneBox: { flexDirection: 'row', alignItems: 'center', backgroundColor: colors.bg, borderRadius: radius.md, paddingHorizontal: 10, paddingVertical: 7 },
 });

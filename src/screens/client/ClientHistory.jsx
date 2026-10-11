@@ -9,7 +9,7 @@ import { WavePaySheet, WavePayBox } from '../../components/WavePay';
 import { Dialog, DialogButtons } from '../../components/modals';
 import { useStore } from '../../store';
 import SuspendedBanner from '../../components/SuspendedBanner';
-import ReportButton from '../../components/ReportButton';
+import ReportButton, { GhostAction } from '../../components/ReportButton';
 
 // Pour mettre à jour le compte à rebours d'un délai toutes les secondes
 function useNow(interval = 1000) {
@@ -278,9 +278,6 @@ export default function ClientHistory() {
                   </T>
                 </View>
                 <Btn title="Annuler la demande" icon="close-circle" outline color={colors.danger} onPress={() => setCanceling(d)} style={{ marginTop: space.md }} />
-                <T size={font.xs} weight="600" color={colors.muted2} style={{ marginTop: 8 }}>
-                  Vous pouvez annuler tant que vous n'avez pas payé — si le gérant met trop de temps ou si vous avez déjà réglé avec quelqu'un d'autre.
-                </T>
               </>
             )}
             {/* Relance « J'attends toujours » : 1 min, 3 min, 5 min après le lancement,
@@ -293,19 +290,19 @@ export default function ClientHistory() {
               const g = d.gerantName;
               const text = svc
                 ? (ns.exhausted
-                    ? `Vous avez relancé ${g} 3 fois après avoir payé, sans être servi. Si rien ne vient, signalez-le à Cabine En Ligne.`
+                    ? `3 relances envoyées sans être servi. Signalez ${g} ou annulez votre transfert Wave.`
                     : ns.count > 0
-                      ? `Relance ${ns.count}/3 envoyée à ${g} : « J'ai payé, j'attends toujours ».${ns.can ? ' Toujours rien ? Relancez à nouveau.' : ` Prochaine relance possible dans ${mmss}.`}`
+                      ? `Relance ${ns.count}/3 envoyée.${ns.can ? ' Toujours rien ? Relancez.' : ` Prochaine dans ${mmss}.`}`
                       : ns.can
-                        ? `Vous avez payé et vous n'êtes pas encore servi ? Faites savoir à ${g} que vous attendez toujours.`
-                        : `Vous avez payé. Pas servi après 1 min ? Vous pourrez relancer ${g} dans ${mmss}.`)
+                        ? `Payé, pas encore servi ? Faites-le savoir à ${g}.`
+                        : `Paiement signalé, ${g} vérifie son Wave. Relance possible dans ${mmss}.`)
                 : (ns.exhausted
-                    ? `Vous avez relancé ${g} 3 fois sans réponse. Vous pouvez annuler et choisir un autre gérant.`
+                    ? `3 relances sans réponse. Annulez et choisissez un autre gérant.`
                     : ns.count > 0
-                      ? `Relance ${ns.count}/3 envoyée à ${g}.${ns.can ? ' Toujours rien ? Relancez à nouveau.' : ` Prochaine relance possible dans ${mmss}.`}`
+                      ? `Relance ${ns.count}/3 envoyée.${ns.can ? ' Toujours rien ? Relancez.' : ` Prochaine dans ${mmss}.`}`
                       : ns.can
                         ? `${g} n'a pas encore réagi. Faites-lui savoir que vous attendez.`
-                        : `Pas de réponse après 1 min ? Vous pourrez relancer ${g} dans ${mmss}.`);
+                        : `Pas de réponse ? Relance possible dans ${mmss}.`);
               return (
                 <View style={[s.timerBox, { marginTop: 8, backgroundColor: colors.warnBg }]}>
                   <Ionicons name="notifications-outline" size={16} color={colors.warn} />
@@ -313,9 +310,7 @@ export default function ClientHistory() {
                     <T size={font.sm} weight="600" color={colors.text}>{text}</T>
                     {!ns.exhausted && (
                       <Btn
-                        title={svc
-                          ? (ns.count > 0 ? 'J\'ai payé, j\'attends toujours — relancer' : 'J\'ai payé, j\'attends toujours')
-                          : (ns.count > 0 ? 'J\'attends toujours — relancer' : 'J\'attends toujours')}
+                        title={svc ? 'J\'ai payé, j\'attends toujours' : 'J\'attends toujours'}
                         icon="notifications"
                         color={colors.warn}
                         size="sm"
@@ -349,7 +344,7 @@ export default function ClientHistory() {
             )}
             {d.status === 'declined' && (
               <T size={font.sm} weight="600" color={colors.muted} style={{ marginTop: 12, textAlign: 'center' }}>
-                Le gérant a refusé. Essayez un autre gérant.
+                Refusée — essayez un autre gérant.
               </T>
             )}
             {d.status === 'unavailable' && (
@@ -384,7 +379,7 @@ export default function ClientHistory() {
                 )}
               </View>
             )}
-            {d.status === 'paid' && !d.partialAt && (
+            {d.status === 'paid' && !d.partialAt && !awaitingService(d) && (
               <View style={s.timerBox}>
                 <Ionicons name={d.moneyReceived ? 'checkmark-circle' : 'time'} size={16} color={d.moneyReceived ? colors.success : colors.muted} />
                 <T size={font.sm} weight="600" color={colors.muted} style={{ marginLeft: 8, flex: 1 }}>
@@ -426,7 +421,7 @@ export default function ClientHistory() {
             )}
             {d.status === 'completed' && d.moneyReceived && (
               <T size={font.sm} weight="600" color={colors.success} style={{ marginTop: 12, textAlign: 'center' }}>
-                Réglée : paiement reçu par {d.gerantName} et {CREDIT_LABEL[d.type] || 'votre numéro'} crédité(s). Merci !
+                Réglée — paiement reçu, {CREDIT_LABEL[d.type] || 'votre numéro'} crédité(s).
               </T>
             )}
             {d.status === 'completed' && !d.clientConfirmedAt && (
@@ -436,43 +431,42 @@ export default function ClientHistory() {
                   <Btn title="Non, rien reçu ✗" icon="alert-circle-outline" outline color={colors.danger} size="sm" onPress={() => setNotServedTarget(d)} style={{ flex: 1, marginRight: 6 }} />
                   <Btn title="Oui, bien reçu ✓" icon="checkmark-circle" color={colors.success} size="sm" onPress={() => confirmServedDemande(d.id)} style={{ flex: 1 }} />
                 </View>
-                <T size={font.xs} weight="600" color={colors.muted2} style={{ textAlign: 'center', marginTop: 6 }}>
-                  Vérifiez votre solde (cela peut prendre quelques minutes). Le gérant sera notifié de votre réponse.
-                </T>
               </>
             )}
             {d.status === 'completed' && d.clientConfirmedAt && (
               <View style={[s.timerBox, { backgroundColor: colors.successBg }]}>
                 <Ionicons name="checkmark-done-circle" size={16} color={colors.success} />
                 <T size={font.sm} weight="700" color={colors.success} style={{ marginLeft: 8, flex: 1 }}>
-                  Vous avez confirmé la réception. Demande terminée. Merci !
+                  Terminée — réception confirmée.
                 </T>
               </View>
             )}
             {/* « Terminer » : le client clôture lui-même quand tout s'est réglé (servi + payé)
                 sans que chaque étape ait été cliquée. Visible tant que la demande est ouverte. */}
-            {['pending', 'accepted', 'paid'].includes(d.status) || (d.status === 'completed' && !d.clientConfirmedAt) ? (
-              <Btn title="Terminer — tout est réglé" icon="checkmark-done-circle" color={colors.success} size="sm" onPress={() => setCloseTarget(d)} style={{ marginTop: 10 }} />
-            ) : null}
-            {/* Payé mais pas servi : Wave permet d'annuler un envoi dans l'heure. Le client
-                prévient le gérant qu'il a repris son argent et qu'il ne faut plus le servir. */}
-            {(d.status === 'paid' || (d.status === 'completed' && !d.clientConfirmedAt)) && (
-              <Btn title="J'ai annulé mon transfert Wave" icon="arrow-undo-circle" variant="outline" color={colors.danger} size="sm" onPress={() => setWaveTarget(d)} style={{ marginTop: 8 }} />
-            )}
-            <ReportButton role="client" demande={d} otherName={d.gerantName} onDone={refresh} style={{ marginTop: 8 }} />
+            {/* Une seule ligne d'actions secondaires, compacte :
+                Terminer (tout est réglé) · Wave annulé (payé non servi) · Signaler */}
+            <View style={s.ghostRow}>
+              {['pending', 'accepted', 'paid'].includes(d.status) || (d.status === 'completed' && !d.clientConfirmedAt) ? (
+                <GhostAction title="Tout est réglé ✓" icon="checkmark-done-circle" color={colors.success} onPress={() => setCloseTarget(d)} style={s.ghostItem} />
+              ) : null}
+              {(d.status === 'paid' || (d.status === 'completed' && !d.clientConfirmedAt)) && (
+                <GhostAction title="Transfert Wave annulé" icon="arrow-undo-circle" color={colors.danger} onPress={() => setWaveTarget(d)} style={s.ghostItem} />
+              )}
+              <ReportButton compact role="client" demande={d} otherName={d.gerantName} onDone={refresh} style={s.ghostItem} />
+            </View>
             {!!d.notServedAt && d.status !== 'completed' && !['declined', 'canceled'].includes(d.status) && (
               <View style={[s.timerBox, { backgroundColor: colors.dangerBg }]}>
                 <Ionicons name="alert-circle" size={16} color={colors.danger} />
                 <T size={font.sm} weight="700" color={colors.danger} style={{ marginLeft: 8, flex: 1 }}>
-                  Vous avez signalé ne rien avoir reçu. {d.gerantName} a été notifié et doit vous servir à nouveau.
+                  « Rien reçu » signalé — {d.gerantName} doit vous servir à nouveau.
                 </T>
               </View>
             )}
             {d.status === 'canceled' && (
               <T size={font.sm} weight="600" color={d.waveCanceledAt ? colors.danger : colors.muted} style={{ marginTop: 12, textAlign: 'center' }}>
                 {d.waveCanceledAt
-                  ? `Annulée : vous avez annulé votre transfert Wave. ${d.gerantName} a été prévenu(e) de ne plus vous recharger pour cette demande.`
-                  : "Demande annulée : le gérant n'a pas traité votre demande à temps."}
+                  ? `Transfert Wave annulé — ${d.gerantName} prévenu(e) de ne plus vous servir.`
+                  : "Annulée."}
               </T>
             )}
           </Card>
@@ -560,5 +554,7 @@ const s = StyleSheet.create({
   tileIcon: { width: 32, height: 32, borderRadius: 16, alignItems: 'center', justifyContent: 'center', marginRight: 8 },
   icon: { width: 46, height: 46, borderRadius: 23, alignItems: 'center', justifyContent: 'center' },
   payBox: { flexDirection: 'row', alignItems: 'center', backgroundColor: '#E7F0FE', borderRadius: radius.md, padding: 12, marginTop: 12 },
+  ghostRow: { flexDirection: 'row', flexWrap: 'wrap', alignItems: 'center', marginTop: 10, marginRight: -6 },
+  ghostItem: { marginRight: 6, marginBottom: 6 },
   timerBox: { flexDirection: 'row', alignItems: 'center', backgroundColor: colors.bg, borderRadius: radius.md, padding: 12, marginTop: 12 },
 });
