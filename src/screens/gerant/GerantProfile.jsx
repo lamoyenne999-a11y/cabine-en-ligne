@@ -76,8 +76,8 @@ export default function GerantProfile({ onLogout }) {
             <T size={font.h3} weight="800" color={colors.text}>{isAvailable ? 'Vous êtes En ligne' : 'Vous êtes Hors ligne'}</T>
             <T size={font.xs} weight="600" color={colors.muted} style={{ marginTop: 2 }}>
               {isAvailable
-                ? 'Les clients vous voient disponible et peuvent vous envoyer des demandes.'
-                : 'Les clients vous voient « Hors ligne ». Remettez-vous en ligne quand vous êtes à la cabine avec votre matériel.'}
+                ? 'Les clients peuvent vous envoyer des demandes.'
+                : 'Les clients vous voient « Hors ligne ».'}
             </T>
           </View>
         </View>
@@ -118,38 +118,23 @@ export default function GerantProfile({ onLogout }) {
       )}
 
       <Card style={{ marginTop: space.lg }}>
-        <ListRow icon="call-outline" label="Téléphone" value={u?.phone} />
-        <View style={s.waveBox}>
-          <Ionicons name="water" size={18} color={colors.wave} style={{ marginRight: 12 }} />
-          <View style={{ flex: 1 }}>
-            <T size={font.xs} weight="600" color={colors.muted}>Votre numéro Wave (pour recevoir)</T>
-            <T size={font.body} weight="800" color={colors.wave}>{u?.waveNumber || u?.phone}</T>
-          </View>
-        </View>
-      </Card>
-
-      {/* Comment vos clients vous paient — par transfert au numéro Wave (frais côté client) */}
-      <Card style={{ marginTop: space.lg }}>
-        <T size={font.h3} weight="800" color={colors.text} style={{ marginBottom: 4 }}>Votre numéro Wave</T>
-        <T size={font.xs} weight="600" color={colors.muted} style={{ marginBottom: 10 }}>
-          C'est le numéro sur lequel vos clients vous transfèrent le montant de leur demande. Cette fois c'est le CLIENT qui paie les frais Wave (5 F jusqu'à 500 F, puis 1 % par tranche de 500 F) — vous recevez la totalité, vous ne perdez rien.
-        </T>
-        <View style={s.waveRow}>
+        {/* Un seul numéro : téléphone = Wave (sauf numéro Wave distinct), avec copie. */}
+        <View style={{ flexDirection: 'row', alignItems: 'center' }}>
           <View style={s.waveIcon}><Ionicons name="water" size={20} color={colors.wave} /></View>
           <View style={{ flex: 1, marginLeft: 12 }}>
-            <T size={font.h3} weight="900" color={colors.wave}>{u?.waveNumber || u?.phone}</T>
-            <T size={font.xs} weight="600" color={colors.muted}>{u?.name || 'Gérant(e)'}</T>
+            <T size={font.h3} weight="900" color={colors.text}>{u?.phone}</T>
+            <T size={font.xs} weight="600" color={colors.muted}>Téléphone · Wave — vos clients vous paient ici, frais Wave à leur charge.</T>
           </View>
           <Pressable onPress={copyWaveNum} style={s.copyBtn}><Ionicons name={copiedNum ? 'checkmark' : 'copy-outline'} size={16} color="#fff" /></Pressable>
         </View>
-        {copiedNum && <T size={font.xs} weight="600" color={colors.success} style={{ marginTop: 6, textAlign: 'center' }}>Numéro copié ✓</T>}
-        <T size={font.xs} weight="600" color={colors.muted2} style={{ textAlign: 'center', marginTop: 8 }}>
-          Le client transfère le montant dû depuis son app Wave ; les frais sont sur son compte. Aucun argent ne passe par l'app.
-        </T>
+        {u?.waveNumber && u.waveNumber !== u.phone ? (
+          <T size={font.sm} weight="700" color={colors.wave} style={{ marginTop: 8 }}>Numéro Wave : {u.waveNumber}</T>
+        ) : null}
       </Card>
+
       <Card style={{ marginTop: space.lg }}>
         <T size={font.h3} weight="800" color={colors.text} style={{ marginBottom: 6 }}>Mon lien de partage</T>
-        <T size={font.xs} weight="600" color={colors.muted} style={{ marginBottom: 10 }}>Clients qui ouvrent ce lien peuvent vous ajouter et vous envoyer des demandes.</T>
+        <T size={font.xs} weight="600" color={colors.muted} style={{ marginBottom: 10 }}>Vos clients l'ouvrent pour vous ajouter.</T>
         <View style={s.linkRow}>
           <Text numberOfLines={1} style={s.linkText}>{shareUrl}</Text>
           <Pressable onPress={copy} style={s.copyBtn}><Ionicons name={copied ? 'checkmark' : 'copy-outline'} size={16} color="#fff" /></Pressable>

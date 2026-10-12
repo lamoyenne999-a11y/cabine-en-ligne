@@ -81,7 +81,7 @@ export function WavePayBox({ amount, merchant, merchantName, payLink, mode = 'nu
       ) : (
         <T size={font.xs} weight="600" color={colors.muted} style={{ textAlign: 'center', marginTop: 6 }}>
           {compact
-            ? (fees ? `Envoyez ${fmtN(total)} F (${amt} F + ${fmtN(fees)} F de frais Wave) pour que ${merchantName || 'le gérant'} reçoive ${amt} F.` : 'Frais Wave côté client (5 F jusqu\'à 500 F, puis 1 % par tranche de 500 F). Copiez le numéro et payez depuis votre app Wave.')
+            ? (fees ? `${amt} F + ${fmtN(fees)} F de frais Wave — envoyez ${fmtN(total)} F à ce numéro depuis votre app Wave :` : 'Copiez le numéro et payez depuis votre app Wave :')
             : (fees
               ? `Envoyez ${fmtN(total)} F au numéro ci-dessous depuis votre app Wave : ${amt} F + ${fmtN(fees)} F de frais Wave. Ainsi ${merchantName || 'le gérant'} reçoit bien ${amt} F.`
               : `Transférez ${amount ? `${amt} F` : 'le montant'} au numéro ci-dessous depuis votre app Wave.`)}

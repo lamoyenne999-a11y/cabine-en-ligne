@@ -261,24 +261,15 @@ export default function ClientHistory() {
 
             {(d.status === 'pending' || d.status === 'accepted') && (
               <>
-                <WavePayBox
-                  amount={d.amount}
-                  merchant={d.gerantWave}
-                  merchantName={d.gerantName}
-                />
-                <Btn title="J'ai payé (Wave)" icon="checkmark" onPress={() => setPaying(d)} style={{ marginTop: space.md }} />
+                <WavePayBox amount={d.amount} merchant={d.gerantWave} merchantName={d.gerantName} compact />
+                <Btn title="J'ai payé (Wave)" icon="checkmark" onPress={() => setPaying(d)} style={{ marginTop: 8 }} />
               </>
             )}
-            {d.status === 'pending' && (
-              <>
-                <View style={s.timerBox}>
-                  <Ionicons name={isExpired(d, now) ? 'alert-circle' : 'time'} size={16} color={isExpired(d, now) ? colors.danger : colors.muted} />
-                  <T size={font.sm} weight="600" color={isExpired(d, now) ? colors.danger : colors.muted} style={{ marginLeft: 8, flex: 1 }}>
-                    {isExpired(d, now) ? `Le gérant n'a pas répondu dans les 5 min. Vous pouvez annuler et choisir un autre gérant.` : `Le gérant a 5 min pour répondre — ${remainingLabel(d, now)}.`}
-                  </T>
-                </View>
-                <Btn title="Annuler la demande" icon="close-circle" outline color={colors.danger} onPress={() => setCanceling(d)} style={{ marginTop: space.md }} />
-              </>
+            {d.status === 'pending' && isExpired(d, now) && (
+              <View style={[s.timerBox, { backgroundColor: colors.dangerBg }]}>
+                <Ionicons name="alert-circle" size={16} color={colors.danger} />
+                <T size={font.sm} weight="700" color={colors.danger} style={{ marginLeft: 8, flex: 1 }}>Pas de réponse en 5 min — annulez et choisissez un autre gérant.</T>
+              </View>
             )}
             {/* Relance « J'attends toujours » : 1 min, 3 min, 5 min après le lancement,
                 tant que le gérant n'a pas accusé réception (accepté / payer d'abord). */}
@@ -302,7 +293,9 @@ export default function ClientHistory() {
                       ? `Relance ${ns.count}/3 envoyée.${ns.can ? ' Toujours rien ? Relancez.' : ` Prochaine dans ${mmss}.`}`
                       : ns.can
                         ? `${g} n'a pas encore réagi. Faites-lui savoir que vous attendez.`
-                        : `Pas de réponse ? Relance possible dans ${mmss}.`);
+                        : (d.status === 'pending' && !isExpired(d, now)
+                          ? `${g} a 5 min pour répondre (${remainingLabel(d, now)}). Relance possible dans ${mmss}.`
+                          : `Pas de réponse ? Relance possible dans ${mmss}.`));
               return (
                 <View style={[s.timerBox, { marginTop: 8, backgroundColor: colors.warnBg }]}>
                   <Ionicons name="notifications-outline" size={16} color={colors.warn} />
@@ -333,13 +326,12 @@ export default function ClientHistory() {
                   <Ionicons name={d.notReceivedAt ? 'warning' : d.paymentRequestedAt ? 'card' : 'checkmark-circle'} size={16} color={d.notReceivedAt ? colors.danger : d.paymentRequestedAt ? '#2E7BF6' : colors.success} />
                   <T size={font.sm} weight={d.notReceivedAt ? '700' : '600'} color={d.notReceivedAt ? colors.danger : colors.muted} style={{ marginLeft: 8, flex: 1 }}>
                     {d.paymentRequestedAt && !d.notReceivedAt
-                      ? `${d.gerantName} a bien reçu votre demande et vous demande de payer d'abord. Il vous servira dès réception du paiement.`
+                      ? `${d.gerantName} vous demande de payer d'abord ; il vous servira dès réception.`
                       : d.notReceivedAt
-                      ? `${d.gerantName} n'a PAS reçu votre paiement. Vérifiez votre transfert Wave (numéro ${d.gerantWave || 'du gérant'}, montant ${money(d.amount)}), puis appuyez à nouveau sur « J'ai payé », ou contactez-le.`
-                      : `${d.gerantName} a accepté votre demande. Payez via Wave, ou annulez si vous changez d'avis.`}
+                      ? `${d.gerantName} n'a PAS reçu votre paiement. Vérifiez votre transfert Wave (${d.gerantWave || 'son numéro'}, ${money(d.amount)}) puis appuyez à nouveau sur « J'ai payé ».`
+                      : `${d.gerantName} a accepté — payez via Wave.`}
                   </T>
                 </View>
-                <Btn title="Annuler la demande" icon="close-circle" outline color={colors.danger} onPress={() => setCanceling(d)} style={{ marginTop: space.md }} />
               </>
             )}
             {d.status === 'declined' && (
@@ -446,6 +438,9 @@ export default function ClientHistory() {
             {/* Une seule ligne d'actions secondaires, compacte :
                 Terminer (tout est réglé) · Wave annulé (payé non servi) · Signaler */}
             <View style={s.ghostRow}>
+              {(d.status === 'pending' || d.status === 'accepted') && (
+                <GhostAction title="Annuler" icon="close-circle" color={colors.danger} onPress={() => setCanceling(d)} style={s.ghostItem} />
+              )}
               {['pending', 'accepted', 'paid'].includes(d.status) || (d.status === 'completed' && !d.clientConfirmedAt) ? (
                 <GhostAction title="Tout est réglé ✓" icon="checkmark-done-circle" color={colors.success} onPress={() => setCloseTarget(d)} style={s.ghostItem} />
               ) : null}
