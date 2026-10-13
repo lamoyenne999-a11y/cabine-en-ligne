@@ -801,8 +801,9 @@ export function userActionsForAdmin({ phone = '', type = '', limit = 300 } = {})
   const perUser = {};
   // Un même compte qui a changé de numéro reste regroupé (clé = id du compte quand il est connu),
   // affiché sous son numéro/nom les plus récents. rows est trié du plus récent au plus ancien.
+  const idByPhone = {}; for (const x of find('users', () => true)) idByPhone[x.phone] = x.id;
   for (const e of rows) {
-    const key = e.userId || e.phone || e.targetPhone; if (!key) continue;
+    const key = e.userId || idByPhone[e.phone] || e.phone || e.targetPhone; if (!key) continue;
     const u = perUser[key] || (perUser[key] = { phone: e.phone || e.targetPhone, name: e.name || '', role: e.role || '', count: 0, lastAt: e.createdAt, lastType: e.type, types: {} });
     u.count += 1; u.types[e.type] = (u.types[e.type] || 0) + 1;
   }
