@@ -6,7 +6,7 @@ import { T, Card, ListRow, Pill } from '../../components/ui';
 import { Page } from '../../components/Shell';
 import SubscribeSheet from '../../components/Subscribe';
 import PushSettings from '../../components/PushSettings';
-import ChangePassword from '../../components/ChangePassword';
+import AccountSettings from '../../components/AccountSettings';
 import { useStore } from '../../store';
 import QrToggle from '../../components/QrToggle';
 import { buildShareUrl } from '../../config';
@@ -85,10 +85,6 @@ export default function ClientProfile({ onLogout }) {
       )}
 
       <Card style={{ marginTop: space.lg }}>
-        <ListRow icon="call-outline" label="Téléphone" value={u?.phone} />
-      </Card>
-
-      <Card style={{ marginTop: space.lg }}>
         <T size={font.h3} weight="800" color={colors.text} style={{ marginBottom: 6 }}>Mon lien de partage</T>
         <T size={font.xs} weight="600" color={colors.muted} style={{ marginBottom: 10 }}>Partagez-le pour que d'autres vous ajoutent et transactent.</T>
         <View style={s.linkRow}>
@@ -110,7 +106,7 @@ export default function ClientProfile({ onLogout }) {
 
       <PushSettings />
 
-      <ChangePassword />
+      <AccountSettings />
 
       <Card style={{ marginTop: space.lg }}>
         <ListRow icon="help-circle-outline" label="Aide & Support" onPress={() => setShowHelp(true)} />

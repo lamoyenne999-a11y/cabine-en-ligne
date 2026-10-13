@@ -337,7 +337,7 @@ export function referralSummary() {
 // Supprime un compte et TOUTES ses données liées (contacts gérant, demandes,
 // notifications, paiements d'abonnement, commissions de parrainage).
 // Utilisé par le propriétaire (via une clé admin) pour retirer un compte.
-export function deleteAccountAll(phone) {
+export function deleteAccountAll(phone, { self = false } = {}) {
   const u = findOne('users', (x) => x.phone === String(phone).trim());
   if (!u) return { removed: false, error: 'Compte introuvable' };
   const id = u.id;
@@ -351,7 +351,7 @@ export function deleteAccountAll(phone) {
   // notification ne doit partir vers un compte supprimé.
   remove('push_tokens', (t) => t.userId === id);
   remove('push_subscriptions', (s) => s.userId === id);
-  recordEvent({ type: 'user_deleted', name: u.name, phone: u.phone, role: u.role });
+  recordEvent({ type: self ? 'user_self_deleted' : 'user_deleted', name: u.name, phone: u.phone, role: u.role, userId: id });
   return { removed: true, name: u.name, phone: u.phone, role: u.role };
 }
 
@@ -382,7 +382,7 @@ export function setUserFrozen(phone, frozen, reason = 'other', note = '') {
     ? { frozen: true, frozenAt: Date.now(), frozenReason: SUSPEND_REASONS[reason] ? reason : 'other', frozenNote: String(note || '').slice(0, 200) }
     : { frozen: false, frozenAt: 0, frozenReason: '', frozenNote: '' };
   update('users', (x) => x.id === u.id, patch);
-  recordEvent({ type: frozen ? 'user_suspended' : 'user_reactivated', name: u.name, phone: u.phone, role: u.role, reason: patch.frozenReason || '' });
+  recordEvent({ type: frozen ? 'user_suspended' : 'user_reactivated', name: u.name, phone: u.phone, role: u.role, reason: patch.frozenReason || '', userId: u.id });
   createNotification({
     userId: u.id,
     type: frozen ? 'account_suspended' : 'account_reactivated',
@@ -708,16 +708,77 @@ const OWNER_PUSH = {
   user_registered: (e) => ['Nouvelle inscription', `${e.name || e.phone} vient de créer un compte ${e.role === 'gerant' ? 'gérant' : 'client'}.`],
 };
 
-export function recordEvent({ type, name = '', phone = '', role = '', amount = 0, plan = '', reference = '', reason = '', targetName = '', targetPhone = '' }) {
+export function recordEvent({ type, name = '', phone = '', role = '', amount = 0, plan = '', reference = '', reason = '', targetName = '', targetPhone = '', userId = '' }) {
   const mk = OWNER_PUSH[type];
   if (mk) { try { const [t, b] = mk({ type, name, phone, role, amount, plan, reference, reason, targetName, targetPhone }); notifyOwner(t, b); } catch { /* jamais bloquant */ } }
   return insert('events', {
     type,                 // user_registered | user_deleted | subscription_paid | subscription_expired | user_blocked | user_unblocked | unblock_request
     name, phone, role,
     amount, plan, reference,
-    reason, targetName, targetPhone,
+    reason, targetName, targetPhone, userId,
     createdAt: Date.now(),
   });
+}
+
+// ------------------------------------------------------------------
+//  MON COMPTE : changement de nom / de numéro (1 fois par 30 jours chacun),
+//  suppression du compte par l'utilisateur lui-même. Tout est journalisé
+//  dans l'Espace propriétaire (onglet Actions).
+// ------------------------------------------------------------------
+export const ACCOUNT_CHANGE_COOLDOWN_MS = 30 * 24 * 3600 * 1000;
+export function accountChangeInfo(user) {
+  const now = Date.now();
+  const nameNext = (user.nameChangedAt || 0) + ACCOUNT_CHANGE_COOLDOWN_MS;
+  const phoneNext = (user.phoneChangedAt || 0) + ACCOUNT_CHANGE_COOLDOWN_MS;
+  return {
+    canChangeName: nameNext <= now, nameNextAt: nameNext > now ? nameNext : 0,
+    canChangePhone: phoneNext <= now, phoneNextAt: phoneNext > now ? phoneNext : 0,
+  };
+}
+const fmtDay = (t) => new Date(t).toLocaleDateString('fr-FR', { day: 'numeric', month: 'long' });
+export function changeUserName(userId, newName) {
+  const u = findOne('users', (x) => x.id === userId);
+  if (!u) throw Object.assign(new Error('Compte introuvable'), { status: 404 });
+  const name = String(newName || '').trim().replace(/\s+/g, ' ');
+  if (name.length < 2 || name.length > 60) throw Object.assign(new Error('Le nom doit faire entre 2 et 60 caractères.'), { status: 400 });
+  if (name === u.name) throw Object.assign(new Error('C\'est déjà votre nom actuel.'), { status: 400 });
+  const info = accountChangeInfo(u);
+  if (!info.canChangeName) throw Object.assign(new Error(`Vous avez déjà changé de nom ce mois-ci. Prochain changement possible le ${fmtDay(info.nameNextAt)}.`), { status: 429 });
+  const now = Date.now();
+  update('users', (x) => x.id === userId, { name, nameChangedAt: now, previousName: u.name });
+  // Le nom est recopié dans les carnets de gérants des clients (contact) : on le met à jour
+  // pour que tout le monde voie le nouveau nom. L'historique des demandes garde l'ancien.
+  update('gerants', (g) => g.userId === userId, { name });
+  recordEvent({ type: 'user_name_changed', name, phone: u.phone, role: u.role, reason: `${u.name} → ${name}`, userId });
+  return findOne('users', (x) => x.id === userId);
+}
+export function changeUserPhone(userId, newPhone) {
+  const u = findOne('users', (x) => x.id === userId);
+  if (!u) throw Object.assign(new Error('Compte introuvable'), { status: 404 });
+  const phone = String(newPhone || '').trim();
+  if (!/^[0-9]{10}$/.test(phone)) throw Object.assign(new Error('Le numéro doit contenir exactement 10 chiffres (ex : 0707070707).'), { status: 400 });
+  if (phone === u.phone) throw Object.assign(new Error('C\'est déjà votre numéro actuel.'), { status: 400 });
+  if (isPhoneBlocked(phone)) throw Object.assign(new Error('Ce numéro ne peut pas être utilisé sur Cabine En Ligne.'), { status: 403 });
+  if (findOne('users', (x) => x.phone === phone)) throw Object.assign(new Error('Ce numéro est déjà utilisé par un autre compte.'), { status: 409 });
+  const info = accountChangeInfo(u);
+  if (!info.canChangePhone) throw Object.assign(new Error(`Vous avez déjà changé de numéro ce mois-ci. Prochain changement possible le ${fmtDay(info.phoneNextAt)}.`), { status: 429 });
+  const now = Date.now();
+  // Le numéro Wave suit le téléphone s'il était identique (cas normal).
+  const patch = { phone, phoneChangedAt: now, previousPhone: u.phone };
+  if (!u.waveNumber || u.waveNumber === u.phone) patch.waveNumber = phone;
+  update('users', (x) => x.id === userId, patch);
+  // Contacts des clients (si gérant) : numéro et Wave à jour pour les prochains paiements.
+  update('gerants', (g) => g.userId === userId, { phone, ...(patch.waveNumber ? { waveNumber: phone } : {}) });
+  // Demandes encore ouvertes : le client doit payer sur le NOUVEAU numéro Wave.
+  if (patch.waveNumber) update('demandes', (d) => d.gerantUserId === userId && ['pending', 'accepted'].includes(d.status), { gerantWave: phone });
+  recordEvent({ type: 'user_phone_changed', name: u.name, phone, role: u.role, reason: `${u.phone} → ${phone}`, targetPhone: u.phone, userId });
+  return findOne('users', (x) => x.id === userId);
+}
+export function deleteOwnAccount(userId) {
+  const u = findOne('users', (x) => x.id === userId);
+  if (!u) throw Object.assign(new Error('Compte introuvable'), { status: 404 });
+  const out = deleteAccountAll(u.phone, { self: true });
+  return out;
 }
 
 // ------------------------------------------------------------------
@@ -726,21 +787,24 @@ export function recordEvent({ type, name = '', phone = '', role = '', amount = 0
 //  suppressions, décisions sur les signalements… regroupés par utilisateur pour
 //  voir comment chaque compte évolue.
 // ------------------------------------------------------------------
-export const USER_ACTION_TYPES = ['user_suspended', 'user_reactivated', 'user_blocked', 'user_unblocked', 'unblock_request', 'free_time_granted', 'free_time_granted_bulk', 'gerant_certified', 'gerant_uncertified', 'password_reset', 'user_deleted', 'report_created', 'report_resolved', 'report_dismissed', 'subscription_paid', 'subscription_rejected', 'referral_code_cleared'];
+export const USER_ACTION_TYPES = ['user_suspended', 'user_reactivated', 'user_blocked', 'user_unblocked', 'unblock_request', 'free_time_granted', 'free_time_granted_bulk', 'gerant_certified', 'gerant_uncertified', 'password_reset', 'user_deleted', 'user_self_deleted', 'user_name_changed', 'user_phone_changed', 'report_created', 'report_resolved', 'report_dismissed', 'subscription_paid', 'subscription_rejected', 'referral_code_cleared'];
 export function userActionsForAdmin({ phone = '', type = '', limit = 300 } = {}) {
+  // Un utilisateur = son id (stable même s'il change de numéro) ou son numéro (anciens événements).
+  const target = phone ? findOne('users', (x) => x.phone === phone) : null;
   const rows = find('events', (e) => USER_ACTION_TYPES.includes(e.type))
-    .filter((e) => !phone || e.phone === phone || e.targetPhone === phone)
+    .filter((e) => !phone || e.phone === phone || e.targetPhone === phone || (target && e.userId && e.userId === target.id))
     .filter((e) => !type || e.type === type)
     .sort((a, b) => b.createdAt - a.createdAt);
   const counters = {};
   for (const e of rows) counters[e.type] = (counters[e.type] || 0) + 1;
   // Par utilisateur : nombre d'actions + dernière action, pour repérer les comptes « à problèmes ».
   const perUser = {};
+  // Un même compte qui a changé de numéro reste regroupé (clé = id du compte quand il est connu),
+  // affiché sous son numéro/nom les plus récents. rows est trié du plus récent au plus ancien.
   for (const e of rows) {
-    const key = e.phone || e.targetPhone; if (!key) continue;
-    const u = perUser[key] || (perUser[key] = { phone: key, name: e.name || '', role: e.role || '', count: 0, lastAt: 0, lastType: '', types: {} });
+    const key = e.userId || e.phone || e.targetPhone; if (!key) continue;
+    const u = perUser[key] || (perUser[key] = { phone: e.phone || e.targetPhone, name: e.name || '', role: e.role || '', count: 0, lastAt: e.createdAt, lastType: e.type, types: {} });
     u.count += 1; u.types[e.type] = (u.types[e.type] || 0) + 1;
-    if (e.createdAt > u.lastAt) { u.lastAt = e.createdAt; u.lastType = e.type; if (e.name) u.name = e.name; }
   }
   return { actions: rows.slice(0, limit), counters, total: rows.length, users: Object.values(perUser).sort((a, b) => b.lastAt - a.lastAt) };
 }

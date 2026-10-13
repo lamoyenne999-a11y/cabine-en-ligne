@@ -10,7 +10,7 @@ import { api } from '../api';
 //  « Changer mon mot de passe » (Profil client et gérant).
 //  Ancien mot de passe exigé, nouveau ≥ 4 caractères, confirmation.
 // ============================================================
-export default function ChangePassword() {
+export default function ChangePassword({ row = false }) {
   const [open, setOpen] = useState(false);
   const [cur, setCur] = useState('');
   const [nw, setNw] = useState('');
@@ -40,9 +40,13 @@ export default function ChangePassword() {
 
   return (
     <>
-      <Card style={{ marginTop: space.lg }}>
+      {row ? (
         <ListRow icon="key-outline" label="Changer mon mot de passe" onPress={() => setOpen(true)} />
-      </Card>
+      ) : (
+        <Card style={{ marginTop: space.lg }}>
+          <ListRow icon="key-outline" label="Changer mon mot de passe" onPress={() => setOpen(true)} />
+        </Card>
+      )}
       <Dialog visible={open} onClose={close}>
         {done ? (
           <View style={{ alignItems: 'center' }}>

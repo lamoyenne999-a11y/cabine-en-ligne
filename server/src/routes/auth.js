@@ -1,7 +1,7 @@
 import { Router } from 'express';
 import { findOne, insert, update } from '../db.js';
 import { signToken, hashPassword, verifyPassword, requireAuth } from '../middleware/auth.js';
-import { sendWelcome, suspendReasonText, subscriptionFor, applyReferral, referralInfoFor, recordEvent, registerPushToken, removePushToken, isPhoneBlocked } from '../services/flowService.js';
+import { sendWelcome, suspendReasonText, subscriptionFor, applyReferral, referralInfoFor, recordEvent, registerPushToken, removePushToken, isPhoneBlocked, accountChangeInfo, changeUserName, changeUserPhone, deleteOwnAccount } from '../services/flowService.js';
 import { registerWebPushSubscription, removeWebPushSubscription } from '../services/pushService.js';
 import { rateLimit } from '../middleware/rateLimit.js';
 
@@ -92,6 +92,37 @@ router.post('/change-password', requireAuth, (req, res, next) => chpwdLimit(req,
     if (!ok) return res.status(401).json({ error: 'Mot de passe actuel incorrect.' });
     update('users', (u) => u.id === user.id, { passwordHash: await hashPassword(nw), passwordChangedAt: Date.now() });
     res.json({ ok: true });
+  } catch (e) { next(e); }
+});
+
+// ---- Mon compte : nom / numéro (1 fois par 30 jours), suppression ----
+router.get('/account', requireAuth, (req, res) => {
+  const user = findOne('users', (u) => u.id === req.user.id);
+  if (!user) return res.status(404).json({ error: 'Compte introuvable' });
+  res.json({ user: publicUser(user), ...accountChangeInfo(user) });
+});
+router.post('/change-name', requireAuth, (req, res, next) => {
+  try { const user = changeUserName(req.user.id, req.body?.name); res.json({ ok: true, user: publicUser(user), token: signToken(user), ...accountChangeInfo(user) }); }
+  catch (e) { next(e); }
+});
+router.post('/change-phone', requireAuth, async (req, res, next) => {
+  try {
+    const user0 = findOne('users', (u) => u.id === req.user.id);
+    if (!user0) return res.status(404).json({ error: 'Compte introuvable' });
+    const ok = await verifyPassword(String(req.body?.password || ''), user0.passwordHash);
+    if (!ok) return res.status(401).json({ error: 'Mot de passe incorrect.' });
+    const user = changeUserPhone(req.user.id, req.body?.phone);
+    res.json({ ok: true, user: publicUser(user), ...accountChangeInfo(user) });
+  } catch (e) { next(e); }
+});
+router.post('/delete-account', requireAuth, async (req, res, next) => {
+  try {
+    const user = findOne('users', (u) => u.id === req.user.id);
+    if (!user) return res.status(404).json({ error: 'Compte introuvable' });
+    const ok = await verifyPassword(String(req.body?.password || ''), user.passwordHash);
+    if (!ok) return res.status(401).json({ error: 'Mot de passe incorrect.' });
+    const out = deleteOwnAccount(user.id);
+    res.json({ ok: true, ...out });
   } catch (e) { next(e); }
 });
 

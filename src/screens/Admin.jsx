@@ -212,6 +212,9 @@ export default function Admin({ onBack }) {
     user_blocked: { label: 'Compte bloqué', icon: 'ban-outline', color: colors.danger, bg: colors.dangerBg },
     gerant_uncertified: { label: 'Certification retirée', icon: 'shield-outline', color: colors.warn, bg: colors.warnBg },
     password_reset: { label: 'Mot de passe réinitialisé', icon: 'key-outline', color: colors.primary, bg: colors.primarySoft },
+    user_name_changed: { label: 'Nom modifié', icon: 'create-outline', color: colors.primary, bg: colors.primarySoft },
+    user_phone_changed: { label: 'Numéro changé', icon: 'swap-horizontal-outline', color: colors.warn, bg: colors.warnBg },
+    user_self_deleted: { label: 'Compte supprimé par l\'utilisateur', icon: 'trash-outline', color: colors.danger, bg: colors.dangerBg },
     report_resolved: { label: 'Signalement traité', icon: 'flag', color: colors.success, bg: colors.successBg },
     report_dismissed: { label: 'Signalement classé sans suite', icon: 'flag-outline', color: colors.muted, bg: colors.gray },
     subscription_rejected: { label: 'Paiement d\'abonnement rejeté', icon: 'close-circle-outline', color: colors.danger, bg: colors.dangerBg },
@@ -1337,7 +1340,10 @@ export default function Admin({ onBack }) {
           { v: 'gerant_certified', l: 'Certifications' },
           { v: 'report_created', l: 'Signalements' },
           { v: 'password_reset', l: 'Mots de passe' },
-          { v: 'user_deleted', l: 'Suppressions' },
+          { v: 'user_name_changed', l: 'Noms modifiés' },
+          { v: 'user_phone_changed', l: 'Numéros changés' },
+          { v: 'user_deleted', l: 'Supprimés (vous)' },
+          { v: 'user_self_deleted', l: 'Supprimés (eux)' },
         ];
         const REASON = {
           unpaid_subscription: 'abonnement impayé', client_unpaid_demandes: 'demandes non payées', gerant_not_served: 'payé sans servir', other: 'autre manquement',
@@ -1352,7 +1358,7 @@ export default function Admin({ onBack }) {
           let extra = '';
           if (String(e.type).startsWith('free_time_granted') && e.amount) extra = ` · ${e.amount} jour${e.amount > 1 ? 's' : ''}`;
           else if (e.amount) extra = ` · ${money(e.amount)}`;
-          if (e.reason) extra += ` · ${REASON[e.reason] || e.reason}`;
+          if (e.reason) extra += ` · ${REASON[e.reason] || e.reason}`; // ex. « ancien → nouveau » pour nom/numéro
           if (e.type === 'report_created' && e.targetName) extra += ` → ${e.targetName}`;
           if ((e.type === 'report_resolved' || e.type === 'report_dismissed') && e.targetName) extra += ` (signalé par ${e.targetName})`;
           return m.label + extra;

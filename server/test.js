@@ -412,6 +412,50 @@ async function main() {
     // remettre le mot de passe de test (connexion ultérieure)
   }
 
+  // ===== Mon compte : nom / numéro (1 fois par mois), suppression =====
+  {
+    const ph = '0511' + uniq.slice(2), ph2 = '0522' + uniq.slice(2);
+    const r = await req('POST', '/auth/register', { role: 'gerant', name: 'Avant Nom', phone: ph, password: '123456' });
+    const tk = r.json.token;
+    const info0 = await req('GET', '/auth/account', null, tk);
+    check('Infos compte : changements possibles au départ', info0.status === 200 && info0.json.canChangeName === true && info0.json.canChangePhone === true);
+    const n1 = await req('POST', '/auth/change-name', { name: 'Après Nom' }, tk);
+    check('Changement de nom OK + nouveau token', n1.status === 200 && n1.json.user?.name === 'Après Nom' && !!n1.json.token && n1.json.canChangeName === false);
+    const n2 = await req('POST', '/auth/change-name', { name: 'Encore' }, n1.json.token);
+    check('Deuxième changement de nom dans le mois refusé (429)', n2.status === 429 && /Prochain changement/.test(n2.json.error || ''));
+    // Le client qui a ce gérant dans ses contacts voit le nouveau nom
+    await req('POST', '/client/gerants', { phone: ph, name: 'x' }, ct);
+    const gl = await req('GET', '/client/gerants', null, ct);
+    check('Contact du client mis à jour avec le nouveau nom', (gl.json.gerants || []).some((g) => g.phone === ph && g.name === 'Après Nom'));
+    const pBad = await req('POST', '/auth/change-phone', { phone: ph2, password: 'mauvais' }, tk);
+    check('Changement de numéro : mot de passe exigé (401)', pBad.status === 401);
+    const pDup = await req('POST', '/auth/change-phone', { phone: gphone, password: '123456' }, tk);
+    check('Changement de numéro : numéro déjà pris refusé (409)', pDup.status === 409);
+    const p1 = await req('POST', '/auth/change-phone', { phone: ph2, password: '123456' }, tk);
+    check('Changement de numéro OK (Wave suit)', p1.status === 200 && p1.json.user?.phone === ph2 && p1.json.user?.waveNumber === ph2 && p1.json.canChangePhone === false);
+    const login = await req('POST', '/auth/login', { phone: ph2, password: '123456', role: 'gerant' });
+    check('Connexion avec le nouveau numéro', login.status === 200);
+    const oldLogin = await req('POST', '/auth/login', { phone: ph, password: '123456', role: 'gerant' });
+    check('Ancien numéro ne permet plus de se connecter', oldLogin.status !== 200);
+    const gl2 = await req('GET', '/client/gerants', null, ct);
+    check('Contact du client : numéro + Wave à jour', (gl2.json.gerants || []).some((g) => g.phone === ph2 && g.waveNumber === ph2));
+    const p2 = await req('POST', '/auth/change-phone', { phone: '0533' + uniq.slice(2), password: '123456' }, tk);
+    check('Deuxième changement de numéro dans le mois refusé (429)', p2.status === 429);
+    const ua = await req('GET', `/admin/user-actions?phone=${ph2}`, null, null, { 'x-admin-key': 'testkey' });
+    const types = (ua.json.actions || []).map((a) => a.type);
+    check('Espace propriétaire : nom modifié + numéro changé journalisés (ancien → nouveau)', types.includes('user_name_changed') && types.includes('user_phone_changed') && (ua.json.actions || []).some((a) => a.type === 'user_phone_changed' && a.reason === `${ph} → ${ph2}`));
+    const dBad = await req('POST', '/auth/delete-account', { password: 'nope' }, tk);
+    check('Suppression : mot de passe exigé (401)', dBad.status === 401);
+    const del = await req('POST', '/auth/delete-account', { password: '123456' }, tk);
+    check('Suppression du compte par l\'utilisateur', del.status === 200 && del.json.removed === true);
+    const me = await req('GET', '/auth/me', null, tk);
+    check('Token invalide après suppression', me.status === 401 || me.status === 404);
+    const ua2 = await req('GET', '/admin/user-actions?type=user_self_deleted', null, null, { 'x-admin-key': 'testkey' });
+    check('Journal : « compte supprimé par l\'utilisateur »', (ua2.json.actions || []).some((a) => a.phone === ph2));
+    const re = await req('POST', '/auth/register', { role: 'gerant', name: 'Re', phone: ph2, password: '123456' });
+    check('Le numéro est libre pour un nouveau compte', re.status === 201);
+  }
+
   // ===== Signalements + suspension motivée =====
   {
     const A = { 'x-admin-key': 'testkey' };

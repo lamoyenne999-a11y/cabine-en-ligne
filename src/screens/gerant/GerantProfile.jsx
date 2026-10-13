@@ -6,7 +6,7 @@ import { T, Card, ListRow, Pill, Btn } from '../../components/ui';
 import { Page } from '../../components/Shell';
 import SubscribeSheet from '../../components/Subscribe';
 import PushSettings from '../../components/PushSettings';
-import ChangePassword from '../../components/ChangePassword';
+import AccountSettings from '../../components/AccountSettings';
 import GerantStats from '../../components/GerantStats';
 import { useStore } from '../../store';
 import QrToggle from '../../components/QrToggle';
@@ -154,7 +154,7 @@ export default function GerantProfile({ onLogout }) {
 
       <PushSettings />
 
-      <ChangePassword />
+      <AccountSettings />
 
       <Card style={{ marginTop: space.lg }}>
         <ListRow icon="help-circle-outline" label="Aide & Support" onPress={() => setShowHelp(true)} />
