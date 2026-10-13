@@ -7,6 +7,7 @@ import { Page } from '../../components/Shell';
 import SubscribeSheet from '../../components/Subscribe';
 import PushSettings from '../../components/PushSettings';
 import AccountSettings from '../../components/AccountSettings';
+import { GerantBadges } from '../../components/Badges';
 import GerantStats from '../../components/GerantStats';
 import { useStore } from '../../store';
 import QrToggle from '../../components/QrToggle';
@@ -60,6 +61,12 @@ export default function GerantProfile({ onLogout }) {
         <View style={s.avatar}><Ionicons name="storefront" size={44} color="#fff" /></View>
         <T size={font.h2} weight="800" color={colors.text} style={{ marginTop: 14 }}>{u?.name || 'Gérant(e)'}</T>
         <T size={font.sm} weight="600" color={colors.muted} style={{ marginTop: 3 }}>Gérant(e) de cabine</T>
+        {/* Badges attribués par Cabine En Ligne (visibles aussi par les clients) */}
+        {(u?.certified || u?.official) ? (
+          <GerantBadges certified={u?.certified} official={u?.official} size={13} style={{ marginTop: 8, justifyContent: 'center' }} />
+        ) : (
+          <T size={font.xs} weight="600" color={colors.muted2} style={{ marginTop: 6, textAlign: 'center' }}>Badges « Certifié » et « Officielle » : attribués par Cabine En Ligne.</T>
+        )}
         <Pill icon={subPill.icon} color={subPill.color} bg={subPill.bg} style={{ marginTop: 12 }}>{subPill.label}</Pill>
         {subStatus !== 'active' && (
           <Pressable onPress={() => setShowSub(true)} style={s.subBtn}><T size={font.sm} weight="800" color="#fff">S'abonner — 200 FCFA/mois ou 2000 FCFA/an</T></Pressable>

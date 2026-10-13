@@ -456,6 +456,25 @@ async function main() {
     check('Le numéro est libre pour un nouveau compte', re.status === 201);
   }
 
+  // ===== Badge « Cabine officielle » (cumulable avec « Certifié ») =====
+  {
+    const o1 = await req('POST', '/admin/set-official', { phone: gphone, official: true }, null, { 'x-admin-key': 'testkey' });
+    check('Propriétaire : cabine officielle', o1.status === 200 && o1.json.official === true);
+    await req('POST', '/admin/set-certified', { phone: gphone, certified: true }, null, { 'x-admin-key': 'testkey' });
+    const gl = await req('GET', '/client/gerants', null, ct);
+    check('Client voit les DEUX badges sur le gérant', (gl.json.gerants || []).some((g) => g.phone === gphone && g.certified === true && g.official === true));
+    const me = await req('GET', '/auth/me', null, gt);
+    check('Gérant voit ses badges sur son profil', me.json.user?.certified === true && me.json.user?.official === true);
+    const gn = await req('GET', '/gerant/notifications', null, gt);
+    check('Gérant notifié « Cabine officielle »', (gn.json.notifications || []).some((n) => n.type === 'official'));
+    const bad = await req('POST', '/admin/set-official', { phone: cphone, official: true }, null, { 'x-admin-key': 'testkey' });
+    check('Un client ne peut pas être « officiel » (400)', bad.status === 400);
+    const ua = await req('GET', '/admin/user-actions?type=gerant_official', null, null, { 'x-admin-key': 'testkey' });
+    check('Journal : cabine officielle', (ua.json.actions || []).some((a) => a.phone === gphone));
+    const o0 = await req('POST', '/admin/set-official', { phone: gphone, official: false }, null, { 'x-admin-key': 'testkey' });
+    check('Retrait du badge', o0.status === 200 && o0.json.official === false);
+  }
+
   // ===== Signalements + suspension motivée =====
   {
     const A = { 'x-admin-key': 'testkey' };

@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { fmtDateTime } from '../demandeTime';
+import { GerantBadges } from '../components/Badges';
 import { View, TextInput, Pressable, ScrollView, StyleSheet } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { colors, radius, space, font } from '../theme';
@@ -50,6 +51,7 @@ export default function Admin({ onBack }) {
   const [selMode, setSelMode] = useState(false);             // mode sélection de plusieurs utilisateurs
   const [selected, setSelected] = useState([]);              // téléphones sélectionnés
   const [certTarget, setCertTarget] = useState(null);       // {user, certified}
+  const [offTarget, setOffTarget] = useState(null);         // {user, official}
   const [pwdTarget, setPwdTarget] = useState(null);         // user dont on réinitialise le mot de passe
   const [pwdResult, setPwdResult] = useState(null);         // { name, phone, tempPassword }
   const [pwdCopied, setPwdCopied] = useState(false);
@@ -211,6 +213,8 @@ export default function Admin({ onBack }) {
     free_time_granted_bulk: { label: 'Cadeau de temps groupé', icon: 'gift-outline', color: colors.success, bg: colors.successBg },
     user_blocked: { label: 'Compte bloqué', icon: 'ban-outline', color: colors.danger, bg: colors.dangerBg },
     gerant_uncertified: { label: 'Certification retirée', icon: 'shield-outline', color: colors.warn, bg: colors.warnBg },
+    gerant_official: { label: 'Cabine officielle', icon: 'ribbon-outline', color: '#B8860B', bg: '#FFF4D6' },
+    gerant_unofficial: { label: 'Badge officielle retiré', icon: 'ribbon-outline', color: colors.warn, bg: colors.warnBg },
     password_reset: { label: 'Mot de passe réinitialisé', icon: 'key-outline', color: colors.primary, bg: colors.primarySoft },
     user_name_changed: { label: 'Nom modifié', icon: 'create-outline', color: colors.primary, bg: colors.primarySoft },
     user_phone_changed: { label: 'Numéro changé', icon: 'swap-horizontal-outline', color: colors.warn, bg: colors.warnBg },
@@ -354,6 +358,14 @@ export default function Admin({ onBack }) {
   };
 
   // Certifie / retire la certification d'un gérant.
+  const doSetOfficial = async (user, official) => {
+    setBusy(user.phone);
+    try {
+      const out = await api.admin.setOfficial(key, user.phone, official);
+      setUsers((prev) => prev.map((u) => u.phone === user.phone ? { ...u, official: !!out.official } : u));
+      setOffTarget(null);
+    } catch (e) { setErr(e?.message || 'Action impossible'); } finally { setBusy(''); }
+  };
   const doSetCertified = async (user, certified) => {
     setBusy(user.phone); setCertTarget(null);
     try {
@@ -717,9 +729,7 @@ export default function Admin({ onBack }) {
                       <View style={{ flex: 1, marginLeft: 10 }}>
                         <View style={{ flexDirection: 'row', alignItems: 'center', flexWrap: 'wrap' }}>
                           <T size={font.body} weight="800" color={colors.text} numberOfLines={1}>{u.name || '—'}</T>
-                          {u.certified ? (
-                            <View style={s.certBadge}><Ionicons name="shield-checkmark" size={11} color="#fff" /><T size={font.xs} weight="800" color="#fff" style={{ marginLeft: 3 }}>Certifié</T></View>
-                          ) : null}
+                          <GerantBadges certified={u.certified} official={u.official} size={11} />
                           {u.blocked ? (
                             <View style={s.blockedBadge}><T size={font.xs} weight="800" color="#fff">Bloqué</T></View>
                           ) : (u.frozen ? <View style={s.frozenBadge}><T size={font.xs} weight="800" color={colors.warn}>Suspendu{u.frozenReason === 'unpaid_subscription' ? ' · abonnement' : u.frozenReason === 'client_unpaid_demandes' || u.frozenReason === 'gerant_not_served' ? ' · comportement' : ''}</T></View> : null)}{u.openReports > 0 ? <View style={[s.frozenBadge, { backgroundColor: colors.dangerBg }]}><T size={font.xs} weight="800" color={colors.danger}>⚑ {u.openReports} signalement{u.openReports > 1 ? 's' : ''}</T></View> : null}
@@ -787,6 +797,20 @@ export default function Admin({ onBack }) {
                             />
                           )}
                         </View>
+                        {u.role === 'gerant' && (
+                          <View style={{ flexDirection: 'row', marginBottom: 8 }}>
+                            <Btn
+                              title={u.official ? 'Retirer « Officielle »' : 'Cabine officielle'}
+                              icon="ribbon-outline"
+                              outline={!!u.official}
+                              color="#B8860B"
+                              size="sm"
+                              onPress={() => setOffTarget({ user: u, official: !u.official })}
+                              loading={busy === u.phone}
+                              style={{ flex: 1 }}
+                            />
+                          </View>
+                        )}
                         <View style={{ flexDirection: 'row', marginBottom: 8 }}>
                           <Btn
                             title={u.frozen ? 'Réactiver' : 'Suspendre'}
@@ -1098,7 +1122,7 @@ export default function Admin({ onBack }) {
                 <View style={{ flex: 1 }}>
                   <View style={{ flexDirection: 'row', alignItems: 'center', flexWrap: 'wrap' }}>
                     <T size={font.body} weight="800" color={colors.text}>{r.name}</T>
-                    {r.certified ? <Ionicons name="shield-checkmark" size={14} color={colors.primary} style={{ marginLeft: 5 }} /> : null}
+                    {r.certified ? <Ionicons name="shield-checkmark" size={14} color={colors.primary} style={{ marginLeft: 5 }} /> : null}{r.official ? <Ionicons name="ribbon" size={14} color="#B8860B" style={{ marginLeft: 3 }} /> : null}
                     {r.frozen ? <T size={font.xs} weight="800" color={colors.danger} style={{ marginLeft: 6 }}>SUSPENDU</T> : null}
                   </View>
                   <T size={font.xs} weight="600" color={colors.muted}>{r.phone}</T>
@@ -1338,6 +1362,7 @@ export default function Admin({ onBack }) {
           { v: 'user_unblocked', l: 'Déblocages' },
           { v: 'free_time_granted', l: 'Cadeaux' },
           { v: 'gerant_certified', l: 'Certifications' },
+          { v: 'gerant_official', l: 'Officielles' },
           { v: 'report_created', l: 'Signalements' },
           { v: 'password_reset', l: 'Mots de passe' },
           { v: 'user_name_changed', l: 'Noms modifiés' },
@@ -1759,6 +1784,19 @@ export default function Admin({ onBack }) {
         </T>
         <Btn title={pwdCopied ? 'Message copié ✓' : 'Copier le message à envoyer'} icon="copy-outline" outline size="sm" onPress={copyTempPwd} style={{ marginBottom: 8 }} />
         <Btn title="Fermer" onPress={() => setPwdResult(null)} />
+      </Dialog>
+
+      {/* Cabine officielle */}
+      <Dialog visible={!!offTarget}>
+        <T size={font.h3} weight="800" color={colors.text} style={{ textAlign: 'center' }}>
+          {offTarget?.official ? 'Déclarer cette cabine officielle ?' : 'Retirer le badge « Officielle » ?'}
+        </T>
+        <T size={font.sm} weight="600" color={colors.muted} style={{ textAlign: 'center', marginTop: 6, marginBottom: 6 }}>
+          {offTarget?.official
+            ? `${offTarget?.user?.name} affichera le badge doré « Officielle » auprès des clients (cabine physique reconnue / partenaire de Cabine En Ligne). Cumulable avec « Certifié ». Le gérant sera notifié.`
+            : `${offTarget?.user?.name} perdra son badge « Officielle ». Il sera notifié.`}
+        </T>
+        <DialogButtons cancel="Annuler" confirm={offTarget?.official ? 'Officialiser' : 'Retirer'} onCancel={() => setOffTarget(null)} onConfirm={() => doSetOfficial(offTarget.user, offTarget.official)} />
       </Dialog>
 
       {/* Certification */}

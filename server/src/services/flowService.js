@@ -483,7 +483,7 @@ export function setUserCertified(phone, certified) {
   if (!u) return { ok: false, error: 'Compte introuvable' };
   if (u.role !== 'gerant') return { ok: false, error: 'Seul un gérant peut être certifié' };
   update('users', (x) => x.id === u.id, { certified: !!certified, certifiedAt: certified ? Date.now() : 0 });
-  recordEvent({ type: certified ? 'gerant_certified' : 'gerant_uncertified', name: u.name, phone: u.phone, role: u.role });
+  recordEvent({ type: certified ? 'gerant_certified' : 'gerant_uncertified', name: u.name, phone: u.phone, role: u.role, userId: u.id });
   createNotification({
     userId: u.id,
     type: certified ? 'certified' : 'uncertified',
@@ -491,7 +491,25 @@ export function setUserCertified(phone, certified) {
       ? 'Félicitations ! Votre cabine est désormais « Certifiée » : les clients voient votre badge de confiance.'
       : 'Votre badge « Certifié » a été retiré par l\'administration.',
   });
-  return { ok: true, phone: u.phone, name: u.name, certified: !!certified };
+  return { ok: true, phone: u.phone, name: u.name, certified: !!certified, official: !!u.official };
+}
+
+// Badge « Cabine officielle » : cabine physique reconnue / partenaire de Cabine En Ligne.
+// Indépendant de « Certifié » (gérant vérifié) : une cabine peut avoir les deux badges.
+export function setUserOfficial(phone, official) {
+  const u = findOne('users', (x) => x.phone === String(phone).trim());
+  if (!u) return { ok: false, error: 'Compte introuvable' };
+  if (u.role !== 'gerant') return { ok: false, error: 'Seule une cabine (gérant) peut être officielle' };
+  update('users', (x) => x.id === u.id, { official: !!official, officialAt: official ? Date.now() : 0 });
+  recordEvent({ type: official ? 'gerant_official' : 'gerant_unofficial', name: u.name, phone: u.phone, role: u.role, userId: u.id });
+  createNotification({
+    userId: u.id,
+    type: official ? 'official' : 'unofficial',
+    text: official
+      ? 'Félicitations ! Votre cabine est désormais « Cabine officielle » Cabine En Ligne : les clients voient ce badge à côté de votre nom.'
+      : 'Votre badge « Cabine officielle » a été retiré par l\'administration.',
+  });
+  return { ok: true, phone: u.phone, name: u.name, certified: !!u.certified, official: !!official };
 }
 
 // Offrir du temps gratuit (récompense / reconduction d'essai) : { days }.
@@ -787,7 +805,7 @@ export function deleteOwnAccount(userId) {
 //  suppressions, décisions sur les signalements… regroupés par utilisateur pour
 //  voir comment chaque compte évolue.
 // ------------------------------------------------------------------
-export const USER_ACTION_TYPES = ['user_suspended', 'user_reactivated', 'user_blocked', 'user_unblocked', 'unblock_request', 'free_time_granted', 'free_time_granted_bulk', 'gerant_certified', 'gerant_uncertified', 'password_reset', 'user_deleted', 'user_self_deleted', 'user_name_changed', 'user_phone_changed', 'report_created', 'report_resolved', 'report_dismissed', 'subscription_paid', 'subscription_rejected', 'referral_code_cleared'];
+export const USER_ACTION_TYPES = ['user_suspended', 'user_reactivated', 'user_blocked', 'user_unblocked', 'unblock_request', 'free_time_granted', 'free_time_granted_bulk', 'gerant_certified', 'gerant_uncertified', 'gerant_official', 'gerant_unofficial', 'password_reset', 'user_deleted', 'user_self_deleted', 'user_name_changed', 'user_phone_changed', 'report_created', 'report_resolved', 'report_dismissed', 'subscription_paid', 'subscription_rejected', 'referral_code_cleared'];
 export function userActionsForAdmin({ phone = '', type = '', limit = 300 } = {}) {
   // Un utilisateur = son id (stable même s'il change de numéro) ou son numéro (anciens événements).
   const target = phone ? findOne('users', (x) => x.phone === phone) : null;
@@ -970,7 +988,7 @@ export function publicProfile(id) {
   { const b = findOne('users', (x) => x.id === id); if (b && isPhoneBlocked(b.phone)) return null; }
   const u = findOne('users', (x) => x.id === id);
   if (!u) return null;
-  return { id: u.id, name: u.name, phone: u.phone, role: u.role, waveNumber: u.waveNumber, payLink: u.payLink || '', certified: !!u.certified, rating: u.role === 'gerant' ? gerantRating(u.id) : undefined };
+  return { id: u.id, name: u.name, phone: u.phone, role: u.role, waveNumber: u.waveNumber, payLink: u.payLink || '', certified: !!u.certified, official: !!u.official, rating: u.role === 'gerant' ? gerantRating(u.id) : undefined };
 }
 
 // ---- Gérants (contacts) d'un client ----
@@ -986,7 +1004,7 @@ export function gerantsFor(clientId) {
     if (g.userId) {
       const u = findOne('users', (x) => x.id === g.userId);
       if (u) {
-        return { ...g, waveNumber: u.waveNumber || g.waveNumber, payLink: u.payLink || g.payLink || '', suspended: !!u.frozen, certified: !!u.certified, online: u.available !== false, rating: gerantRating(u.id) };
+        return { ...g, waveNumber: u.waveNumber || g.waveNumber, payLink: u.payLink || g.payLink || '', suspended: !!u.frozen, certified: !!u.certified, official: !!u.official, online: u.available !== false, rating: gerantRating(u.id) };
       }
     }
     return g;
@@ -1006,6 +1024,7 @@ export function availableGerants(clientId) {
       alreadyAdded: added.includes(u.id), online: u.available !== false,
       // "Certifié" : badge attribué UNIQUEMENT par le propriétaire (Espace propriétaire).
       certified: !!u.certified,
+      official: !!u.official,
       rating: gerantRating(u.id),
     }))
     .sort((a, b) => (a.name || '').localeCompare(b.name || ''));

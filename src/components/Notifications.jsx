@@ -48,6 +48,8 @@ const ICONS = {
   subscription_rejected: 'alert-circle-outline',
   certified: 'shield-checkmark-outline',
   uncertified: 'shield-outline',
+  official: 'ribbon-outline',
+  unofficial: 'ribbon-outline',
   demande_served_unpaid: 'alert-circle-outline',
   demande_completed: 'checkmark-done-outline',
 };
@@ -87,6 +89,8 @@ const COLORS = {
   subscription_rejected: colors.danger,
   certified: colors.primary,
   uncertified: colors.warn,
+  official: '#B8860B',
+  unofficial: colors.warn,
   demande_served_unpaid: colors.warn,
   demande_completed: colors.success,
 };

@@ -6,6 +6,7 @@ import { T, Btn, Card, Field } from '../../components/ui';
 import { Header } from '../../components/Shell';
 import { BottomSheet } from '../../components/modals';
 import { useStore } from '../../store';
+import { GerantBadges } from '../../components/Badges';
 import QrToggle from '../../components/QrToggle';
 import { RatingBadge } from '../../components/Rating';
 import { buildShareUrl } from '../../config';
@@ -111,12 +112,7 @@ export default function ClientGerants() {
                     <View style={{ flex: 1, paddingRight: 10 }}>
                       <View style={{ flexDirection: 'row', alignItems: 'center', flexWrap: 'wrap' }}>
                         <T size={font.body} weight="800" color={colors.text}>{g.name}</T>
-                        {g.certified ? (
-                          <View style={s.certBadge}>
-                            <Ionicons name="shield-checkmark" size={12} color="#fff" />
-                            <T size={font.xs} weight="800" color="#fff" style={{ marginLeft: 3 }}>Certifié</T>
-                          </View>
-                        ) : null}
+                        <GerantBadges certified={g.certified} official={g.official} />
                         <RatingBadge rating={g.rating} />
                       </View>
                       <View style={{ flexDirection: 'row', alignItems: 'center', marginTop: 5 }}>

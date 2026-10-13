@@ -8,6 +8,7 @@ import { Header } from '../../components/Shell';
 import { BottomSheet, Dialog, DialogButtons } from '../../components/modals';
 import { WavePaySheet, WavePayBox } from '../../components/WavePay';
 import { useStore } from '../../store';
+import { GerantBadges } from '../../components/Badges';
 import { RatingBadge } from '../../components/Rating';
 import SuspendedBanner from '../../components/SuspendedBanner';
 
@@ -231,12 +232,7 @@ export default function ClientHome() {
                   <View style={{ flex: 1 }}>
                     <View style={{ flexDirection: 'row', alignItems: 'center', flexWrap: 'wrap' }}>
                       <T size={font.body} weight="800" color={colors.text}>{g.name}</T>
-                      {g.certified && (
-                        <View style={s.certBadge}>
-                          <Ionicons name="shield-checkmark" size={12} color="#fff" />
-                          <T size={font.xs} weight="800" color="#fff" style={{ marginLeft: 3 }}>Certifié</T>
-                        </View>
-                      )}
+                      <GerantBadges certified={g.certified} official={g.official} />
                       <RatingBadge rating={g.rating} />
                     </View>
                     <T size={font.sm} weight="600" color={colors.muted} style={{ marginTop: 2 }}>{g.phone}</T>
@@ -256,8 +252,8 @@ export default function ClientHome() {
           <>
             <T size={font.sm} weight="800" color={colors.primary} style={{ marginBottom: 4, marginTop: state.gerants.length > 0 ? space.md : 0 }}>Autres gérants inscrits</T>
             <T size={font.xs} weight="600" color={colors.muted2} style={{ marginBottom: 8 }}>
-              {suggested.some((g) => g.certified)
-                ? 'Gérants inscrits sur l\'app. Le badge « Certifié » signale ceux vérifiés par Cabine En Ligne.'
+              {suggested.some((g) => g.certified || g.official)
+                ? 'Badges attribués par Cabine En Ligne : « Certifié » = gérant vérifié, « Officielle » = cabine reconnue.'
                 : 'Gérants inscrits sur l\'app. Vérifiez le nom et le numéro avant d\'envoyer votre demande.'}
             </T>
             {suggested.map((g) => (
@@ -266,12 +262,7 @@ export default function ClientHome() {
                 <View style={{ flex: 1, marginLeft: 10 }}>
                   <View style={{ flexDirection: 'row', alignItems: 'center', flexWrap: 'wrap' }}>
                     <T size={font.body} weight="800" color={colors.text}>{g.name}</T>
-                    {g.certified && (
-                      <View style={s.certBadge}>
-                        <Ionicons name="shield-checkmark" size={12} color="#fff" />
-                        <T size={font.xs} weight="800" color="#fff" style={{ marginLeft: 3 }}>Certifié</T>
-                      </View>
-                    )}
+                    <GerantBadges certified={g.certified} official={g.official} />
                     <RatingBadge rating={g.rating} />
                   </View>
                   <T size={font.sm} weight="600" color={colors.muted} style={{ marginTop: 2 }}>{g.phone}</T>
