@@ -7,6 +7,7 @@ import { Page } from '../../components/Shell';
 import SubscribeSheet from '../../components/Subscribe';
 import PushSettings from '../../components/PushSettings';
 import AccountSettings from '../../components/AccountSettings';
+import { OwnerStars } from '../../components/Badges';
 import { useStore } from '../../store';
 import QrToggle from '../../components/QrToggle';
 import { buildShareUrl } from '../../config';
@@ -50,6 +51,7 @@ export default function ClientProfile({ onLogout }) {
         <View style={s.avatar}><Ionicons name="person" size={48} color="#fff" /></View>
         <T size={font.h2} weight="800" color={colors.text} style={{ marginTop: 14 }}>{u?.name || 'Client(e)'}</T>
         <T size={font.sm} weight="600" color={colors.muted} style={{ marginTop: 3 }}>Client(e)</T>
+        {u?.stars ? <OwnerStars stars={u.stars} size={16} style={{ marginTop: 6, marginLeft: 0 }} /> : null}
         <Pill icon={subPill.icon} color={subPill.color} bg={subPill.bg} style={{ marginTop: 12 }}>{subPill.label}</Pill>
         {subStatus !== 'active' && (
           <Pressable onPress={() => setShowSub(true)} style={s.subBtn}>

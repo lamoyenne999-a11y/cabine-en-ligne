@@ -1,7 +1,7 @@
 import express from 'express';
 import { hashPassword } from '../middleware/auth.js';
 import { config } from '../config.js';
-import { gerantRating, gerantStats, runSubscriptionAlerts, sendAnnouncement, announcementsForAdmin, announcementAudience, reportsForAdmin, resolveReport, openReportsCountFor, SUSPEND_REASONS, pendingSubscriptionPayments, confirmSubscriptionPayment, rejectSubscriptionPayment, setUserCertified, setUserOfficial, grantFreeTime, grantFreeTimeBulk, giftsForAdmin, demandesForAdmin, subscriptionPayments, subscriptionTotals, subscriptionFor, referralSummary, referredUsersCount, referralPaymentCount, referralRateFor, deleteAccountAll, setUserFrozen, eventsForAdmin, eventsCounters, referralCodeStats, expiredUsers, reconcileExpiredEvents, isPhoneBlocked, blockUser, unblockUser, blockedList, unblockRequestsPending, resolveUnblockRequest, recordEvent, userActionsForAdmin } from '../services/flowService.js';
+import { gerantRating, gerantStats, runSubscriptionAlerts, sendAnnouncement, announcementsForAdmin, announcementAudience, reportsForAdmin, resolveReport, openReportsCountFor, SUSPEND_REASONS, pendingSubscriptionPayments, confirmSubscriptionPayment, rejectSubscriptionPayment, setUserCertified, setUserOfficial, setUserStars, grantFreeTime, grantFreeTimeBulk, giftsForAdmin, demandesForAdmin, subscriptionPayments, subscriptionTotals, subscriptionFor, referralSummary, referredUsersCount, referralPaymentCount, referralRateFor, deleteAccountAll, setUserFrozen, eventsForAdmin, eventsCounters, referralCodeStats, expiredUsers, reconcileExpiredEvents, isPhoneBlocked, blockUser, unblockUser, blockedList, unblockRequestsPending, resolveUnblockRequest, recordEvent, userActionsForAdmin } from '../services/flowService.js';
 import { find, findOne, update, dbStats } from '../db.js';
 import { registerWebPushSubscription, removeWebPushSubscription, OWNER_ID, ownerPushCount, notifyOwner } from '../services/pushService.js';
 
@@ -72,7 +72,7 @@ router.get('/summary', requireAdmin, (req, res) => {
     pendingOld: pendingSubscriptionPayments().filter((p) => Date.now() - p.declaredAt > 24 * 3600 * 1000).length,
     ratings: find('users', (u) => u.role === 'gerant' && u.passwordHash).map((u) => {
       const st = gerantStats(u.id);
-      return { id: u.id, name: u.name, phone: u.phone, certified: !!u.certified, official: !!u.official, frozen: !!u.frozen, avg: st.rating.avg, count: st.rating.count, totalServed: st.totalServed, confirmRate: st.month.confirmRate, avgResponseSec: st.month.avgResponseSec };
+      return { id: u.id, name: u.name, phone: u.phone, certified: !!u.certified, official: !!u.official, stars: u.stars || 0, frozen: !!u.frozen, avg: st.rating.avg, count: st.rating.count, totalServed: st.totalServed, confirmRate: st.month.confirmRate, avgResponseSec: st.month.avgResponseSec };
     }).filter((r) => r.totalServed > 0 || r.count > 0).sort((a, b) => (b.avg || 0) - (a.avg || 0) || b.totalServed - a.totalServed),
     suspendReasons: SUSPEND_REASONS,
     unblockRequests: unblockRequestsPending(),
@@ -104,6 +104,7 @@ router.get('/users', requireAdmin, (req, res) => {
       openReports: openReportsCountFor(u.id),
       certified: !!u.certified,
       official: !!u.official,
+      stars: u.stars || 0,
       lastGift: u.lastGift || null,
       blocked: isPhoneBlocked(u.phone),
     }));
@@ -130,6 +131,17 @@ router.post('/set-certified', requireAdmin, (req, res) => {
   if (!phone) return res.status(400).json({ error: 'Téléphone requis' });
   try {
     const out = setUserCertified(phone, !!req.body?.certified);
+    if (!out.ok) return res.status(400).json(out);
+    res.json(out);
+  } catch (e) { res.status(e.status || 500).json({ error: e.message }); }
+});
+
+// Étoiles Cabine En Ligne (0-5). Body : { phone, stars }.
+router.post('/set-stars', requireAdmin, (req, res) => {
+  const phone = String(req.body?.phone || '').trim();
+  if (!phone) return res.status(400).json({ error: 'Téléphone requis' });
+  try {
+    const out = setUserStars(phone, req.body?.stars);
     if (!out.ok) return res.status(400).json(out);
     res.json(out);
   } catch (e) { res.status(e.status || 500).json({ error: e.message }); }

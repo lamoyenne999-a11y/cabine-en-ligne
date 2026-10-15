@@ -52,6 +52,23 @@ export function sortGerantsByRecentUse(gerants, demandes) {
   return (gerants || []).map((g, i) => ({ g, i })).sort((a, b) => ((last[b.g.userId] || 0) - (last[a.g.userId] || 0)) || (a.i - b.i)).map((x) => x.g);
 }
 
+// Classement des gérants proposés au client (choix de la demande, onglet Gérants) :
+//  1. cabines officielles (les mieux étoilées d'abord)
+//  2. le gérant de la DERNIÈRE demande du client
+//  3. gérants certifiés, les mieux étoilés d'abord
+//  4. les autres, les mieux étoilés d'abord
+// À égalité : ceux que le client a déjà sollicités (plus récent d'abord), puis l'ordre d'origine.
+export function rankGerants(gerants, demandes) {
+  const last = {};
+  (demandes || []).forEach((d) => { if (d.gerantUserId) last[d.gerantUserId] = Math.max(last[d.gerantUserId] || 0, d.createdAt || 0); });
+  let lastId = null, lastAt = 0;
+  Object.keys(last).forEach((id) => { if (last[id] > lastAt) { lastAt = last[id]; lastId = id; } });
+  const tier = (g) => (g.official ? 0 : g.userId && g.userId === lastId ? 1 : g.certified ? 2 : 3);
+  return (gerants || []).map((g, i) => ({ g, i })).sort((a, b) =>
+    (tier(a.g) - tier(b.g)) || ((b.g.stars || 0) - (a.g.stars || 0)) || ((last[b.g.userId] || 0) - (last[a.g.userId] || 0)) || (a.i - b.i),
+  ).map((x) => ({ ...x.g, isLast: !!(x.g.userId && x.g.userId === lastId) }));
+}
+
 // « Récents » : demandes des 7 derniers jours, purement par date (plus récent en haut).
 export const RECENT_MS = 7 * 86400000;
 export const isRecent = (d, now = Date.now()) => (now - lastActivity(d)) <= RECENT_MS;

@@ -512,6 +512,26 @@ export function setUserOfficial(phone, official) {
   return { ok: true, phone: u.phone, name: u.name, certified: !!u.certified, official: !!official };
 }
 
+// Étoiles « Cabine En Ligne » (0 à 5) : note attribuée UNIQUEMENT par le propriétaire
+// à un client ou à un gérant actif et sérieux. Visible sur le profil de l'intéressé
+// et, pour un gérant, dans la liste de choix du client (classement).
+export function setUserStars(phone, stars) {
+  const u = findOne('users', (x) => x.phone === String(phone).trim());
+  if (!u) return { ok: false, error: 'Compte introuvable' };
+  const n = Math.max(0, Math.min(5, Math.round(Number(stars) || 0)));
+  const before = u.stars || 0;
+  update('users', (x) => x.id === u.id, { stars: n, starsAt: n ? Date.now() : 0 });
+  recordEvent({ type: 'user_stars', name: u.name, phone: u.phone, role: u.role, userId: u.id, amount: n, reason: `${before} → ${n}` });
+  createNotification({
+    userId: u.id,
+    type: 'stars',
+    text: n
+      ? `Cabine En Ligne vous attribue ${n} étoile${n > 1 ? 's' : ''} ⭐ sur 5 pour votre activité et votre sérieux. Elles sont visibles sur votre profil${u.role === 'gerant' ? ' et par les clients qui choisissent un gérant' : ''}.`
+      : 'Vos étoiles Cabine En Ligne ont été retirées par l\'administration.',
+  });
+  return { ok: true, phone: u.phone, name: u.name, stars: n };
+}
+
 // Offrir du temps gratuit (récompense / reconduction d'essai) : { days }.
 //  - Essai en cours  : on prolonge la fin d'essai.
 //  - Abonnement actif: on prolonge la date de fin d'abonnement.
@@ -805,7 +825,7 @@ export function deleteOwnAccount(userId) {
 //  suppressions, décisions sur les signalements… regroupés par utilisateur pour
 //  voir comment chaque compte évolue.
 // ------------------------------------------------------------------
-export const USER_ACTION_TYPES = ['user_suspended', 'user_reactivated', 'user_blocked', 'user_unblocked', 'unblock_request', 'free_time_granted', 'free_time_granted_bulk', 'gerant_certified', 'gerant_uncertified', 'gerant_official', 'gerant_unofficial', 'password_reset', 'user_deleted', 'user_self_deleted', 'user_name_changed', 'user_phone_changed', 'report_created', 'report_resolved', 'report_dismissed', 'subscription_paid', 'subscription_rejected', 'referral_code_cleared'];
+export const USER_ACTION_TYPES = ['user_suspended', 'user_reactivated', 'user_blocked', 'user_unblocked', 'unblock_request', 'free_time_granted', 'free_time_granted_bulk', 'gerant_certified', 'gerant_uncertified', 'gerant_official', 'gerant_unofficial', 'user_stars', 'password_reset', 'user_deleted', 'user_self_deleted', 'user_name_changed', 'user_phone_changed', 'report_created', 'report_resolved', 'report_dismissed', 'subscription_paid', 'subscription_rejected', 'referral_code_cleared'];
 export function userActionsForAdmin({ phone = '', type = '', limit = 300 } = {}) {
   // Un utilisateur = son id (stable même s'il change de numéro) ou son numéro (anciens événements).
   const target = phone ? findOne('users', (x) => x.phone === phone) : null;
@@ -988,7 +1008,7 @@ export function publicProfile(id) {
   { const b = findOne('users', (x) => x.id === id); if (b && isPhoneBlocked(b.phone)) return null; }
   const u = findOne('users', (x) => x.id === id);
   if (!u) return null;
-  return { id: u.id, name: u.name, phone: u.phone, role: u.role, waveNumber: u.waveNumber, payLink: u.payLink || '', certified: !!u.certified, official: !!u.official, rating: u.role === 'gerant' ? gerantRating(u.id) : undefined };
+  return { id: u.id, name: u.name, phone: u.phone, role: u.role, waveNumber: u.waveNumber, payLink: u.payLink || '', certified: !!u.certified, official: !!u.official, stars: u.stars || 0, rating: u.role === 'gerant' ? gerantRating(u.id) : undefined };
 }
 
 // ---- Gérants (contacts) d'un client ----
@@ -1004,7 +1024,7 @@ export function gerantsFor(clientId) {
     if (g.userId) {
       const u = findOne('users', (x) => x.id === g.userId);
       if (u) {
-        return { ...g, waveNumber: u.waveNumber || g.waveNumber, payLink: u.payLink || g.payLink || '', suspended: !!u.frozen, certified: !!u.certified, official: !!u.official, online: u.available !== false, rating: gerantRating(u.id) };
+        return { ...g, waveNumber: u.waveNumber || g.waveNumber, payLink: u.payLink || g.payLink || '', suspended: !!u.frozen, certified: !!u.certified, official: !!u.official, stars: u.stars || 0, online: u.available !== false, rating: gerantRating(u.id) };
       }
     }
     return g;
@@ -1025,6 +1045,7 @@ export function availableGerants(clientId) {
       // "Certifié" : badge attribué UNIQUEMENT par le propriétaire (Espace propriétaire).
       certified: !!u.certified,
       official: !!u.official,
+      stars: u.stars || 0,
       rating: gerantRating(u.id),
     }))
     .sort((a, b) => (a.name || '').localeCompare(b.name || ''));

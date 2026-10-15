@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from 'react';
-import { sortGerantsByRecentUse } from '../../demandeTime';
+import { rankGerants } from '../../demandeTime';
 import { View, Text, TextInput, Pressable, StyleSheet, ScrollView } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { colors, radius, space, font } from '../../theme';
@@ -8,7 +8,7 @@ import { Header } from '../../components/Shell';
 import { BottomSheet, Dialog, DialogButtons } from '../../components/modals';
 import { WavePaySheet, WavePayBox } from '../../components/WavePay';
 import { useStore } from '../../store';
-import { GerantBadges } from '../../components/Badges';
+import { GerantBadges, OwnerStars } from '../../components/Badges';
 import { RatingBadge } from '../../components/Rating';
 import SuspendedBanner from '../../components/SuspendedBanner';
 
@@ -50,7 +50,10 @@ export default function ClientHome() {
   // On masque les gérants SUSPENDUS du choix : un gérant suspendu ne doit pas
   // apparaître quand le client veut faire une demande.
   // Classés selon la dernière demande faite à chacun (le plus récent en premier).
-  const myGerants = sortGerantsByRecentUse((state.gerants || []).filter((g) => !g.suspended), state.demandes);
+  const myGerants = (state.gerants || []).filter((g) => !g.suspended);
+  // Une seule liste classée : officielles → dernier gérant choisi → certifiés les mieux
+  // étoilés → autres les mieux étoilés (voir rankGerants).
+  const picker = rankGerants([...myGerants.map((g) => ({ ...g, mine: true })), ...suggested], state.demandes);
 
   // Validation : on n'envoie jamais la demande tant qu'il manque une info.
   const validate = () => {
@@ -220,58 +223,37 @@ export default function ClientHome() {
           <Pressable onPress={() => setShowGerants(false)}><Ionicons name="close" size={24} color={colors.muted} /></Pressable>
         </View>
 
-        {/* PRIORITÉ : les gérants déjà ajoutés par le client (il les connaît) */}
-        {myGerants.length > 0 && (
-          <>
-            <T size={font.sm} weight="800" color={colors.text} style={{ marginBottom: 4 }}>Vos gérants (priorité)</T>
-            <T size={font.xs} weight="600" color={colors.muted2} style={{ marginBottom: 8 }}>Ceux que vous avez déjà ajoutés, les plus récemment sollicités en premier.</T>
-            {myGerants.map((g) => {
-              const on = sel?.id === g.id;
-              return (
-                <Pressable key={g.id} onPress={() => { setSel({ id: g.id, userId: g.userId, name: g.name, phone: g.phone, waveNumber: g.waveNumber, payLink: g.payLink || '', online: g.online }); clearErr('gerant'); setShowGerants(false); }} style={[s.gerantRow, on && { opacity: 0.7 }]}>
-                  <View style={{ flex: 1 }}>
-                    <View style={{ flexDirection: 'row', alignItems: 'center', flexWrap: 'wrap' }}>
-                      <T size={font.body} weight="800" color={colors.text}>{g.name}</T>
-                      <GerantBadges certified={g.certified} official={g.official} />
-                      <RatingBadge rating={g.rating} />
-                    </View>
-                    <T size={font.sm} weight="600" color={colors.muted} style={{ marginTop: 2 }}>{g.phone}</T>
-                  </View>
-                  <View style={{ flexDirection: 'row', alignItems: 'center' }}>
-                    <View style={{ width: 8, height: 8, borderRadius: 4, backgroundColor: g.online ? colors.success : colors.muted2, marginRight: 5 }} />
-                    <T size={font.xs} weight="700" color={g.online ? colors.success : colors.muted}>{g.online ? 'En ligne' : 'Hors ligne'}</T>
-                  </View>
-                </Pressable>
-              );
-            })}
-          </>
+        {picker.length > 0 && (
+          <T size={font.xs} weight="600" color={colors.muted2} style={{ marginBottom: 8 }}>
+            Cabines officielles en premier, puis votre dernier gérant, puis les mieux notés. Badges et étoiles attribués par Cabine En Ligne.
+          </T>
         )}
-
-        {/* Autres gérants de confiance (badge certifié) — proposés en complément */}
-        {suggested.length > 0 && (
-          <>
-            <T size={font.sm} weight="800" color={colors.primary} style={{ marginBottom: 4, marginTop: state.gerants.length > 0 ? space.md : 0 }}>Autres gérants inscrits</T>
-            <T size={font.xs} weight="600" color={colors.muted2} style={{ marginBottom: 8 }}>
-              {suggested.some((g) => g.certified || g.official)
-                ? 'Badges attribués par Cabine En Ligne : « Certifié » = gérant vérifié, « Officielle » = cabine reconnue.'
-                : 'Gérants inscrits sur l\'app. Vérifiez le nom et le numéro avant d\'envoyer votre demande.'}
-            </T>
-            {suggested.map((g) => (
-              <Pressable key={g.userId} onPress={() => { setSel({ userId: g.userId, name: g.name, phone: g.phone, waveNumber: g.waveNumber, payLink: g.payLink || '', online: true }); clearErr('gerant'); setShowGerants(false); }} style={s.gerantRow}>
-                <View style={s.availIcon}><Ionicons name="storefront-outline" size={18} color={colors.primary} /></View>
-                <View style={{ flex: 1, marginLeft: 10 }}>
-                  <View style={{ flexDirection: 'row', alignItems: 'center', flexWrap: 'wrap' }}>
-                    <T size={font.body} weight="800" color={colors.text}>{g.name}</T>
-                    <GerantBadges certified={g.certified} official={g.official} />
-                    <RatingBadge rating={g.rating} />
-                  </View>
-                  <T size={font.sm} weight="600" color={colors.muted} style={{ marginTop: 2 }}>{g.phone}</T>
+        {picker.map((g) => {
+          const on = sel?.userId && sel.userId === g.userId;
+          const pick = () => { setSel({ id: g.mine ? g.id : undefined, userId: g.userId, name: g.name, phone: g.phone, waveNumber: g.waveNumber, payLink: g.payLink || '', online: g.mine ? g.online : true }); clearErr('gerant'); setShowGerants(false); };
+          return (
+            <Pressable key={g.mine ? `m-${g.id}` : `s-${g.userId}`} onPress={pick} style={[s.gerantRow, on && { opacity: 0.7 }]}>
+              <View style={[s.availIcon, g.official && { backgroundColor: '#FFF4D6' }]}><Ionicons name={g.official ? 'ribbon' : 'storefront-outline'} size={18} color={g.official ? '#B8860B' : colors.primary} /></View>
+              <View style={{ flex: 1, marginLeft: 10 }}>
+                <View style={{ flexDirection: 'row', alignItems: 'center', flexWrap: 'wrap' }}>
+                  <T size={font.body} weight="800" color={colors.text}>{g.name}</T>
+                  <GerantBadges certified={g.certified} official={g.official} />
+                  <OwnerStars stars={g.stars} />
+                  <RatingBadge rating={g.rating} />
                 </View>
+                <T size={font.sm} weight="600" color={colors.muted} style={{ marginTop: 2 }}>{g.phone}{g.isLast ? '  ·  Votre dernier gérant' : ''}</T>
+              </View>
+              {g.mine ? (
+                <View style={{ flexDirection: 'row', alignItems: 'center' }}>
+                  <View style={{ width: 8, height: 8, borderRadius: 4, backgroundColor: g.online ? colors.success : colors.muted2, marginRight: 5 }} />
+                  <T size={font.xs} weight="700" color={g.online ? colors.success : colors.muted}>{g.online ? 'En ligne' : 'Hors ligne'}</T>
+                </View>
+              ) : (
                 <T size={font.xs} weight="700" color={colors.success}>Disponible</T>
-              </Pressable>
-            ))}
-          </>
-        )}
+              )}
+            </Pressable>
+          );
+        })}
 
         {suggested.length === 0 && myGerants.length === 0 && (
           <View style={{ alignItems: 'center', paddingVertical: 24 }}>

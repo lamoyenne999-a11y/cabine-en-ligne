@@ -475,6 +475,26 @@ async function main() {
     check('Retrait du badge', o0.status === 200 && o0.json.official === false);
   }
 
+  // ===== Étoiles Cabine En Ligne (0-5) =====
+  {
+    const H = { 'x-admin-key': AK };
+    const st = await req('POST', '/admin/set-stars', { phone: gphone, stars: 4 }, null, H);
+    check('Admin attribue 4 étoiles au gérant', st.status === 200 && st.json.stars === 4);
+    const st9 = await req('POST', '/admin/set-stars', { phone: gphone, stars: 9 }, null, H);
+    check('Étoiles bornées à 5', st9.status === 200 && st9.json.stars === 5);
+    const av2 = await req('GET', '/client/gerants/available', null, ct);
+    const l2 = av2.json.gerants || av2.json.available || [];
+    check('Étoiles visibles dans la liste client', l2.some((g) => g.phone === gphone && g.stars === 5));
+    const me = await req('GET', '/auth/me', null, gt);
+    check('Étoiles visibles sur /me du gérant', me.json.user && me.json.user.stars === 5);
+    const stc = await req('POST', '/admin/set-stars', { phone: cphone, stars: 3 }, null, H);
+    check('Admin attribue des étoiles à un client', stc.status === 200 && stc.json.stars === 3);
+    const ua = await req('GET', '/admin/user-actions?type=user_stars', null, null, H);
+    check('Étoiles dans l\'historique des actions', ua.status === 200 && (ua.json.actions || []).some((a) => a.type === 'user_stars' && a.phone === gphone));
+    const st0 = await req('POST', '/admin/set-stars', { phone: gphone, stars: 0 }, null, H);
+    check('Retrait des étoiles', st0.status === 200 && st0.json.stars === 0);
+  }
+
   // ===== Signalements + suspension motivée =====
   {
     const A = { 'x-admin-key': 'testkey' };

@@ -267,7 +267,7 @@ export function StoreProvider({ children }) {
       // Profil (état de suspension, motif) : rafraîchi à chaque cycle pour que
       // l'utilisateur voie immédiatement une suspension ou une réactivation.
       const me = await api.me().catch(safe);
-      if (me?.user) dispatch({ type: 'SET_USER_PATCH', payload: { frozen: !!me.user.frozen, frozenReason: me.user.frozenReason || '', frozenText: me.user.frozenText || '', certified: !!me.user.certified, official: !!me.user.official } });
+      if (me?.user) dispatch({ type: 'SET_USER_PATCH', payload: { frozen: !!me.user.frozen, frozenReason: me.user.frozenReason || '', frozenText: me.user.frozenText || '', certified: !!me.user.certified, official: !!me.user.official, stars: me.user.stars || 0 } });
 
       // Parrainage : code, invités, taux et gains.
       const ref = await api.referral.my().catch(safe);

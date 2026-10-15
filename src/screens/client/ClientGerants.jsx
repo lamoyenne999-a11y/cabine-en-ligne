@@ -6,7 +6,8 @@ import { T, Btn, Card, Field } from '../../components/ui';
 import { Header } from '../../components/Shell';
 import { BottomSheet } from '../../components/modals';
 import { useStore } from '../../store';
-import { GerantBadges } from '../../components/Badges';
+import { GerantBadges, OwnerStars } from '../../components/Badges';
+import { rankGerants } from '../../demandeTime';
 import QrToggle from '../../components/QrToggle';
 import { RatingBadge } from '../../components/Rating';
 import { buildShareUrl } from '../../config';
@@ -23,10 +24,10 @@ export default function ClientGerants() {
 
   // La recherche ne porte QUE sur les gérants que le client a déjà ajoutés.
   const searching = q.trim() !== '';
-  const gerants = state.gerants.filter((g) => g.name.toLowerCase().includes(q.toLowerCase()) || g.phone.includes(q));
+  const gerants = rankGerants(state.gerants.filter((g) => g.name.toLowerCase().includes(q.toLowerCase()) || g.phone.includes(q)), state.demandes);
   // Gérants inscrits proposés = ceux que le client n'a pas encore ajoutés.
   const addedIds = new Set((state.gerants || []).map((g) => g.userId));
-  const suggested = (state.availableGerants || []).filter((g) => !g.alreadyAdded && !addedIds.has(g.userId));
+  const suggested = rankGerants((state.availableGerants || []).filter((g) => !g.alreadyAdded && !addedIds.has(g.userId)), state.demandes);
   const shareUrl = state.user ? buildShareUrl(state.user.id) : '';
 
   const add = async () => {
@@ -113,6 +114,7 @@ export default function ClientGerants() {
                       <View style={{ flexDirection: 'row', alignItems: 'center', flexWrap: 'wrap' }}>
                         <T size={font.body} weight="800" color={colors.text}>{g.name}</T>
                         <GerantBadges certified={g.certified} official={g.official} />
+                        <OwnerStars stars={g.stars} />
                         <RatingBadge rating={g.rating} />
                       </View>
                       <View style={{ flexDirection: 'row', alignItems: 'center', marginTop: 5 }}>
@@ -141,8 +143,10 @@ export default function ClientGerants() {
           <Card key={g.id} style={{ marginBottom: space.sm }}>
             <View style={{ flexDirection: 'row', alignItems: 'flex-start', justifyContent: 'space-between' }}>
               <View style={{ flex: 1 }}>
-                <View style={{ flexDirection: 'row', alignItems: 'center' }}>
+                <View style={{ flexDirection: 'row', alignItems: 'center', flexWrap: 'wrap' }}>
                   <T size={font.body} weight="800" color={colors.text}>{g.name}</T>
+                  <GerantBadges certified={g.certified} official={g.official} />
+                  <OwnerStars stars={g.stars} />
                   {g.suspended ? (
                     <View style={s.suspendBadge}><T size={font.xs} weight="800" color={colors.warn}>Suspendu</T></View>
                   ) : (

@@ -34,6 +34,19 @@ export function GerantBadges({ certified, official, size = 12, style }) {
   );
 }
 
+// Étoiles « Cabine En Ligne » (0-5) attribuées par le propriétaire. Rien si 0.
+// Compactes : 5 petites étoiles dorées, sans texte, pour ne pas encombrer.
+export const STAR = '#F5A623';
+export function OwnerStars({ stars, size = 12, style }) {
+  const n = Math.max(0, Math.min(5, Math.round(Number(stars) || 0)));
+  if (!n) return null;
+  return (
+    <View style={[{ flexDirection: 'row', alignItems: 'center', marginLeft: 6 }, style]} accessibilityLabel={`${n} étoiles Cabine En Ligne`}>
+      {[1, 2, 3, 4, 5].map((i) => <Ionicons key={i} name={i <= n ? 'star' : 'star-outline'} size={size} color={STAR} />)}
+    </View>
+  );
+}
+
 const s = StyleSheet.create({
   badge: { flexDirection: 'row', alignItems: 'center', borderRadius: radius.pill, paddingHorizontal: 8, paddingVertical: 2, marginLeft: 6, marginVertical: 1 },
 });

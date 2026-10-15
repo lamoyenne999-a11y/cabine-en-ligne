@@ -7,7 +7,7 @@ import { Page } from '../../components/Shell';
 import SubscribeSheet from '../../components/Subscribe';
 import PushSettings from '../../components/PushSettings';
 import AccountSettings from '../../components/AccountSettings';
-import { GerantBadges } from '../../components/Badges';
+import { GerantBadges, OwnerStars } from '../../components/Badges';
 import GerantStats from '../../components/GerantStats';
 import { useStore } from '../../store';
 import QrToggle from '../../components/QrToggle';
@@ -67,6 +67,7 @@ export default function GerantProfile({ onLogout }) {
         ) : (
           <T size={font.xs} weight="600" color={colors.muted2} style={{ marginTop: 6, textAlign: 'center' }}>Badges « Certifié » et « Officielle » : attribués par Cabine En Ligne.</T>
         )}
+        {u?.stars ? <OwnerStars stars={u.stars} size={16} style={{ marginTop: 6, marginLeft: 0 }} /> : null}
         <Pill icon={subPill.icon} color={subPill.color} bg={subPill.bg} style={{ marginTop: 12 }}>{subPill.label}</Pill>
         {subStatus !== 'active' && (
           <Pressable onPress={() => setShowSub(true)} style={s.subBtn}><T size={font.sm} weight="800" color="#fff">S'abonner — 200 FCFA/mois ou 2000 FCFA/an</T></Pressable>

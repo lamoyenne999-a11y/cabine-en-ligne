@@ -123,6 +123,7 @@ export const api = {
     confirmPayment: (key, id) => request('POST', '/api/admin/confirm-payment', { id }, { 'x-admin-key': key }),
     rejectPayment: (key, id, note) => request('POST', '/api/admin/reject-payment', { id, note }, { 'x-admin-key': key }),
     resetPassword: (key, phone) => request('POST', '/api/admin/reset-password', { phone }, { 'x-admin-key': key }),
+    setStars: (key, phone, stars) => request('POST', '/api/admin/set-stars', { phone, stars }, { 'x-admin-key': key }),
     setOfficial: (key, phone, official) => request('POST', '/api/admin/set-official', { phone, official }, { 'x-admin-key': key }),
     setCertified: (key, phone, certified) => request('POST', '/api/admin/set-certified', { phone, certified }, { 'x-admin-key': key }),
     grantFreeTime: (key, phone, days, note) => request('POST', '/api/admin/grant-free-time', { phone, days, note }, { 'x-admin-key': key }),

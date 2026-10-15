@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { fmtDateTime } from '../demandeTime';
-import { GerantBadges } from '../components/Badges';
+import { GerantBadges, OwnerStars } from '../components/Badges';
 import { View, TextInput, Pressable, ScrollView, StyleSheet } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { colors, radius, space, font } from '../theme';
@@ -215,6 +215,7 @@ export default function Admin({ onBack }) {
     gerant_uncertified: { label: 'Certification retirée', icon: 'shield-outline', color: colors.warn, bg: colors.warnBg },
     gerant_official: { label: 'Cabine officielle', icon: 'ribbon-outline', color: '#B8860B', bg: '#FFF4D6' },
     gerant_unofficial: { label: 'Badge officielle retiré', icon: 'ribbon-outline', color: colors.warn, bg: colors.warnBg },
+    user_stars: { label: 'Étoiles attribuées', icon: 'star', color: '#B8860B', bg: '#FFF4D6' },
     password_reset: { label: 'Mot de passe réinitialisé', icon: 'key-outline', color: colors.primary, bg: colors.primarySoft },
     user_name_changed: { label: 'Nom modifié', icon: 'create-outline', color: colors.primary, bg: colors.primarySoft },
     user_phone_changed: { label: 'Numéro changé', icon: 'swap-horizontal-outline', color: colors.warn, bg: colors.warnBg },
@@ -364,6 +365,14 @@ export default function Admin({ onBack }) {
       const out = await api.admin.setOfficial(key, user.phone, official);
       setUsers((prev) => prev.map((u) => u.phone === user.phone ? { ...u, official: !!out.official } : u));
       setOffTarget(null);
+    } catch (e) { setErr(e?.message || 'Action impossible'); } finally { setBusy(''); }
+  };
+  // Étoiles Cabine En Ligne (0-5) : effet immédiat, l'utilisateur est notifié.
+  const doSetStars = async (user, stars) => {
+    setBusy(user.phone);
+    try {
+      const out = await api.admin.setStars(key, user.phone, stars);
+      setUsers((prev) => prev.map((u) => u.phone === user.phone ? { ...u, stars: out.stars || 0 } : u));
     } catch (e) { setErr(e?.message || 'Action impossible'); } finally { setBusy(''); }
   };
   const doSetCertified = async (user, certified) => {
@@ -730,6 +739,7 @@ export default function Admin({ onBack }) {
                         <View style={{ flexDirection: 'row', alignItems: 'center', flexWrap: 'wrap' }}>
                           <T size={font.body} weight="800" color={colors.text} numberOfLines={1}>{u.name || '—'}</T>
                           <GerantBadges certified={u.certified} official={u.official} size={11} />
+                          <OwnerStars stars={u.stars} size={11} />
                           {u.blocked ? (
                             <View style={s.blockedBadge}><T size={font.xs} weight="800" color="#fff">Bloqué</T></View>
                           ) : (u.frozen ? <View style={s.frozenBadge}><T size={font.xs} weight="800" color={colors.warn}>Suspendu{u.frozenReason === 'unpaid_subscription' ? ' · abonnement' : u.frozenReason === 'client_unpaid_demandes' || u.frozenReason === 'gerant_not_served' ? ' · comportement' : ''}</T></View> : null)}{u.openReports > 0 ? <View style={[s.frozenBadge, { backgroundColor: colors.dangerBg }]}><T size={font.xs} weight="800" color={colors.danger}>⚑ {u.openReports} signalement{u.openReports > 1 ? 's' : ''}</T></View> : null}
@@ -796,6 +806,15 @@ export default function Admin({ onBack }) {
                               style={{ flex: 1 }}
                             />
                           )}
+                        </View>
+                        <View style={s.starsRow}>
+                          <T size={font.xs} weight="800" color={colors.text} style={{ marginRight: 8 }}>Étoiles</T>
+                          {[1, 2, 3, 4, 5].map((n) => (
+                            <Pressable key={n} onPress={() => doSetStars(u, (u.stars || 0) === n ? 0 : n)} hitSlop={6} style={{ padding: 2 }}>
+                              <Ionicons name={n <= (u.stars || 0) ? 'star' : 'star-outline'} size={24} color="#F5A623" />
+                            </Pressable>
+                          ))}
+                          <T size={font.xs} weight="600" color={colors.muted2} style={{ marginLeft: 8, flex: 1 }}>{u.stars ? `${u.stars}/5 · retoucher pour retirer` : 'Aucune'}</T>
                         </View>
                         {u.role === 'gerant' && (
                           <View style={{ flexDirection: 'row', marginBottom: 8 }}>
@@ -1363,6 +1382,7 @@ export default function Admin({ onBack }) {
           { v: 'free_time_granted', l: 'Cadeaux' },
           { v: 'gerant_certified', l: 'Certifications' },
           { v: 'gerant_official', l: 'Officielles' },
+          { v: 'user_stars', l: 'Étoiles' },
           { v: 'report_created', l: 'Signalements' },
           { v: 'password_reset', l: 'Mots de passe' },
           { v: 'user_name_changed', l: 'Noms modifiés' },
@@ -1915,6 +1935,7 @@ export default function Admin({ onBack }) {
 }
 
 const s = StyleSheet.create({
+  starsRow: { flexDirection: 'row', alignItems: 'center', marginBottom: 8, paddingVertical: 6, paddingHorizontal: 10, borderRadius: 12, backgroundColor: '#FFF8E6' },
   input: { flexDirection: 'row', alignItems: 'center', backgroundColor: colors.bg, borderRadius: radius.md, paddingHorizontal: 14, height: 52 },
   inputText: { flex: 1, fontSize: font.input, color: colors.text, paddingVertical: 0, outlineStyle: 'none' },
   // Barre de sections
