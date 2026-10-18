@@ -495,6 +495,32 @@ async function main() {
     check('Retrait des étoiles', st0.status === 200 && st0.json.stars === 0);
   }
 
+  // ===== Relance du gérant par le propriétaire =====
+  {
+    const H = { 'x-admin-key': AK };
+    const gl = await req('GET', '/client/gerants', null, ct);
+    const gid = (gl.json.gerants || []).find((g) => g.phone === gphone)?.id;
+    const nd = await req('POST', '/client/demandes', { gerantId: gid, gerantName: 'Gérant Test', gerantWave: gphone, type: 'unites', amount: 300, benefName: 'Moi', benefPhone: cphone }, ct);
+    const did = nd.json.demande?.id || nd.json.id;
+    check('Demande ouverte créée pour la relance', nd.status === 201 || nd.status === 200);
+    const n1 = await req('POST', `/admin/demandes/${did}/nudge`, { note: 'Merci de traiter vite' }, null, H);
+    check('Propriétaire relance une demande en attente', n1.status === 200 && n1.json.count === 1);
+    const n2 = await req('POST', `/admin/demandes/${did}/nudge`, {}, null, H);
+    check('Deuxième relance immédiate refusée (5 min)', n2.status === 429);
+    const gn = await req('GET', '/gerant/notifications', null, gt);
+    const gnote = (gn.json.notifications || []).find((n) => n.type === 'admin_nudge' && n.demandeId === did);
+    check('Gérant notifié (admin_nudge) avec le message du propriétaire', !!gnote && /En attente/.test(gnote.text) && /Merci de traiter vite/.test(gnote.text));
+    const cn = await req('GET', '/client/notifications', null, ct);
+    check('Client informé de la relance', (cn.json.notifications || []).some((n) => n.type === 'admin_nudge_client' && n.demandeId === did));
+    const ad = await req('GET', '/admin/demandes', null, null, H);
+    check('Compteur de relance visible dans Transactions', (ad.json.demandes || []).some((d) => d.id === did && d.adminNudgeCount === 1 && d.lastAdminNudgeAt > 0));
+    const ua = await req('GET', '/admin/user-actions?type=demande_admin_nudged', null, null, H);
+    check('Relance tracée dans l\'historique des actions', (ua.json.actions || []).some((a) => a.type === 'demande_admin_nudged' && a.phone === gphone));
+    await req('POST', `/gerant/demandes/${did}/decline`, {}, gt);
+    const n3 = await req('POST', `/admin/demandes/${did}/nudge`, {}, null, H);
+    check('Relance refusée sur une demande close', n3.status === 400);
+  }
+
   // ===== Signalements + suspension motivée =====
   {
     const A = { 'x-admin-key': 'testkey' };

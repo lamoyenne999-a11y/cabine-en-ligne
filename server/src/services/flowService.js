@@ -610,6 +610,7 @@ export function demandesForAdmin(limit = 3000) {
       notServedAt: d.notServedAt || 0, notServedCount: d.notServedCount || 0,
       reportedAt: d.reportedAt || 0, reportedBy: d.reportedBy || '', rating: d.rating || 0,
       unavailableReason: d.unavailableReason || '',
+      adminNudgeCount: d.adminNudgeCount || 0, lastAdminNudgeAt: d.lastAdminNudgeAt || 0,
     };
   });
   // Activité par utilisateur.
@@ -825,7 +826,7 @@ export function deleteOwnAccount(userId) {
 //  suppressions, décisions sur les signalements… regroupés par utilisateur pour
 //  voir comment chaque compte évolue.
 // ------------------------------------------------------------------
-export const USER_ACTION_TYPES = ['user_suspended', 'user_reactivated', 'user_blocked', 'user_unblocked', 'unblock_request', 'free_time_granted', 'free_time_granted_bulk', 'gerant_certified', 'gerant_uncertified', 'gerant_official', 'gerant_unofficial', 'user_stars', 'password_reset', 'user_deleted', 'user_self_deleted', 'user_name_changed', 'user_phone_changed', 'report_created', 'report_resolved', 'report_dismissed', 'subscription_paid', 'subscription_rejected', 'referral_code_cleared'];
+export const USER_ACTION_TYPES = ['user_suspended', 'user_reactivated', 'user_blocked', 'user_unblocked', 'unblock_request', 'free_time_granted', 'free_time_granted_bulk', 'gerant_certified', 'gerant_uncertified', 'gerant_official', 'gerant_unofficial', 'user_stars', 'demande_admin_nudged', 'password_reset', 'user_deleted', 'user_self_deleted', 'user_name_changed', 'user_phone_changed', 'report_created', 'report_resolved', 'report_dismissed', 'subscription_paid', 'subscription_rejected', 'referral_code_cleared'];
 export function userActionsForAdmin({ phone = '', type = '', limit = 300 } = {}) {
   // Un utilisateur = son id (stable même s'il change de numéro) ou son numéro (anciens événements).
   const target = phone ? findOne('users', (x) => x.phone === phone) : null;
@@ -1244,6 +1245,39 @@ export function demandeAwaitingService(d) {
   if (!d || d.status !== 'paid' || demandeAwaitingAck(d)) return false;
   return !d.notReceivedAt && !d.partialAt && !d.clientDisputedAt;
 }
+// Relance par le PROPRIÉTAIRE (Espace propriétaire → Transactions) : une demande
+// encore ouverte (en attente / à payer / payée) ne doit pas rester sans suite. Le
+// gérant reçoit une notification + push adaptée à l'étape, le client est rassuré,
+// l'action est tracée. Au plus une relance toutes les ADMIN_NUDGE_GAP_MS par demande.
+export const ADMIN_NUDGE_GAP_MS = 5 * 60 * 1000;
+export const ADMIN_NUDGE_STATUSES = ['pending', 'accepted', 'paid'];
+export function adminNudgeDemande({ id, note = '' }) {
+  const d = findOne('demandes', (x) => x.id === id);
+  if (!d) throw Object.assign(new Error('Demande introuvable'), { status: 404 });
+  if (!ADMIN_NUDGE_STATUSES.includes(d.status)) throw Object.assign(new Error('Cette demande est déjà close (servie, refusée, indisponible ou annulée)'), { status: 400 });
+  if (!d.gerantUserId) throw Object.assign(new Error('Aucun gérant inscrit sur cette demande'), { status: 400 });
+  const now = Date.now();
+  if (d.lastAdminNudgeAt && now - d.lastAdminNudgeAt < ADMIN_NUDGE_GAP_MS) {
+    throw Object.assign(new Error(`Déjà relancée il y a ${Math.max(1, Math.round((now - d.lastAdminNudgeAt) / 60000))} min — nouvelle relance possible dans ${Math.ceil((ADMIN_NUDGE_GAP_MS - (now - d.lastAdminNudgeAt)) / 60000)} min`), { status: 429 });
+  }
+  const count = (d.adminNudgeCount || 0) + 1;
+  update('demandes', (x) => x.id === id, { adminNudgeCount: count, lastAdminNudgeAt: now });
+  const upd = findOne('demandes', (x) => x.id === id);
+  const label = `${TYPE_LABEL[upd.type] || upd.type} ${upd.amount} F`;
+  const ago = (t) => { const m = Math.max(1, Math.round((now - (t || now)) / 60000)); return m < 60 ? `${m} min` : m < 1440 ? `${Math.round(m / 60)} h` : `${Math.round(m / 1440)} j`; };
+  const paid = upd.status === 'paid' || (upd.status === 'accepted' && upd.paidAt);
+  const extra = String(note || '').trim() ? ` Message du propriétaire : « ${String(note).trim().slice(0, 200)} »` : '';
+  let text;
+  if (paid) text = `📣 Cabine En Ligne : ${upd.clientName} a signalé avoir PAYÉ ${label} il y a ${ago(upd.paidAt || upd.createdAt)} et sa demande est toujours ouverte. Vérifiez votre Wave, servez le ${upd.benefPhone || 'numéro indiqué'} puis appuyez sur « J'ai servi » — ou « Argent non reçu » si rien n'est arrivé.${extra}`;
+  else if (upd.status === 'accepted') text = `📣 Cabine En Ligne : la demande de ${upd.clientName} (${label}, acceptée il y a ${ago(upd.acceptedAt || upd.createdAt)}) est toujours ouverte. Finalisez-la : servez le client s'il a payé, sinon « Payer d'abord », ou « Refuser » si vous ne pouvez pas.${extra}`;
+  else text = `📣 Cabine En Ligne : la demande de ${upd.clientName} (${label}, lancée il y a ${ago(upd.createdAt)}) affiche toujours « En attente ». Merci de la traiter maintenant : « Accepter », « Payer d'abord », ou « Refuser » / « Indisponible » si vous ne pouvez pas la servir.${extra}`;
+  createNotification({ userId: upd.gerantUserId, type: 'admin_nudge', demandeId: upd.id, text });
+  if (upd.clientId) createNotification({ userId: upd.clientId, type: 'admin_nudge_client', demandeId: upd.id, text: `Cabine En Ligne a relancé ${upd.gerantName || 'le gérant'} pour votre demande (${label}). Si rien ne bouge, vous pouvez l'annuler et choisir un autre gérant.` });
+  const g = findOne('users', (u) => u.id === upd.gerantUserId);
+  recordEvent({ type: 'demande_admin_nudged', name: g?.name || upd.gerantName || '', phone: g?.phone || upd.gerantPhone || '', role: 'gerant', userId: upd.gerantUserId, amount: upd.amount || 0, reference: upd.id, targetName: upd.clientName || '', targetPhone: upd.clientPhone || '', reason: String(note || '').trim().slice(0, 200) });
+  return { ok: true, demande: upd, count };
+}
+
 export function nudgeDemande({ id, clientId }) {
   const d = findOne('demandes', (x) => x.id === id && x.clientId === clientId);
   if (!d) throw Object.assign(new Error('Demande introuvable'), { status: 404 });

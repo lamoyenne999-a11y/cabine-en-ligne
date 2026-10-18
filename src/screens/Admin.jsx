@@ -52,6 +52,9 @@ export default function Admin({ onBack }) {
   const [selected, setSelected] = useState([]);              // téléphones sélectionnés
   const [certTarget, setCertTarget] = useState(null);       // {user, certified}
   const [offTarget, setOffTarget] = useState(null);         // {user, official}
+  const [nudgeTarget, setNudgeTarget] = useState(null);     // demande à relancer (propriétaire → gérant)
+  const [nudgeNote, setNudgeNote] = useState('');
+  const [nudgeMsg, setNudgeMsg] = useState('');             // confirmation après relance
   const [pwdTarget, setPwdTarget] = useState(null);         // user dont on réinitialise le mot de passe
   const [pwdResult, setPwdResult] = useState(null);         // { name, phone, tempPassword }
   const [pwdCopied, setPwdCopied] = useState(false);
@@ -216,6 +219,7 @@ export default function Admin({ onBack }) {
     gerant_official: { label: 'Cabine officielle', icon: 'ribbon-outline', color: '#B8860B', bg: '#FFF4D6' },
     gerant_unofficial: { label: 'Badge officielle retiré', icon: 'ribbon-outline', color: colors.warn, bg: colors.warnBg },
     user_stars: { label: 'Étoiles attribuées', icon: 'star', color: '#B8860B', bg: '#FFF4D6' },
+    demande_admin_nudged: { label: 'Gérant relancé par le propriétaire', icon: 'megaphone-outline', color: colors.danger, bg: colors.dangerBg },
     password_reset: { label: 'Mot de passe réinitialisé', icon: 'key-outline', color: colors.primary, bg: colors.primarySoft },
     user_name_changed: { label: 'Nom modifié', icon: 'create-outline', color: colors.primary, bg: colors.primarySoft },
     user_phone_changed: { label: 'Numéro changé', icon: 'swap-horizontal-outline', color: colors.warn, bg: colors.warnBg },
@@ -366,6 +370,18 @@ export default function Admin({ onBack }) {
       setUsers((prev) => prev.map((u) => u.phone === user.phone ? { ...u, official: !!out.official } : u));
       setOffTarget(null);
     } catch (e) { setErr(e?.message || 'Action impossible'); } finally { setBusy(''); }
+  };
+  // Relance d'un gérant par le propriétaire sur une demande ouverte.
+  const doNudge = async () => {
+    if (!nudgeTarget) return;
+    const d = nudgeTarget; setBusy(d.id);
+    try {
+      const out = await api.admin.nudgeDemande(key, d.id, nudgeNote);
+      setTx((prev) => ({ ...prev, demandes: prev.demandes.map((x) => x.id === d.id ? { ...x, adminNudgeCount: out.count, lastAdminNudgeAt: Date.now() } : x) }));
+      setNudgeTarget(null); setNudgeNote('');
+      setNudgeMsg(`${d.gerantName || 'Le gérant'} a été relancé(e) (notification + push). Le client est prévenu.`);
+      setTimeout(() => setNudgeMsg(''), 4000);
+    } catch (e) { setNudgeTarget(null); setErr(e?.message || 'Relance impossible'); } finally { setBusy(''); }
   };
   // Étoiles Cabine En Ligne (0-5) : effet immédiat, l'utilisateur est notifié.
   const doSetStars = async (user, stars) => {
@@ -1070,6 +1086,9 @@ export default function Admin({ onBack }) {
               ))}
             </View>
             <T size={font.sm} weight="700" color={colors.muted} style={{ marginBottom: 6 }}>{list.length} transaction{list.length > 1 ? 's' : ''}{txSearch ? ` pour « ${txSearch} »` : ''}</T>
+            {nudgeMsg ? (
+              <View style={[s.nudgeOk]}><Ionicons name="checkmark-circle" size={16} color={colors.success} /><T size={font.xs} weight="700" color={colors.success} style={{ marginLeft: 6, flex: 1 }}>{nudgeMsg}</T></View>
+            ) : null}
 
             {/* Liste */}
             {list.length === 0 ? (
@@ -1114,7 +1133,15 @@ export default function Admin({ onBack }) {
                           {fl.map((f, i) => <T key={i} size={font.xs} weight="700" color={f.c} style={{ marginRight: 10 }}>{f.t}</T>)}
                         </View>
                       ) : null}
-                      <T size={font.xs} weight="500" color={colors.muted2} style={{ marginTop: 3 }}>Réf. {d.id}</T>
+                      <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginTop: 3 }}>
+                        <T size={font.xs} weight="500" color={colors.muted2}>Réf. {d.id}{d.adminNudgeCount ? `  ·  Relancée ${d.adminNudgeCount}× (${fmtDateTime(d.lastAdminNudgeAt)})` : ''}</T>
+                        {['pending', 'accepted', 'paid'].includes(d.status) && d.gerantUserId ? (
+                          <Pressable onPress={() => { setNudgeNote(''); setNudgeTarget(d); }} style={s.nudgeBtn} hitSlop={6}>
+                            <Ionicons name="megaphone-outline" size={13} color={colors.danger} />
+                            <T size={font.xs} weight="800" color={colors.danger} style={{ marginLeft: 4 }}>Relancer le gérant</T>
+                          </Pressable>
+                        ) : null}
+                      </View>
                     </View>
                   );
                 })}
@@ -1383,6 +1410,7 @@ export default function Admin({ onBack }) {
           { v: 'gerant_certified', l: 'Certifications' },
           { v: 'gerant_official', l: 'Officielles' },
           { v: 'user_stars', l: 'Étoiles' },
+          { v: 'demande_admin_nudged', l: 'Relances' },
           { v: 'report_created', l: 'Signalements' },
           { v: 'password_reset', l: 'Mots de passe' },
           { v: 'user_name_changed', l: 'Noms modifiés' },
@@ -1807,6 +1835,25 @@ export default function Admin({ onBack }) {
       </Dialog>
 
       {/* Cabine officielle */}
+      <Dialog visible={!!nudgeTarget}>
+        <T size={font.h3} weight="800" color={colors.text} style={{ textAlign: 'center' }}>Relancer {nudgeTarget?.gerantName || 'le gérant'} ?</T>
+        <T size={font.sm} weight="600" color={colors.muted} style={{ textAlign: 'center', marginTop: 8 }}>
+          {nudgeTarget?.status === 'paid' || (nudgeTarget?.status === 'accepted' && nudgeTarget?.paidAt)
+            ? `Le gérant recevra : « ${nudgeTarget?.clientName} a signalé avoir PAYÉ ${money(nudgeTarget?.amount || 0)} … Vérifiez votre Wave, servez-le puis « J'ai servi » — ou « Argent non reçu ». »`
+            : `Le gérant recevra : « La demande de ${nudgeTarget?.clientName} (${money(nudgeTarget?.amount || 0)}) affiche toujours « En attente ». Traitez-la maintenant : Accepter, Payer d'abord, ou Refuser / Indisponible. »`}
+        </T>
+        <TextInput
+          value={nudgeNote}
+          onChangeText={setNudgeNote}
+          placeholder="Message personnel (facultatif)"
+          placeholderTextColor={colors.muted2}
+          style={[s.searchInput, { borderWidth: 1, borderColor: colors.border, borderRadius: 12, paddingHorizontal: 12, marginTop: 12, minHeight: 44 }]}
+          maxLength={200}
+        />
+        <T size={font.xs} weight="600" color={colors.muted2} style={{ textAlign: 'center', marginTop: 8 }}>Notification + push au gérant · le client est informé · tracé dans l'historique. Une relance maximum toutes les 5 min par demande.</T>
+        <DialogButtons cancel="Annuler" confirm="Relancer" onCancel={() => setNudgeTarget(null)} onConfirm={doNudge} />
+      </Dialog>
+
       <Dialog visible={!!offTarget}>
         <T size={font.h3} weight="800" color={colors.text} style={{ textAlign: 'center' }}>
           {offTarget?.official ? 'Déclarer cette cabine officielle ?' : 'Retirer le badge « Officielle » ?'}
@@ -1935,6 +1982,8 @@ export default function Admin({ onBack }) {
 }
 
 const s = StyleSheet.create({
+  nudgeBtn: { flexDirection: 'row', alignItems: 'center', borderWidth: 1, borderColor: colors.danger, borderRadius: 999, paddingHorizontal: 9, paddingVertical: 4, marginLeft: 8 },
+  nudgeOk: { flexDirection: 'row', alignItems: 'center', backgroundColor: colors.successBg, borderRadius: 12, padding: 10, marginBottom: 8 },
   starsRow: { flexDirection: 'row', alignItems: 'center', marginBottom: 8, paddingVertical: 6, paddingHorizontal: 10, borderRadius: 12, backgroundColor: '#FFF8E6' },
   input: { flexDirection: 'row', alignItems: 'center', backgroundColor: colors.bg, borderRadius: radius.md, paddingHorizontal: 14, height: 52 },
   inputText: { flex: 1, fontSize: font.input, color: colors.text, paddingVertical: 0, outlineStyle: 'none' },
