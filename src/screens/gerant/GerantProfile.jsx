@@ -10,6 +10,7 @@ import AccountSettings from '../../components/AccountSettings';
 import { GerantBadges, OwnerStars } from '../../components/Badges';
 import GerantStats from '../../components/GerantStats';
 import { useStore } from '../../store';
+import { Dialog, DialogButtons } from '../../components/modals';
 import QrToggle from '../../components/QrToggle';
 import { buildShareUrl } from '../../config';
 import Help from '../Help';
@@ -21,6 +22,7 @@ export default function GerantProfile({ onLogout }) {
   const [linkDraft, setLinkDraft] = useState('');
   const [linkErr, setLinkErr] = useState('');
   const [linkBusy, setLinkBusy] = useState(false);
+  const [confirmDelLink, setConfirmDelLink] = useState(false);
   // saveLink(valeur) enregistre/retire le lien ; saveLink(undefined, off) l'active/désactive.
   const saveLink = async (value, off) => {
     const patch = {};
@@ -191,8 +193,18 @@ export default function GerantProfile({ onLogout }) {
                     ? 'Vos clients paient par transfert au numéro (frais Wave à leur charge). Réactivez quand votre quota Wave Business est à nouveau disponible.'
                     : 'Vos clients paient en 1 clic, sans frais pour eux (Wave prélève ~1 % sur vous). Quota atteint ? Désactivez : ils paieront par transfert.'}
                 </T>
-                <Pressable onPress={() => { setLinkDraft(u.payLink || ''); setEditLink(true); }} hitSlop={8} style={s.linkIconBtn}><Ionicons name="create-outline" size={16} color={colors.primary} /></Pressable>
-                <Pressable onPress={() => saveLink('')} hitSlop={8} style={[s.linkIconBtn, { marginLeft: 6 }]}><Ionicons name="trash-outline" size={16} color={colors.danger} /></Pressable>
+              </View>
+              {/* Actions bien séparées : Modifier (large, à gauche) / Supprimer (à droite, avec confirmation). */}
+              <View style={{ flexDirection: 'row', alignItems: 'center', marginTop: 8 }}>
+                <Pressable onPress={() => { setLinkDraft(u.payLink || ''); setEditLink(true); }} style={s.linkEditBtn}>
+                  <Ionicons name="create-outline" size={16} color={colors.primary} />
+                  <T size={font.sm} weight="800" color={colors.primary} style={{ marginLeft: 6 }}>Modifier le lien</T>
+                </Pressable>
+                <View style={{ flex: 1 }} />
+                <Pressable onPress={() => setConfirmDelLink(true)} hitSlop={6} style={s.linkDelBtn}>
+                  <Ionicons name="trash-outline" size={15} color={colors.danger} />
+                  <T size={font.xs} weight="800" color={colors.danger} style={{ marginLeft: 4 }}>Supprimer</T>
+                </Pressable>
               </View>
             </>
           ) : (
@@ -240,6 +252,17 @@ export default function GerantProfile({ onLogout }) {
         </View>
       </Card>
 
+      <Dialog visible={confirmDelLink}>
+        <T size={font.h3} weight="800" color={colors.text} style={{ textAlign: 'center' }}>Supprimer votre lien Wave Business ?</T>
+        <T size={font.sm} weight="600" color={colors.muted} style={{ textAlign: 'center', marginTop: 8 }}>
+          Vos clients ne pourront plus payer en 1 clic : ils paieront par transfert au numéro (frais Wave à leur charge). Vous pourrez ajouter un lien à nouveau plus tard.
+        </T>
+        <T size={font.xs} weight="600" color={colors.muted2} style={{ textAlign: 'center', marginTop: 8 }}>
+          Astuce : pour une pause (quota atteint), utilisez plutôt l'interrupteur — votre lien est conservé.
+        </T>
+        <DialogButtons cancel="Garder" confirm="Supprimer" onCancel={() => setConfirmDelLink(false)} onConfirm={() => { setConfirmDelLink(false); saveLink(''); }} />
+      </Dialog>
+
       <SubscribeSheet visible={showSub} onClose={() => setShowSub(false)} onSubscribe={(plan) => subscribe(plan)} subtitle="Paiement direct via Wave. Renouvelable à tout moment." />
     </Page>
   );
@@ -254,6 +277,8 @@ const s = StyleSheet.create({
   knob: { width: 20, height: 20, borderRadius: 10, backgroundColor: '#fff' },
   knobOn: { alignSelf: 'flex-end' },
   payLinkBox: { marginTop: 12, paddingTop: 10, borderTopWidth: 1, borderTopColor: colors.border },
+  linkEditBtn: { flexDirection: 'row', alignItems: 'center', borderWidth: 1.5, borderColor: colors.primary, borderRadius: 999, paddingHorizontal: 14, paddingVertical: 8 },
+  linkDelBtn: { flexDirection: 'row', alignItems: 'center', paddingHorizontal: 8, paddingVertical: 6 },
   linkIconBtn: { width: 34, height: 34, borderRadius: 17, backgroundColor: colors.bg, alignItems: 'center', justifyContent: 'center' },
   linkInput: { marginTop: 6, backgroundColor: colors.bg, borderRadius: 12, paddingHorizontal: 12, paddingVertical: 10, fontSize: 14, color: colors.text },
   availDot: { width: 14, height: 14, borderRadius: 7 },
