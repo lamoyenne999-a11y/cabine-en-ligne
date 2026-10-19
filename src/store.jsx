@@ -545,7 +545,12 @@ export function StoreProvider({ children }) {
       try {
         const { user } = await api.gerant.updateProfile(patch);
         updated = user;
-      } catch { updated = { waveNumber: patch.waveNumber, payLink: patch.payLink }; }
+      } catch (e) {
+        // Refus du serveur (ex. lien Wave Business invalide) : on remonte l'erreur,
+        // rien n'est modifié localement. Hors réseau : repli local.
+        if (e && e.status && e.status < 500) throw e;
+        updated = { waveNumber: patch.waveNumber, payLink: patch.payLink };
+      }
     } else {
       updated = { waveNumber: patch.waveNumber, payLink: patch.payLink };
     }

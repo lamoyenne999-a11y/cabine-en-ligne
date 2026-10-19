@@ -93,6 +93,8 @@ export default function ClientHistory() {
   const [waveTarget, setWaveTarget] = useState(null); // « J'ai annulé mon transfert Wave » // « Terminer — tout est réglé »
   const [paying, setPaying] = useState(null);
   const [canceling, setCanceling] = useState(null);
+  // Lien Wave Business du gérant : celui figé sur la demande, sinon celui du contact (à jour).
+  const linkFor = (d) => d.gerantPayLink || (state.gerants || []).find((g) => g.userId && g.userId === d.gerantUserId)?.payLink || '';
   const [q, setQ] = useState('');
   const [group, setGroup] = useState('all');
   const now = useNow();
@@ -261,7 +263,7 @@ export default function ClientHistory() {
 
             {(d.status === 'pending' || d.status === 'accepted') && (
               <>
-                <WavePayBox amount={d.amount} merchant={d.gerantWave} merchantName={d.gerantName} compact />
+                <WavePayBox amount={d.amount} merchant={d.gerantWave} merchantName={d.gerantName} payLink={linkFor(d)} compact />
                 <Btn title="J'ai payé (Wave)" icon="checkmark" onPress={() => setPaying(d)} style={{ marginTop: 8 }} />
               </>
             )}
@@ -362,7 +364,7 @@ export default function ClientHistory() {
                 </View>
                 {!d.clientDisputedAt && !(d.partialCompletedAt > d.partialAt) && (
                   <>
-                    <WavePayBox amount={d.partialMissing} merchant={d.gerantWave} merchantName={d.gerantName} includeFees={false} compact />
+                    <WavePayBox amount={d.partialMissing} merchant={d.gerantWave} merchantName={d.gerantName} payLink={linkFor(d)} includeFees={false} compact />
                     <View style={{ flexDirection: 'row', marginTop: 10 }}>
                       <Btn title="J'ai complété" icon="checkmark" onPress={() => paymentReply(d.id, 'completed')} style={{ flex: 1, marginRight: 6 }} />
                       <Btn title="J'ai bien tout payé" icon="hand-left-outline" outline onPress={() => paymentReply(d.id, 'full')} style={{ flex: 1 }} />
@@ -400,7 +402,7 @@ export default function ClientHistory() {
                           : `Vous avez été servi, mais ${d.gerantName} n'a pas encore reçu votre paiement. Merci de régler ${money(d.amount)} sur son Wave.`}
                       </T>
                     </View>
-                    <WavePayBox amount={d.amount} merchant={d.gerantWave} merchantName={d.gerantName} />
+                    <WavePayBox amount={d.amount} merchant={d.gerantWave} merchantName={d.gerantName} payLink={linkFor(d)} />
                     <Btn title={d.notReceivedAt ? "J'ai bien payé — demander une revérification" : "J'ai payé (Wave)"} icon="checkmark" onPress={() => markPaid(d.id)} style={{ marginTop: 8 }} />
                     {d.gerantPhone ? (
                       <T size={font.xs} weight="600" color={colors.muted2} style={{ textAlign: 'center', marginTop: 6 }}>
@@ -503,6 +505,7 @@ export default function ClientHistory() {
         amount={paying?.amount}
         merchant={paying?.gerantWave}
         merchantName={paying?.gerantName}
+        payLink={paying ? linkFor(paying) : ''}
       />
 
       {/* Confirmation d'annulation */}

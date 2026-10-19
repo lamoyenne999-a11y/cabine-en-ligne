@@ -16,7 +16,19 @@ import Help from '../Help';
 import Referral from '../Referral';
 
 export default function GerantProfile({ onLogout }) {
-  const { state, subscribe, setAvailability } = useStore();
+  const { state, subscribe, setAvailability, updateGerantProfile } = useStore();
+  const [editLink, setEditLink] = useState(false);
+  const [linkDraft, setLinkDraft] = useState('');
+  const [linkErr, setLinkErr] = useState('');
+  const [linkBusy, setLinkBusy] = useState(false);
+  const saveLink = async (value) => {
+    const v = String(value || '').trim();
+    if (v && !/^https:\/\/pay\.wave\.com\/m\//i.test(v)) { setLinkErr('Le lien doit commencer par https://pay.wave.com/m/ (copiez-le depuis votre app Wave Business).'); return; }
+    setLinkBusy(true); setLinkErr('');
+    try { await updateGerantProfile({ payLink: v }); setEditLink(false); }
+    catch (e) { setLinkErr(e?.message || 'Enregistrement impossible.'); }
+    finally { setLinkBusy(false); }
+  };
   const isAvailable = state.user?.available !== false;
   const u = state.user;
   const sub = state.subscription;
@@ -138,6 +150,49 @@ export default function GerantProfile({ onLogout }) {
         {u?.waveNumber && u.waveNumber !== u.phone ? (
           <T size={font.sm} weight="700" color={colors.wave} style={{ marginTop: 8 }}>Numéro Wave : {u.waveNumber}</T>
         ) : null}
+
+        {/* Lien Wave Business (facultatif) : paiement en 1 clic pour le client. */}
+        <View style={s.linkRow}>
+          {editLink ? (
+            <>
+              <T size={font.xs} weight="800" color={colors.text}>Lien Wave Business</T>
+              <TextInput
+                value={linkDraft}
+                onChangeText={(t) => { setLinkDraft(t); setLinkErr(''); }}
+                placeholder="https://pay.wave.com/m/M_…"
+                placeholderTextColor={colors.muted2}
+                autoCapitalize="none"
+                autoCorrect={false}
+                keyboardType="url"
+                style={s.linkInput}
+              />
+              {linkErr ? <T size={font.xs} weight="700" color={colors.danger} style={{ marginTop: 4 }}>{linkErr}</T> : null}
+              <T size={font.xs} weight="600" color={colors.muted2} style={{ marginTop: 6 }}>
+                Dans votre app Wave Business : « Recevoir un paiement » → « Partager mon lien ». Vos clients paieront en un clic, sans frais pour eux ; Wave prélève environ 1 % sur vous.
+              </T>
+              <View style={{ flexDirection: 'row', marginTop: 8 }}>
+                <Btn title="Annuler" outline size="sm" onPress={() => { setEditLink(false); setLinkErr(''); }} style={{ flex: 1, marginRight: 6 }} />
+                <Btn title="Enregistrer" icon="checkmark" size="sm" loading={linkBusy} onPress={() => saveLink(linkDraft)} style={{ flex: 1 }} />
+              </View>
+            </>
+          ) : u?.payLink ? (
+            <View style={{ flexDirection: 'row', alignItems: 'center' }}>
+              <Ionicons name="flash" size={16} color={colors.wave} />
+              <View style={{ flex: 1, marginLeft: 8 }}>
+                <T size={font.xs} weight="800" color={colors.text}>Wave Business activé — vos clients paient en 1 clic</T>
+                <T size={font.xs} weight="600" color={colors.muted} numberOfLines={1}>{u.payLink}</T>
+              </View>
+              <Pressable onPress={() => { setLinkDraft(u.payLink || ''); setEditLink(true); }} hitSlop={8} style={{ padding: 4 }}><Ionicons name="create-outline" size={18} color={colors.primary} /></Pressable>
+              <Pressable onPress={() => saveLink('')} hitSlop={8} style={{ padding: 4, marginLeft: 2 }}><Ionicons name="trash-outline" size={18} color={colors.danger} /></Pressable>
+            </View>
+          ) : (
+            <Pressable onPress={() => { setLinkDraft(''); setEditLink(true); }} style={{ flexDirection: 'row', alignItems: 'center' }}>
+              <Ionicons name="flash-outline" size={16} color={colors.wave} />
+              <T size={font.xs} weight="800" color={colors.wave} style={{ marginLeft: 8, flex: 1 }}>Ajouter mon lien Wave Business (paiement en 1 clic, facultatif)</T>
+              <Ionicons name="chevron-forward" size={16} color={colors.muted2} />
+            </Pressable>
+          )}
+        </View>
       </Card>
 
       <Card style={{ marginTop: space.lg }}>
@@ -181,6 +236,8 @@ export default function GerantProfile({ onLogout }) {
 }
 
 const s = StyleSheet.create({
+  linkRow: { marginTop: 12, paddingTop: 10, borderTopWidth: 1, borderTopColor: colors.border },
+  linkInput: { marginTop: 6, backgroundColor: colors.bg, borderRadius: 12, paddingHorizontal: 12, paddingVertical: 10, fontSize: 14, color: colors.text },
   availDot: { width: 14, height: 14, borderRadius: 7 },
   avatar: { width: 84, height: 84, borderRadius: 42, backgroundColor: colors.primary, alignItems: 'center', justifyContent: 'center' },
   subBtn: { backgroundColor: colors.primary, paddingHorizontal: 20, paddingVertical: 10, borderRadius: radius.pill, marginTop: 14 },

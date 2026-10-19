@@ -24,6 +24,17 @@ export const PLATFORM_PAY_LINK = 'https://pay.wave.com/m/M_ci_jUXE1N_gWG8_/c/ci/
 export function isValidPayLink(link) {
   return !!link && /^https:\/\/[^\s]+\/m\//i.test(String(link).trim());
 }
+// Lien Wave Business avec le montant pré-rempli (?amount=). Le client n'a plus qu'à
+// confirmer avec son code secret dans Wave.
+export function payLinkWithAmount(link, amount) {
+  const base = String(link || '').trim().split('?')[0];
+  const n = Math.round(Number(amount) || 0);
+  return n > 0 ? `${base}${base.endsWith('/') ? '' : '/'}?amount=${n}` : base;
+}
+function openLink(url) {
+  if (typeof window !== 'undefined' && window.open) window.open(url, '_blank', 'noopener');
+  else if (typeof Linking !== 'undefined') Linking.openURL(url).catch(() => {});
+}
 
 export function WavePayBox({ amount, merchant, merchantName, payLink, mode = 'number', compact, includeFees = true }) {
   const [copied, setCopied] = useState(false);
@@ -40,30 +51,26 @@ export function WavePayBox({ amount, merchant, merchantName, payLink, mode = 'nu
   // frais Wave (5 F jusqu'à 500 F, puis 1 % par tranche de 500 F) sont prélevés sur LE compte du client ; le gérant reçoit la
   // TOTALITÉ du montant (contrairement au lien marchand, qui prélève 1 % sur le gérant).
   // mode 'link' : ouverture du lien de paiement marchand (utilisé pour l'abonnement).
+  // Un lien Wave Business valide est TOUJOURS prioritaire (plateforme ou gérant) :
+  // paiement en un clic, montant pré-rempli, pas de frais côté client (Wave prélève
+  // ~1 % sur le compte marchand du gérant). Sinon : transfert au numéro (frais client).
+  const hasLink = isValidPayLink(payLink);
   const pay = () => {
-    if (mode === 'link') {
-      const link = String(payLink || '').trim();
-      if (isValidPayLink(link)) {
-        if (typeof window !== 'undefined' && window.open) {
-          window.open(link, '_blank', 'noopener');
-        } else if (typeof Linking !== 'undefined') {
-          Linking.openURL(link).catch(() => {});
-        }
-        setJustOpened(true);
-        setTimeout(() => setJustOpened(false), 2500);
-        return;
-      }
+    if (hasLink) {
+      openLink(mode === 'link' ? String(payLink).trim() : payLinkWithAmount(payLink, amount));
+      setJustOpened(true);
+      setTimeout(() => setJustOpened(false), 2500);
+      return;
     }
     // Par défaut (et repli) : copier le numéro pour un transfert direct.
     copy();
   };
-  if (!merchant) return null;
-  const hasLink = mode === 'link' && isValidPayLink(payLink);
+  if (!merchant && !hasLink) return null;
   const fmtN = (n) => (n || 0).toLocaleString('fr-FR').replace(/\u202f/g, ' ');
   const amt = fmtN(amount);
   // Frais Wave à la charge du client (barème réel, voir src/wave.js) : on affiche le TOTAL à envoyer pour
   // que le gérant reçoive bien le montant exact de la demande.
-  const fees = mode === 'number' && includeFees && amount ? waveFee(amount) : 0;
+  const fees = mode === 'number' && !hasLink && includeFees && amount ? waveFee(amount) : 0;
   const total = (amount || 0) + fees;
   const btnLabel = amount ? `Payer ${fees ? fmtN(total) : amt} FCFA par Wave` : 'Payer par Wave';
 
@@ -76,7 +83,7 @@ export function WavePayBox({ amount, merchant, merchantName, payLink, mode = 'nu
       </Pressable>
       {hasLink ? (
         <T size={font.xs} weight="600" color={colors.muted} style={{ textAlign: 'center', marginTop: 6 }}>
-          Ouvre le lien de paiement Wave. Aucun argent ne passe par l'app.
+          {justOpened ? 'Wave ouvert ✓ — confirmez le paiement, puis revenez appuyer sur « J\'ai payé ».' : mode === 'link' ? 'Ouvre le lien de paiement Wave. Aucun argent ne passe par l\'app.' : `Ouvre Wave avec ${amt} F déjà renseignés, sans frais pour vous. Ou par transfert au numéro :`}
         </T>
       ) : (
         <T size={font.xs} weight="600" color={colors.muted} style={{ textAlign: 'center', marginTop: 6 }}>
@@ -89,7 +96,7 @@ export function WavePayBox({ amount, merchant, merchantName, payLink, mode = 'nu
       )}
 
       {/* Numéro du gérant (toujours visible, copiable) */}
-      <View style={[s.merchant, { marginTop: compact ? 8 : 12 }]}>
+      {merchant ? <View style={[s.merchant, { marginTop: compact ? 8 : 12 }]}>
         <Ionicons name="storefront" size={compact ? 16 : 18} color={colors.primary} style={{ marginRight: 8 }} />
         <Pressable onPress={copy} style={{ flex: 1 }}>
           <T size={font.body} weight="800" color={colors.text}>{merchant}</T>
@@ -98,8 +105,8 @@ export function WavePayBox({ amount, merchant, merchantName, payLink, mode = 'nu
         <Pressable onPress={copy} hitSlop={8} style={[s.copyBtn, compact && { width: 34, height: 34 }]}>
           <Ionicons name={copied ? 'checkmark' : 'copy-outline'} size={16} color={colors.primary} />
         </Pressable>
-      </View>
-      {!compact && (
+      </View> : null}
+      {!compact && !hasLink && (
         <T size={font.xs} weight="600" color={colors.muted} style={{ textAlign: 'center', marginTop: 6 }}>
           {copied ? 'Numéro copié ✓ — payez depuis votre app Wave.' : 'Appuyez sur le numéro pour le copier et payez depuis votre app Wave.'}
         </T>

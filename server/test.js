@@ -521,6 +521,22 @@ async function main() {
     check('Relance refusée sur une demande close', n3.status === 400);
   }
 
+  // ===== Lien Wave Business du gérant =====
+  {
+    const bad = await req('POST', '/gerant/profile', { payLink: 'https://exemple.com/m/abc' }, gt);
+    check('Lien non Wave refusé', bad.status === 400);
+    const good = await req('POST', '/gerant/profile', { payLink: 'https://pay.wave.com/m/M_ci_TEST123/c/ci/?x=1' }, gt);
+    check('Lien Wave Business accepté (nettoyé)', good.status === 200 && good.json.user.payLink === 'https://pay.wave.com/m/M_ci_TEST123/c/ci/');
+    const gl = await req('GET', '/client/gerants', null, ct);
+    check('Lien visible dans les contacts du client', (gl.json.gerants || []).some((g) => g.phone === gphone && g.payLink === 'https://pay.wave.com/m/M_ci_TEST123/c/ci/'));
+    const gid = (gl.json.gerants || []).find((g) => g.phone === gphone)?.id;
+    const nd = await req('POST', '/client/demandes', { gerantId: gid, gerantName: 'Gérant Test', gerantWave: gphone, type: 'unites', amount: 250, benefName: 'Moi', benefPhone: cphone }, ct);
+    check('Nouvelle demande porte le lien du gérant', nd.json.demande?.gerantPayLink === 'https://pay.wave.com/m/M_ci_TEST123/c/ci/');
+    await req('POST', `/gerant/demandes/${nd.json.demande?.id}/decline`, {}, gt);
+    const clr = await req('POST', '/gerant/profile', { payLink: '' }, gt);
+    check('Retrait du lien', clr.status === 200 && clr.json.user.payLink === '');
+  }
+
   // ===== Signalements + suspension motivée =====
   {
     const A = { 'x-admin-key': 'testkey' };

@@ -1094,7 +1094,15 @@ export function gerantProfile(user) {
 export function updateGerantProfile({ userId, waveNumber, payLink }) {
   const patch = {};
   if (waveNumber !== undefined) patch.waveNumber = String(waveNumber).replace(/[^0-9]/g, '');
-  if (payLink !== undefined) patch.payLink = String(payLink).trim();
+  if (payLink !== undefined) {
+    const link = String(payLink).trim();
+    // Sécurité : uniquement un lien Wave Business officiel (https://pay.wave.com/m/…),
+    // pour qu'aucun gérant ne puisse envoyer les clients vers un autre site.
+    if (link && !/^https:\/\/pay\.wave\.com\/m\/[A-Za-z0-9_-]+\/?/i.test(link)) {
+      throw Object.assign(new Error('Lien Wave Business invalide : il doit commencer par https://pay.wave.com/m/'), { status: 400 });
+    }
+    patch.payLink = link.split('?')[0];
+  }
 
   if (Object.keys(patch).length) {
     update('users', (u) => u.id === userId, patch);

@@ -241,7 +241,7 @@ export default function ClientHome() {
                   <OwnerStars stars={g.stars} />
                   <RatingBadge rating={g.rating} />
                 </View>
-                <T size={font.sm} weight="600" color={colors.muted} style={{ marginTop: 2 }}>{g.phone}{g.isLast ? '  ·  Votre dernier gérant' : ''}</T>
+                <T size={font.sm} weight="600" color={colors.muted} style={{ marginTop: 2 }}>{g.phone}{g.isLast ? '  ·  Votre dernier gérant' : ''}{g.payLink ? '  ·  Wave 1 clic' : ''}</T>
               </View>
               {g.mine ? (
                 <View style={{ flexDirection: 'row', alignItems: 'center' }}>
@@ -283,12 +283,13 @@ export default function ClientHome() {
 
         {/* Proposition de paiement immédiat par transfert au numéro Wave du gérant */}
         <T size={font.sm} weight="700" color={colors.wave} style={{ marginTop: space.md, marginBottom: 8 }}>
-          PAYEZ PAR TRANSFERT AU NUMÉRO WAVE DU GÉRANT
+          {(lastDemande?.gerantPayLink || gerant?.payLink) ? 'PAYEZ PAR WAVE EN UN CLIC' : 'PAYEZ PAR TRANSFERT AU NUMÉRO WAVE DU GÉRANT'}
         </T>
         <WavePayBox
           amount={lastDemande?.amount || amountNum}
           merchant={lastDemande?.gerantWave || gerant?.waveNumber}
           merchantName={lastDemande?.gerantName || gerant?.name}
+          payLink={lastDemande?.gerantPayLink || gerant?.payLink}
         />
 
         <View style={{ flexDirection: 'row', marginTop: 16 }}>
@@ -312,6 +313,7 @@ export default function ClientHome() {
         amount={paying?.amount}
         merchant={paying?.gerantWave}
         merchantName={paying?.gerantName}
+        payLink={paying?.gerantPayLink}
       />
     </View>
   );
