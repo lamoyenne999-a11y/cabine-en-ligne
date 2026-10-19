@@ -604,7 +604,7 @@ export function demandesForAdmin(limit = 3000) {
       benefName: d.benefName || '', benefPhone: d.benefPhone || '',
       createdAt: d.createdAt || 0, acceptedAt: d.acceptedAt || 0, paidAt: d.paidAt || 0, completedAt: d.completedAt || 0,
       canceledAt: d.canceledAt || 0, receivedAt: d.receivedAt || 0, clientConfirmedAt: d.clientConfirmedAt || 0,
-      moneyReceived: !!d.moneyReceived, paymentRequestedAt: d.paymentRequestedAt || 0,
+      moneyReceived: !!d.moneyReceived, moneyReceivedByClient: !!d.moneyReceivedByClient, clientClosedAt: d.clientClosedAt || 0, paymentRequestedAt: d.paymentRequestedAt || 0,
       nudgeCount: (d.nudgeCount || 0) + (d.paidNudgeCount || 0), partialAt: d.partialAt || 0, partialMissing: d.partialMissing || 0,
       notReceivedAt: d.notReceivedAt || 0, notReceivedCount: d.notReceivedCount || 0,
       notServedAt: d.notServedAt || 0, notServedCount: d.notServedCount || 0,
@@ -1463,7 +1463,7 @@ export function markReceived({ id, gerantUserId }) {
   if (!d) throw Object.assign(new Error('Demande introuvable'), { status: 404 });
   if (['declined', 'canceled'].includes(d.status)) throw Object.assign(new Error('Cette demande est refusée ou annulée'), { status: 400 });
   if (d.moneyReceived) return d;
-  const patch = { moneyReceived: true, receivedAt: Date.now(), partialAt: 0, clientDisputedAt: 0 };
+  const patch = { moneyReceived: true, moneyReceivedByClient: false, receivedAt: Date.now(), partialAt: 0, clientDisputedAt: 0 };
   if (['pending', 'accepted'].includes(d.status)) { patch.status = 'paid'; patch.paidAt = d.paidAt || Date.now(); if (!d.acceptedAt) patch.acceptedAt = Date.now(); }
   update('demandes', (x) => x.id === id, patch);
   const upd = findOne('demandes', (x) => x.id === id);
@@ -1487,9 +1487,11 @@ export function markReceived({ id, gerantUserId }) {
 export function markNotReceived({ id, gerantUserId }) {
   const d = findOne('demandes', (x) => x.id === id && x.gerantUserId === gerantUserId);
   if (!d) throw Object.assign(new Error('Demande introuvable'), { status: 404 });
-  if (d.moneyReceived) throw Object.assign(new Error('Vous avez déjà confirmé la réception de ce paiement'), { status: 400 });
+  // Si c'est le CLIENT qui a « terminé » (moneyReceivedByClient), le gérant garde le droit
+  // de signaler qu'il n'a rien reçu : la demande repasse « servie, paiement à régler ».
+  if (d.moneyReceived && !d.moneyReceivedByClient) throw Object.assign(new Error('Vous avez déjà confirmé la réception de ce paiement'), { status: 400 });
   if (!['paid', 'completed'].includes(d.status)) throw Object.assign(new Error('Le client n\'a pas encore signalé de paiement'), { status: 400 });
-  const patch = { moneyReceived: false, notReceivedAt: Date.now(), notReceivedCount: (d.notReceivedCount || 0) + 1 };
+  const patch = { moneyReceived: false, moneyReceivedByClient: false, receivedAt: 0, notReceivedAt: Date.now(), notReceivedCount: (d.notReceivedCount || 0) + 1 };
   if (d.status === 'paid') { patch.status = 'accepted'; patch.paidAt = 0; if (!d.acceptedAt) patch.acceptedAt = Date.now(); }
   update('demandes', (x) => x.id === id, patch);
   const upd = findOne('demandes', (x) => x.id === id);
@@ -1597,7 +1599,7 @@ export function clientCloseDemande({ id, clientId }) {
     try { checkGerantMilestone(upd.gerantUserId); } catch {}
     createNotification({
       userId: upd.gerantUserId, type: 'client_closed', demandeId: upd.id,
-      text: `${upd.clientName} a clôturé la demande ${TYPE_LABEL[upd.type] || upd.type} ${upd.amount} F : servi et payé, tout est réglé. Si ce n'est pas le cas, signalez-le depuis votre historique.`,
+      text: `${upd.clientName} a terminé sa demande ${TYPE_LABEL[upd.type] || upd.type} ${upd.amount} F : il indique avoir été servi ET avoir payé.${patch.moneyReceivedByClient ? ' Rien reçu sur votre Wave ? Appuyez sur « Argent non reçu » dans votre Historique.' : ''}`,
     });
   }
   recordEvent({ type: 'demande_closed_by_client', name: upd.clientName, phone: upd.clientPhone, role: 'client', amount: upd.amount, demandeType: upd.type });
@@ -1642,6 +1644,13 @@ export function refundAction({ id, userId, role, kind }) {
   if (role === 'gerant' && kind === 'refunded') {
     patch = { refundedAt: now, refundNotYetAt: 0, refundDisputedAt: 0, refundDue: d.refundDue || now };
     notif = { userId: d.clientId, type: 'refund_sent', text: `${d.gerantName} indique vous avoir remboursé ${d.amount} F (${label}) sur votre Wave. Vérifiez votre solde puis appuyez sur « Remboursement reçu » — ou « Pas reçu » si rien n'est arrivé.` };
+  } else if (role === 'gerant' && kind === 'served') {
+    // Le gérant avait en réalité DÉJÀ servi le client avant de se déclarer indisponible :
+    // pas de remboursement. La demande redevient « servie, argent reçu » et le client
+    // est invité à vérifier sa recharge (« Oui, bien reçu » / « Non, rien reçu »).
+    const now2 = Date.now();
+    patch = { status: 'completed', completedAt: now2, moneyReceived: true, receivedAt: d.receivedAt || now2, paidAt: d.paidAt || now2, refundDue: 0, refundedAt: 0, refundNotYetAt: 0, refundDisputedAt: 0, refundServedAt: now2, clientConfirmedAt: 0, notServedAt: 0 };
+    notif = { userId: d.clientId, type: 'refund_served', text: `${d.gerantName} indique vous avoir finalement SERVI — ${label} sur le ${d.benefPhone || 'numéro indiqué'} — il n'y a donc pas de remboursement. Vérifiez votre solde : « Oui, bien reçu » ou « Non, rien reçu ».` };
   } else if (role === 'gerant' && kind === 'not_yet') {
     patch = { refundNotYetAt: now, refundDue: d.refundDue || now };
     notif = { userId: d.clientId, type: 'refund_pending', text: `${d.gerantName} n'a pas encore pu vous rembourser ${d.amount} F (${label}). Il le fera dès que possible ; vous pourrez le relancer depuis votre historique.` };

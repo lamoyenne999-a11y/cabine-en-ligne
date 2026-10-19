@@ -903,7 +903,7 @@ export default function Admin({ onBack }) {
           accepted: { label: 'À payer', color: colors.primary, bg: colors.primarySoft },
           paid: { label: 'Payée', color: '#2E7BF6', bg: '#E7F0FE' },
           completed: { label: 'Servie', color: colors.success, bg: colors.successBg },
-          declined: { label: 'Refusée', color: colors.danger, bg: colors.dangerBg },
+          declined: { label: 'Annulée (gérant)', color: colors.muted, bg: colors.gray },
           unavailable: { label: 'Indisponible', color: colors.warn, bg: colors.warnBg },
           canceled: { label: 'Annulée', color: colors.muted, bg: colors.gray },
         };
@@ -913,8 +913,8 @@ export default function Admin({ onBack }) {
           if (txStatus === 'all') return true;
           if (txStatus === 'open') return ['pending', 'accepted', 'paid'].includes(d.status);
           if (txStatus === 'completed') return d.status === 'completed';
-          if (txStatus === 'declined') return d.status === 'declined' || d.status === 'unavailable';
-          if (txStatus === 'canceled') return d.status === 'canceled';
+          if (txStatus === 'declined') return d.status === 'unavailable';
+          if (txStatus === 'canceled') return d.status === 'canceled' || d.status === 'declined';
           if (txStatus === 'problems') return isProblem(d);
           return true;
         };
@@ -930,7 +930,7 @@ export default function Admin({ onBack }) {
         const endOf = (d) => {
           if (d.status === 'completed') return { l: 'Servie', at: d.clientConfirmedAt || d.completedAt, c: colors.success };
           if (d.status === 'canceled') return { l: 'Annulée', at: d.canceledAt, c: colors.danger };
-          if (d.status === 'declined') return { l: 'Refusée', at: d.acceptedAt, c: colors.danger };
+          if (d.status === 'declined') return { l: 'Annulée (gérant)', at: d.acceptedAt, c: colors.muted };
           if (d.status === 'unavailable') return { l: 'Indisponible', at: d.acceptedAt, c: colors.danger };
           if (d.status === 'paid') return { l: 'Payée', at: d.paidAt, c: '#2E7BF6' };
           if (d.status === 'accepted' && d.paidAt) return { l: 'Client a payé', at: d.paidAt, c: '#2E7BF6' };
@@ -957,7 +957,8 @@ export default function Admin({ onBack }) {
             const a = actIds.get(id); a.total += 1;
             if (d.status === 'completed') { a.completed += 1; a.amount += d.amount || 0; }
             if (d.status === 'canceled') a.canceled += 1;
-            if (d.status === 'declined' || d.status === 'unavailable') a.declined += 1;
+            if (d.status === 'declined') a.canceled += 1;
+            if (d.status === 'unavailable') a.declined += 1;
             if (isProblem(d)) a.problems += 1;
           }
         }
@@ -1026,7 +1027,7 @@ export default function Admin({ onBack }) {
                       <View style={{ flex: 1 }}>
                         <T size={font.body} weight="800" color={colors.text}>{a.name || '—'} <T size={font.xs} weight="600" color={colors.muted}>· {a.phone}</T></T>
                         <T size={font.xs} weight="600" color={colors.muted} style={{ marginTop: 1 }}>
-                          {a.total} demande{a.total > 1 ? 's' : ''} · {a.completed} servie{a.completed > 1 ? 's' : ''} ({money(a.amount)}) · {a.canceled} annulée{a.canceled > 1 ? 's' : ''} · {a.declined} refusée{a.declined > 1 ? 's' : ''}{a.problems ? ` · ⚠ ${a.problems} problème${a.problems > 1 ? 's' : ''}` : ''}
+                          {a.total} demande{a.total > 1 ? 's' : ''} · {a.completed} servie{a.completed > 1 ? 's' : ''} ({money(a.amount)}) · {a.canceled} annulée{a.canceled > 1 ? 's' : ''} · {a.declined} indispo.{a.problems ? ` · ⚠ ${a.problems} problème${a.problems > 1 ? 's' : ''}` : ''}
                         </T>
                       </View>
                     </View>
@@ -1073,8 +1074,8 @@ export default function Admin({ onBack }) {
                 { v: 'open', l: `En cours (${cnt((d) => ['pending', 'accepted', 'paid'].includes(d.status))})` },
                 { v: 'completed', l: `Servies (${cnt((d) => d.status === 'completed')})` },
                 { v: 'problems', l: `Problèmes (${cnt(isProblem)})` },
-                { v: 'declined', l: `Refusées / indispo (${cnt((d) => d.status === 'declined' || d.status === 'unavailable')})` },
-                { v: 'canceled', l: `Annulées (${cnt((d) => d.status === 'canceled')})` },
+                { v: 'declined', l: `Indisponibles (${cnt((d) => d.status === 'unavailable')})` },
+                { v: 'canceled', l: `Annulées (${cnt((d) => d.status === 'canceled' || d.status === 'declined')})` },
               ].map((o) => (
                 <Chip key={o.v} label={o.l} active={txStatus === o.v} onPress={() => { setTxStatus(o.v); setTxCount(30); }} />
               ))}
@@ -1420,7 +1421,7 @@ export default function Admin({ onBack }) {
         ];
         const REASON = {
           unpaid_subscription: 'abonnement impayé', client_unpaid_demandes: 'demandes non payées', gerant_not_served: 'payé sans servir', other: 'autre manquement',
-          paid_not_served: 'payé, pas servi', paid_declined_no_refund: 'refusé sans remboursement', client_fake_requests: 'demandes non sérieuses', client_unpaid: 'servi sans payer', client_abuse: 'comportement abusif', client_other: 'autre',
+          paid_not_served: 'payé, pas servi', paid_declined_no_refund: 'indisponible sans remboursement', client_fake_requests: 'demandes non sérieuses', client_unpaid: 'servi sans payer', client_abuse: 'comportement abusif', client_other: 'autre',
           gerant_no_response: 'ne répond pas', gerant_overcharge: 'surfacturation', gerant_abuse: 'comportement abusif', gerant_other: 'autre',
         };
         const q = uaQ.trim().toLowerCase();

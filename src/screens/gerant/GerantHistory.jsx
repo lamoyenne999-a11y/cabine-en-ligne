@@ -8,11 +8,12 @@ import { Page } from '../../components/Shell';
 import { useStore } from '../../store';
 import SuspendedBanner from '../../components/SuspendedBanner';
 import ReportButton from '../../components/ReportButton';
+import { Dialog, DialogButtons } from '../../components/modals';
 
 const STATUS = {
   pending: { label: 'En attente', color: colors.warn, bg: colors.warnBg, icon: 'time' },
   accepted: { label: 'Acceptée', color: colors.primary, bg: colors.primarySoft, icon: 'checkmark-circle' },
-  declined: { label: 'Refusée', color: colors.danger, bg: colors.dangerBg, icon: 'close-circle' },
+  declined: { label: 'Annulée', color: colors.muted, bg: colors.gray, icon: 'close-circle' },
   unavailable: { label: 'Indisponible', color: colors.warn, bg: colors.warnBg, icon: 'moon' },
   paid: { label: 'Payée', color: '#2E7BF6', bg: '#E7F0FE', icon: 'wallet' },
   completed: { label: 'Complétée', color: colors.success, bg: colors.successBg, icon: 'checkmark-done' },
@@ -51,7 +52,8 @@ function matches(d, q) {
 }
 
 export default function GerantHistory() {
-  const { state, refresh } = useStore();
+  const { state, refresh, notReceiveDemande } = useStore();
+  const [notRecv, setNotRecv] = useState(null);
   const [q, setQ] = useState('');
   const [group, setGroup] = useState('all');
   const demandes = state.gerantDemandes || [];
@@ -67,15 +69,15 @@ export default function GerantHistory() {
     { value: 'pending', label: `En attente (${sum.counts.pending})` },
     { value: 'treated', label: `Servies (${sum.counts.completed})` },
     { value: 'unpaid', label: `À encaisser (${demandes.filter((d) => d.status === 'completed' && !d.moneyReceived).length})` },
-    { value: 'declined', label: `Non servies (${sum.counts.declined + sum.counts.unavailable})` },
-    { value: 'canceled', label: `Annulées (${sum.counts.canceled})` },
+    { value: 'unavailable', label: `Indisponibles (${sum.counts.unavailable})` },
+    { value: 'canceled', label: `Annulées (${sum.counts.canceled + sum.counts.declined})` },
   ];
   const inGroup = (d) => {
     if (group === 'all') return true;
     if (group === 'recent') return isRecent(d);
     if (group === 'treated') return d.status === 'completed';
     if (group === 'unpaid') return d.status === 'completed' && !d.moneyReceived;
-    if (group === 'declined') return ['declined', 'unavailable'].includes(d.status);
+    if (group === 'canceled') return ['canceled', 'declined'].includes(d.status);
     return d.status === group;
   };
   // « Toutes » : les demandes EN COURS en haut, puis les autres de la plus
@@ -100,8 +102,8 @@ export default function GerantHistory() {
         </View>
         <View style={s.sumGrid}>
           <Tile icon="checkmark-done" tone="green" value={served} label="Servies" />
-          <Tile icon="close-circle" tone="red" value={sum.counts.declined + sum.counts.unavailable} label="Non servies" />
-          <Tile icon="remove-circle" tone="gray" value={sum.counts.canceled} label="Annulées" />
+          <Tile icon="moon" tone="orange" value={sum.counts.unavailable} label="Indispo." />
+          <Tile icon="remove-circle" tone="gray" value={sum.counts.canceled + sum.counts.declined} label="Annulées" />
         </View>
       </Card>
 
@@ -213,19 +215,32 @@ export default function GerantHistory() {
                   pending: 'En attente de votre réponse.',
                   accepted: 'Acceptée — en attente du paiement Wave.',
                   paid: d.notServedAt ? `⚠️ Le client dit ne pas avoir reçu sa recharge — à re-servir (voir Demandes).` : d.moneyReceived ? `Argent reçu (${money(d.amount)}) — reste à servir le client.` : `Le client déclare avoir payé ${money(d.amount)} — réception à confirmer.`,
-                  completed: d.clientConfirmedAt ? `✅ Le client a confirmé avoir reçu sa recharge${d.moneyReceived ? ' — réglée.' : ' — paiement encore à encaisser.'}` : d.moneyReceived ? `Réglée : ${money(d.amount)} reçus sur votre Wave, client servi.` : `Client servi, paiement de ${money(d.amount)} PAS ENCORE reçu.`,
-                  declined: 'Vous avez refusé cette demande.',
+                  completed: d.clientClosedAt && d.moneyReceivedByClient ? `✅ Le client a terminé : servi et payé (${money(d.amount)}) selon lui. Rien reçu sur votre Wave ? « Argent non reçu ».` : d.clientConfirmedAt ? `✅ Le client a confirmé avoir reçu sa recharge${d.moneyReceived ? ' — réglée.' : ' — paiement encore à encaisser.'}` : d.moneyReceived ? `Réglée : ${money(d.amount)} reçus sur votre Wave, client servi.` : `Client servi, paiement de ${money(d.amount)} PAS ENCORE reçu.`,
+                  declined: 'Annulée (vous ne l\'avez pas servie).',
                   unavailable: (d.refundDue || d.paidAt || d.moneyReceived) ? (d.refundConfirmedAt ? `Non servie — remboursement de ${money(d.amount)} confirmé par le client.` : d.refundedAt ? `Non servie — vous avez indiqué avoir remboursé ${money(d.amount)} (confirmation du client en attente).` : `⚠️ Non servie — ${money(d.amount)} À REMBOURSER au client (voir Demandes).`) : 'Vous n\'étiez pas disponible.',
                   canceled: d.waveCanceledAt ? '⚠️ Le client a ANNULÉ son transfert Wave : ne le servez plus. Déjà servi ? Signalez-le.' : 'Annulée par le client.',
                 }[d.status] || 'Payé en direct via Wave.'
               )}
             </T>
-            <View style={{ flexDirection: 'row', justifyContent: 'flex-end', marginTop: 8 }}>
+            <View style={{ flexDirection: 'row', justifyContent: 'flex-end', alignItems: 'center', marginTop: 8 }}>
+              {d.status === 'completed' && d.moneyReceived && d.moneyReceivedByClient && (
+                <Pressable onPress={() => setNotRecv(d)} hitSlop={6} style={{ flexDirection: 'row', alignItems: 'center', marginRight: 14 }}>
+                  <Ionicons name="alert-circle-outline" size={14} color={colors.danger} />
+                  <T size={font.xs} weight="800" color={colors.danger} style={{ marginLeft: 4 }}>Argent non reçu</T>
+                </Pressable>
+              )}
               <ReportButton compact role="gerant" demande={d} otherName={d.clientName} onDone={refresh} />
             </View>
           </Card>
         );
       })}
+      <Dialog visible={!!notRecv}>
+        <T size={font.h3} weight="800" color={colors.text} style={{ textAlign: 'center' }}>Argent non reçu ?</T>
+        <T size={font.sm} weight="600" color={colors.muted} style={{ textAlign: 'center', marginTop: 6 }}>
+          {notRecv ? `${notRecv.clientName} a terminé cette demande en indiquant avoir payé ${money(notRecv.amount)}. Si rien n'est arrivé sur votre Wave, il sera prévenu et invité à régler.` : ''}
+        </T>
+        <DialogButtons cancel="Annuler" confirm="Oui, rien reçu" onCancel={() => setNotRecv(null)} onConfirm={() => { if (notRecv) notReceiveDemande(notRecv.id); setNotRecv(null); }} />
+      </Dialog>
     </Page>
   );
 }

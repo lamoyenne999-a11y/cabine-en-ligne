@@ -18,7 +18,7 @@ import { api } from '../api';
 
 const LABELS = {
   paid_not_served: 'J\'ai payé, le gérant ne m\'a pas servi (ni remboursé)',
-  paid_declined_no_refund: 'J\'ai payé, le gérant a refusé / était indisponible mais ne m\'a pas remboursé',
+  paid_declined_no_refund: 'J\'ai payé, le gérant était indisponible mais ne m\'a pas remboursé',
   served_not_paid: 'J\'ai servi le client, il n\'a pas payé',
   gerant_no_response: 'Le gérant ne répond jamais / me fait perdre mon temps',
   gerant_overcharge: 'Le gérant réclame plus que le montant convenu',

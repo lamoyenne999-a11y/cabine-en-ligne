@@ -23,7 +23,7 @@ export function finalStep(d) {
   switch (d.status) {
     case 'completed': return { label: 'Terminée', at: d.clientConfirmedAt || d.completedAt || d.receivedAt, final: true };
     case 'canceled': return { label: 'Annulée', at: d.canceledAt, final: true };
-    case 'declined': return { label: 'Refusée', at: d.acceptedAt, final: true };
+    case 'declined': return { label: 'Annulée par le gérant', at: d.acceptedAt, final: true };
     case 'unavailable': return { label: 'Indisponible', at: d.acceptedAt, final: true };
     case 'paid': return { label: 'Payée', at: d.paidAt, final: false };
     case 'accepted': return { label: d.paymentRequestedAt ? 'Paiement demandé' : 'Acceptée', at: d.paymentRequestedAt || d.acceptedAt, final: false };

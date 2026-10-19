@@ -22,7 +22,7 @@ import { useStore } from '../../store';
 const STATUS = {
   pending: { label: 'En attente', color: colors.warn, bg: colors.warnBg, icon: 'time' },
   accepted: { label: 'Acceptée', color: colors.primary, bg: colors.primarySoft, icon: 'checkmark-circle' },
-  declined: { label: 'Refusée', color: colors.danger, bg: colors.dangerBg, icon: 'close-circle' },
+  declined: { label: 'Annulée', color: colors.muted, bg: colors.gray, icon: 'close-circle' },
   unavailable: { label: 'Indisponible', color: colors.warn, bg: colors.warnBg, icon: 'moon' },
   paid: { label: 'Payée', color: '#2E7BF6', bg: '#E7F0FE', icon: 'wallet' },
   completed: { label: 'Complétée', color: colors.success, bg: colors.successBg, icon: 'checkmark-done' },
@@ -132,6 +132,7 @@ export default function GerantDemandes() {
     else if (action === 'partial') partialDemande(id);
     else if (action === 'refunded') refundDemande(id, 'refunded');
     else if (action === 'refund_not_yet') refundDemande(id, 'not_yet');
+    else if (action === 'refund_served') refundDemande(id, 'served');
     else if (action === 'complete') completeDemande(id);
     setConfirm(null);
   };
@@ -172,7 +173,10 @@ export default function GerantDemandes() {
   // Actions affichées SOUS les 2 boutons principaux (petites, directes).
   const secondaryActions = (d) => {
     const a = [];
-    if (['unavailable', 'declined'].includes(d.status)) return a;
+    if (['unavailable', 'declined'].includes(d.status)) {
+      if (!d.refundConfirmedAt) a.push({ key: 'refund_served', title: 'Déjà servi — pas de remboursement', icon: 'checkmark-done-outline', color: colors.primary });
+      return a;
+    }
     if ((d.status === 'paid' || d.status === 'completed') && !d.moneyReceived) {
       a.push({ key: 'partial', title: d.partialAt ? 'Toujours incomplet — relancer le client' : 'Montant reçu incomplet (frais Wave)', icon: 'remove-circle-outline', color: colors.warn });
     }
@@ -196,12 +200,13 @@ export default function GerantDemandes() {
     accept: 'Accepter la demande', decline: 'Refuser la demande', unavailable: 'Je ne peux pas servir cette demande',
     requestpay: 'Demander le paiement', received: "Confirmer l'argent reçu", notreceived: 'Argent non reçu',
     partial: 'Montant incomplet', complete: 'Confirmer le service',
-    refunded: 'Confirmer le remboursement', refund_not_yet: 'Pas encore remboursé',
+    refunded: 'Confirmer le remboursement', refund_not_yet: 'Pas encore remboursé', refund_served: 'Client déjà servi',
   };
   const message = () => {
     switch (confirm?.action) {
       case 'accept': return 'Le client sera informé que vous avez bien reçu sa demande et que vous vous en occupez.';
       case 'refunded': return `Confirmez seulement si vous avez bien renvoyé ${fmt(cur.amount)} XOF par Wave${cur.clientPhone ? ' au ' + cur.clientPhone : ''}. Le client sera invité à vérifier et confirmer la réception.`;
+      case 'refund_served': return `Vous confirmez avoir DÉJÀ crédité ${fmt(cur.amount)} XOF sur le ${cur.benefPhone || 'numéro indiqué'} ? Il n'y aura pas de remboursement : le client sera invité à vérifier sa recharge.`;
       case 'refund_not_yet': return 'Le client sera prévenu que le remboursement arrivera dès que possible. Il pourra vous relancer.';
       case 'requestpay': return `Le client sera informé que vous avez bien reçu sa demande et qu'il doit payer ${fmt(cur.amount)} XOF (+ frais Wave) avant que vous ne le serviez.`;
       case 'decline': return cur.status === 'paid'

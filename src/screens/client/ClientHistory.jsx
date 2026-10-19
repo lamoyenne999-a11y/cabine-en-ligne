@@ -34,7 +34,7 @@ function remainingLabel(d, now) {
 const STATUS = {
   pending: { label: 'En attente', color: colors.warn, bg: colors.warnBg, icon: 'time' },
   accepted: { label: 'À payer', color: colors.primary, bg: colors.primarySoft, icon: 'card' },
-  declined: { label: 'Refusée', color: colors.danger, bg: colors.dangerBg, icon: 'close-circle' },
+  declined: { label: 'Annulée', color: colors.muted, bg: colors.gray, icon: 'close-circle' },
   unavailable: { label: 'Indisponible', color: colors.warn, bg: colors.warnBg, icon: 'moon' },
   paid: { label: 'Payée', color: '#2E7BF6', bg: '#E7F0FE', icon: 'wallet' },
   completed: { label: 'Complétée', color: colors.success, bg: colors.successBg, icon: 'checkmark-circle' },
@@ -112,14 +112,14 @@ export default function ClientHistory() {
     { value: 'pending', label: `En attente (${sum.counts.pending})` },
     { value: 'accepted', label: `À payer (${sum.counts.accepted})` },
     { value: 'treated', label: `Traitées (${sum.counts.paid + sum.counts.completed})` },
-    { value: 'declined', label: `Non servies (${sum.counts.declined + sum.counts.unavailable})` },
-    { value: 'canceled', label: `Annulées (${sum.counts.canceled})` },
+    { value: 'unavailable', label: `Indisponibles (${sum.counts.unavailable})` },
+    { value: 'canceled', label: `Annulées (${sum.counts.canceled + sum.counts.declined})` },
   ];
   const inGroup = (d) => {
     if (group === 'all') return true;
     if (group === 'recent') return isRecent(d);
     if (group === 'treated') return ['paid', 'completed'].includes(d.status);
-    if (group === 'declined') return ['declined', 'unavailable'].includes(d.status);
+    if (group === 'canceled') return ['canceled', 'declined'].includes(d.status);
     return d.status === group;
   };
   // « Toutes » : les demandes EN COURS (En attente / À payer) en haut, puis les
@@ -146,7 +146,7 @@ export default function ClientHistory() {
         <View style={s.sumGrid}>
           <Tile icon="checkmark-done" tone="green" value={purchases} label="Achats" />
           <Tile icon="time" tone="orange" value={inProgress} label="En cours" />
-          <Tile icon="close-circle" tone="blue" value={sum.counts.declined + sum.counts.canceled} label="Non traitées" />
+          <Tile icon="close-circle" tone="blue" value={sum.counts.declined + sum.counts.canceled + sum.counts.unavailable} label="Non traitées" />
         </View>
       </Card>
 
@@ -339,7 +339,7 @@ export default function ClientHistory() {
             )}
             {d.status === 'declined' && (
               <T size={font.sm} weight="600" color={colors.muted} style={{ marginTop: 12, textAlign: 'center' }}>
-                Refusée — essayez un autre gérant.
+                Annulée par le gérant — essayez un autre gérant.
               </T>
             )}
             {d.status === 'unavailable' && (
@@ -461,6 +461,9 @@ export default function ClientHistory() {
                 <T size={font.sm} weight="700" color={colors.success} style={{ marginLeft: 8, flex: 1 }}>
                   Terminée — réception confirmée.
                 </T>
+                <Pressable onPress={() => setNotServedTarget(d)} hitSlop={6}>
+                  <T size={font.xs} weight="800" color={colors.danger}>Un souci ?</T>
+                </Pressable>
               </View>
             )}
             {/* « Terminer » : le client clôture lui-même quand tout s'est réglé (servi + payé)

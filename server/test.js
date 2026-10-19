@@ -601,6 +601,36 @@ async function main() {
     check('Pas de remboursement si le client n\'avait pas payé', no.status === 400);
   }
 
+  // ===== Déjà servi (pas de remboursement) + « Argent non reçu » après Terminer du client =====
+  {
+    const gl = await req('GET', '/client/gerants', null, ct);
+    const gid = (gl.json.gerants || []).find((g) => g.phone === gphone)?.id;
+    const nd = await req('POST', '/client/demandes', { gerantId: gid, gerantName: 'Gérant Test', gerantWave: gphone, type: 'unites', amount: 400, benefName: 'Moi', benefPhone: cphone }, ct);
+    const did = nd.json.demande?.id;
+    await req('POST', `/client/demandes/${did}/paid`, {}, ct);
+    await req('POST', `/gerant/demandes/${did}/unavailable`, { reason: 'later' }, gt);
+    const sv = await req('POST', `/gerant/demandes/${did}/refund`, { kind: 'served' }, gt);
+    check('« Déjà servi » : demande servie + payée, plus de remboursement dû', sv.status === 200 && sv.json.demande?.status === 'completed' && sv.json.demande?.moneyReceived === true && !sv.json.demande?.refundDue);
+    const cn = await req('GET', '/client/notifications', null, ct);
+    check('Client prévenu : pas de remboursement, vérifiez votre solde', (cn.json.notifications || []).some((n) => n.demandeId === did && /pas de remboursement/.test(n.text)));
+    const ns = await req('POST', `/client/demandes/${did}/not-served`, {}, ct);
+    check('Le client peut encore contester « rien reçu »', ns.status === 200 && ns.json.demande?.notServedAt > 0);
+    await req('POST', '/gerant/availability', { available: true }, gt);
+    // Terminer côté client puis « Argent non reçu » côté gérant
+    const nd2 = await req('POST', '/client/demandes', { gerantId: gid, gerantName: 'Gérant Test', gerantWave: gphone, type: 'unites', amount: 300, benefName: 'Moi', benefPhone: cphone }, ct);
+    const d2 = nd2.json.demande?.id;
+    await req('POST', `/gerant/demandes/${d2}/accept`, {}, gt);
+    const cl = await req('POST', `/client/demandes/${d2}/close`, {}, ct);
+    check('Terminer client : servie + payée (par le client)', cl.status === 200 && cl.json.demande?.moneyReceivedByClient === true);
+    const gn = await req('GET', '/gerant/notifications', null, gt);
+    check('Gérant prévenu de la clôture par le client', (gn.json.notifications || []).some((n) => n.demandeId === d2 && /a terminé sa demande/.test(n.text)));
+    const nr = await req('POST', `/gerant/demandes/${d2}/not-received`, {}, gt);
+    check('Gérant : « Argent non reçu » possible après Terminer', nr.status === 200 && nr.json.demande?.moneyReceived === false && nr.json.demande?.status === 'completed');
+    await req('POST', `/gerant/demandes/${d2}/received`, {}, gt);
+    const nr2 = await req('POST', `/gerant/demandes/${d2}/not-received`, {}, gt);
+    check('Mais pas après SA PROPRE confirmation « Argent reçu »', nr2.status === 400);
+  }
+
   // ===== Signalements + suspension motivée =====
   {
     const A = { 'x-admin-key': 'testkey' };
