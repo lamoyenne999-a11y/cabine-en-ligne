@@ -88,27 +88,23 @@ export default function GerantProfile({ onLogout }) {
 
       <GerantStats />
 
-      {/* Disponibilité : visible par les clients (En ligne / Hors ligne) */}
-      <Card style={{ marginTop: space.lg, backgroundColor: isAvailable ? colors.successBg : colors.warnBg }}>
+      {/* Disponibilité : visible par les clients (En ligne / Hors ligne) — une seule ligne. */}
+      <Card style={{ marginTop: space.lg, paddingVertical: 12, backgroundColor: isAvailable ? colors.successBg : colors.warnBg }}>
         <View style={{ flexDirection: 'row', alignItems: 'center' }}>
           <View style={[s.availDot, { backgroundColor: isAvailable ? colors.success : colors.warn }]} />
-          <View style={{ flex: 1, marginLeft: 12 }}>
-            <T size={font.h3} weight="800" color={colors.text}>{isAvailable ? 'Vous êtes En ligne' : 'Vous êtes Hors ligne'}</T>
-            <T size={font.xs} weight="600" color={colors.muted} style={{ marginTop: 2 }}>
-              {isAvailable
-                ? 'Les clients peuvent vous envoyer des demandes.'
-                : 'Les clients vous voient « Hors ligne ».'}
-            </T>
+          <View style={{ flex: 1, marginLeft: 10 }}>
+            <T size={font.body} weight="800" color={colors.text}>{isAvailable ? 'En ligne' : 'Hors ligne'}</T>
+            <T size={font.xs} weight="600" color={colors.muted}>{isAvailable ? 'Vous recevez les demandes.' : 'Les clients vous voient « Hors ligne ».'}</T>
           </View>
+          <Btn
+            title={isAvailable ? 'Passer Hors ligne' : 'Me remettre En ligne'}
+            icon={isAvailable ? 'moon-outline' : 'sunny-outline'}
+            color={isAvailable ? colors.warn : colors.success}
+            outline={isAvailable}
+            size="sm"
+            onPress={() => setAvailability(!isAvailable)}
+          />
         </View>
-        <Btn
-          title={isAvailable ? 'Passer Hors ligne' : 'Me remettre En ligne'}
-          icon={isAvailable ? 'moon-outline' : 'sunny-outline'}
-          color={isAvailable ? colors.warn : colors.success}
-          outline={isAvailable}
-          onPress={() => setAvailability(!isAvailable)}
-          style={{ marginTop: space.md }}
-        />
       </Card>
 
       {/* Confirmation de paiement de l'abonnement + période de validité */}
@@ -152,7 +148,7 @@ export default function GerantProfile({ onLogout }) {
         ) : null}
 
         {/* Lien Wave Business (facultatif) : paiement en 1 clic pour le client. */}
-        <View style={s.linkRow}>
+        <View style={s.payLinkBox}>
           {editLink ? (
             <>
               <T size={font.xs} weight="800" color={colors.text}>Lien Wave Business</T>
@@ -178,12 +174,12 @@ export default function GerantProfile({ onLogout }) {
           ) : u?.payLink ? (
             <View style={{ flexDirection: 'row', alignItems: 'center' }}>
               <Ionicons name="flash" size={16} color={colors.wave} />
-              <View style={{ flex: 1, marginLeft: 8 }}>
-                <T size={font.xs} weight="800" color={colors.text}>Wave Business activé — vos clients paient en 1 clic</T>
+              <View style={{ flex: 1, marginLeft: 8, minWidth: 0 }}>
+                <T size={font.xs} weight="800" color={colors.text}>Wave Business activé — paiement en 1 clic</T>
                 <T size={font.xs} weight="600" color={colors.muted} numberOfLines={1}>{u.payLink}</T>
               </View>
-              <Pressable onPress={() => { setLinkDraft(u.payLink || ''); setEditLink(true); }} hitSlop={8} style={{ padding: 4 }}><Ionicons name="create-outline" size={18} color={colors.primary} /></Pressable>
-              <Pressable onPress={() => saveLink('')} hitSlop={8} style={{ padding: 4, marginLeft: 2 }}><Ionicons name="trash-outline" size={18} color={colors.danger} /></Pressable>
+              <Pressable onPress={() => { setLinkDraft(u.payLink || ''); setEditLink(true); }} hitSlop={8} style={s.linkIconBtn}><Ionicons name="create-outline" size={18} color={colors.primary} /></Pressable>
+              <Pressable onPress={() => saveLink('')} hitSlop={8} style={[s.linkIconBtn, { marginLeft: 6 }]}><Ionicons name="trash-outline" size={18} color={colors.danger} /></Pressable>
             </View>
           ) : (
             <Pressable onPress={() => { setLinkDraft(''); setEditLink(true); }} style={{ flexDirection: 'row', alignItems: 'center' }}>
@@ -236,7 +232,8 @@ export default function GerantProfile({ onLogout }) {
 }
 
 const s = StyleSheet.create({
-  linkRow: { marginTop: 12, paddingTop: 10, borderTopWidth: 1, borderTopColor: colors.border },
+  payLinkBox: { marginTop: 12, paddingTop: 10, borderTopWidth: 1, borderTopColor: colors.border },
+  linkIconBtn: { width: 34, height: 34, borderRadius: 17, backgroundColor: colors.bg, alignItems: 'center', justifyContent: 'center' },
   linkInput: { marginTop: 6, backgroundColor: colors.bg, borderRadius: 12, paddingHorizontal: 12, paddingVertical: 10, fontSize: 14, color: colors.text },
   availDot: { width: 14, height: 14, borderRadius: 7 },
   avatar: { width: 84, height: 84, borderRadius: 42, backgroundColor: colors.primary, alignItems: 'center', justifyContent: 'center' },
