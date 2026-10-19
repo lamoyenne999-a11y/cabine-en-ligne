@@ -208,11 +208,17 @@ export default function GerantProfile({ onLogout }) {
               </View>
             </>
           ) : (
-            <Pressable onPress={() => { setLinkDraft(''); setEditLink(true); }} style={{ flexDirection: 'row', alignItems: 'center' }}>
-              <Ionicons name="flash-outline" size={16} color={colors.wave} />
-              <T size={font.xs} weight="800" color={colors.wave} style={{ marginLeft: 8, flex: 1 }}>Paiement Wave Business : ajouter mon lien de paiement (facultatif)</T>
-              <Ionicons name="chevron-forward" size={16} color={colors.muted2} />
-            </Pressable>
+            <View>
+              <T size={font.xs} weight="600" color={colors.muted} style={{ lineHeight: 17 }}>
+                Vos clients paient par transfert à ce numéro. Pour qu'ils paient en 1 clic, ajoutez votre lien de paiement Wave Business
+                (app Wave Business → « Recevoir un paiement » → « Partager mon lien »). Ce n'est PAS votre lien Cabine En Ligne ci-dessous.
+              </T>
+              <Pressable onPress={() => { setLinkDraft(''); setEditLink(true); }} style={s.addPayLinkBtn}>
+                <Ionicons name="add-circle" size={18} color="#fff" />
+                <T size={font.sm} weight="800" color="#fff" style={{ marginLeft: 8 }}>Ajouter mon lien de paiement Wave Business</T>
+              </Pressable>
+              <T size={font.xs} weight="600" color={colors.muted2} style={{ textAlign: 'center', marginTop: 6 }}>Facultatif</T>
+            </View>
           )}
         </View>
       </Card>
@@ -277,6 +283,7 @@ const s = StyleSheet.create({
   knob: { width: 20, height: 20, borderRadius: 10, backgroundColor: '#fff' },
   knobOn: { alignSelf: 'flex-end' },
   payLinkBox: { marginTop: 12, paddingTop: 10, borderTopWidth: 1, borderTopColor: colors.border },
+  addPayLinkBtn: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', backgroundColor: colors.wave, borderRadius: 999, paddingVertical: 12, paddingHorizontal: 14, marginTop: 10 },
   linkEditBtn: { flexDirection: 'row', alignItems: 'center', borderWidth: 1.5, borderColor: colors.primary, borderRadius: 999, paddingHorizontal: 14, paddingVertical: 8 },
   linkDelBtn: { flexDirection: 'row', alignItems: 'center', paddingHorizontal: 8, paddingVertical: 6 },
   linkIconBtn: { width: 34, height: 34, borderRadius: 17, backgroundColor: colors.bg, alignItems: 'center', justifyContent: 'center' },
