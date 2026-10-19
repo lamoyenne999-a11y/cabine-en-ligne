@@ -610,6 +610,7 @@ export function demandesForAdmin(limit = 3000) {
       notServedAt: d.notServedAt || 0, notServedCount: d.notServedCount || 0,
       reportedAt: d.reportedAt || 0, reportedBy: d.reportedBy || '', rating: d.rating || 0,
       unavailableReason: d.unavailableReason || '',
+      refundDue: d.refundDue || 0, refundedAt: d.refundedAt || 0, refundConfirmedAt: d.refundConfirmedAt || 0, refundDisputedAt: d.refundDisputedAt || 0,
       adminNudgeCount: d.adminNudgeCount || 0, lastAdminNudgeAt: d.lastAdminNudgeAt || 0,
     };
   });
@@ -1368,18 +1369,26 @@ export function decideDemande({ id, gerantUserId, decision, reason }) {
     // pas un refus. Le client est invité à choisir un autre gérant. Si le client
     // avait déjà payé, on lui rappelle que le montant doit être remboursé.
     if (!['pending', 'paid'].includes(d.status)) throw Object.assign(new Error('Demande déjà traitée'), { status: 400 });
-    const wasPaid = d.status === 'paid';
-    const REASONS = { away: 'pas à la cabine actuellement', nomaterial: 'sans son matériel pour le moment', later: 'indisponible pour le moment' };
+    const wasPaid = d.status === 'paid' || !!d.paidAt || !!d.moneyReceived;
+    const REASONS = { away: 'pas à la cabine actuellement', nomaterial: 'sans son matériel pour le moment', later: 'indisponible pour le moment', nostock: 'pas assez d\'unités / de crédit pour ce montant', nonetwork: 'pas la puce de ce réseau' };
+    // Motifs liés à CETTE demande seulement : le gérant reste En ligne pour les autres.
+    const stayOnline = reason === 'nostock' || reason === 'nonetwork';
     const why = REASONS[reason] || REASONS.later;
-    update('demandes', (x) => x.id === id, { status: 'unavailable', unavailableReason: reason || 'later', acceptedAt: Date.now() });
-    // Le gérant passe « hors ligne » pour les clients (il peut se remettre en ligne depuis son profil).
-    update('users', (x) => x.id === gerantUserId, { available: false, availableChangedAt: Date.now() });
+    update('demandes', (x) => x.id === id, { status: 'unavailable', unavailableReason: reason || 'later', acceptedAt: Date.now(), refundDue: wasPaid ? Date.now() : 0 });
+    // Le gérant passe « hors ligne » pour les clients (il peut se remettre en ligne depuis son profil),
+    // sauf si le motif ne concerne que cette demande (pas d'unités / pas la puce du réseau).
+    if (!stayOnline) update('users', (x) => x.id === gerantUserId, { available: false, availableChangedAt: Date.now() });
     const upd = findOne('demandes', (x) => x.id === id);
     if (upd && upd.clientId) createNotification({
       userId: upd.clientId, type: 'demande_unavailable', demandeId: upd.id,
       text: wasPaid
         ? `${upd.gerantName} n'est pas disponible (${why}) et ne peut pas traiter votre demande ${TYPE_LABEL[upd.type] || upd.type} ${upd.amount} F. Vous aviez déjà payé : le montant doit vous être remboursé par Wave. Contactez-le, ou renvoyez votre demande à un autre gérant.`
-        : `${upd.gerantName} n'est pas disponible (${why}) et ne peut pas traiter votre demande ${TYPE_LABEL[upd.type] || upd.type} ${upd.amount} F. Ce n'est pas un refus : renvoyez simplement votre demande à un autre gérant en ligne.`,
+        : `${upd.gerantName} ne peut pas traiter votre demande ${TYPE_LABEL[upd.type] || upd.type} ${upd.amount} F (${why}). Ce n'est pas un refus : renvoyez simplement votre demande à un autre gérant en ligne.`,
+    });
+    // Le client avait payé : le gérant est tout de suite invité à rembourser.
+    if (upd && wasPaid) createNotification({
+      userId: gerantUserId, type: 'refund_due', demandeId: upd.id,
+      text: `💸 À rembourser : ${upd.clientName} ${upd.moneyReceived ? 'vous a payé' : 'déclare vous avoir payé'} ${upd.amount} F pour une demande que vous ne pouvez pas servir. Remboursez-le par Wave${upd.clientPhone ? ' au ' + upd.clientPhone : ''}, puis appuyez sur « J'ai remboursé ».`,
     });
     return upd;
   }
@@ -1612,6 +1621,47 @@ export function clientWaveCanceled({ id, clientId }) {
     text: `⚠️ ${upd.clientName} a ANNULÉ son transfert Wave de ${upd.amount} F : il n'a pas été rechargé à temps. NE LE SERVEZ PLUS pour cette demande (${TYPE_LABEL[upd.type] || upd.type} ${upd.amount} F, numéro ${upd.benefPhone || ''}) — elle est annulée. Si vous l'aviez déjà servi, signalez-le depuis votre historique.`,
   });
   recordEvent({ type: 'demande_wave_canceled', name: upd.clientName, phone: upd.clientPhone, role: 'client', amount: upd.amount, demandeType: upd.type });
+  return upd;
+}
+
+// ------------------------------------------------------------------
+//  REMBOURSEMENT (demande indisponible/refusée alors que le client avait payé)
+//  gérant : 'refunded' (j'ai remboursé) | 'not_yet' (pas encore pu)
+//  client : 'request' (demander) | 'received' (remboursement reçu) | 'not_received'
+// ------------------------------------------------------------------
+export function refundAction({ id, userId, role, kind }) {
+  const d = findOne('demandes', (x) => x.id === id && (role === 'gerant' ? x.gerantUserId === userId : x.clientId === userId));
+  if (!d) throw Object.assign(new Error('Demande introuvable'), { status: 404 });
+  if (!['unavailable', 'declined'].includes(d.status) || !(d.paidAt || d.moneyReceived || d.refundDue)) {
+    throw Object.assign(new Error('Aucun remboursement attendu sur cette demande'), { status: 400 });
+  }
+  if (d.refundConfirmedAt) throw Object.assign(new Error('Le remboursement a déjà été confirmé par le client'), { status: 400 });
+  const now = Date.now();
+  const label = `${TYPE_LABEL[d.type] || d.type} ${d.amount} F`;
+  let patch = {}, notif = null;
+  if (role === 'gerant' && kind === 'refunded') {
+    patch = { refundedAt: now, refundNotYetAt: 0, refundDisputedAt: 0, refundDue: d.refundDue || now };
+    notif = { userId: d.clientId, type: 'refund_sent', text: `${d.gerantName} indique vous avoir remboursé ${d.amount} F (${label}) sur votre Wave. Vérifiez votre solde puis appuyez sur « Remboursement reçu » — ou « Pas reçu » si rien n'est arrivé.` };
+  } else if (role === 'gerant' && kind === 'not_yet') {
+    patch = { refundNotYetAt: now, refundDue: d.refundDue || now };
+    notif = { userId: d.clientId, type: 'refund_pending', text: `${d.gerantName} n'a pas encore pu vous rembourser ${d.amount} F (${label}). Il le fera dès que possible ; vous pourrez le relancer depuis votre historique.` };
+  } else if (role === 'client' && kind === 'request') {
+    if (d.refundRequestedAt && now - d.refundRequestedAt < 60 * 1000) throw Object.assign(new Error('Demande de remboursement déjà envoyée il y a moins d\'une minute'), { status: 429 });
+    patch = { refundRequestedAt: now, refundRequestCount: (d.refundRequestCount || 0) + 1, refundDue: d.refundDue || now };
+    notif = { userId: d.gerantUserId, type: 'refund_requested', text: `💸 ${d.clientName} demande le remboursement de ${d.amount} F (${label}, demande non servie)${(d.refundRequestCount || 0) >= 1 ? ' — ' + ((d.refundRequestCount || 0) + 1) + 'e rappel' : ''}. Remboursez par Wave${d.clientPhone ? ' au ' + d.clientPhone : ''} puis appuyez sur « J'ai remboursé ».` };
+  } else if (role === 'client' && kind === 'received') {
+    patch = { refundConfirmedAt: now, refundDisputedAt: 0, refundedAt: d.refundedAt || now, refundDue: d.refundDue || now };
+    notif = { userId: d.gerantUserId, type: 'refund_confirmed', text: `✅ ${d.clientName} confirme avoir reçu le remboursement de ${d.amount} F (${label}). Dossier clos.` };
+  } else if (role === 'client' && kind === 'not_received') {
+    if (!d.refundedAt) throw Object.assign(new Error('Le gérant n\'a pas encore indiqué avoir remboursé'), { status: 400 });
+    patch = { refundDisputedAt: now, refundDisputedCount: (d.refundDisputedCount || 0) + 1 };
+    notif = { userId: d.gerantUserId, type: 'refund_disputed', text: `⚠️ ${d.clientName} indique NE PAS avoir reçu le remboursement de ${d.amount} F (${label}). Vérifiez votre transfert Wave${d.clientPhone ? ' vers le ' + d.clientPhone : ''}, puis appuyez à nouveau sur « J'ai remboursé ».` };
+  } else {
+    throw Object.assign(new Error('Action inconnue'), { status: 400 });
+  }
+  update('demandes', (x) => x.id === id, patch);
+  const upd = findOne('demandes', (x) => x.id === id);
+  if (notif && notif.userId) createNotification({ ...notif, demandeId: upd.id });
   return upd;
 }
 

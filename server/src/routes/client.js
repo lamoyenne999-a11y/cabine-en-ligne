@@ -1,6 +1,6 @@
 import { Router } from 'express';
 import { requireAuth, requireRole } from '../middleware/auth.js';
-import { gerantsFor, addGerant, removeGerant, createDemande, demandesForClient, clientHistory, demandeSummary, subscriptionFor, paySubscription, publicProfile, markPaid, nudgeDemande, cancelDemande, clientPaymentReply, clientNotServed, clientConfirmServed, clientCloseDemande, clientWaveCanceled, notificationsFor, unreadCount, markNotificationRead, markAllNotificationsRead, availableGerants  , createReport, suspendReasonText, rateDemande } from '../services/flowService.js';
+import { gerantsFor, addGerant, removeGerant, createDemande, demandesForClient, clientHistory, demandeSummary, subscriptionFor, paySubscription, publicProfile, markPaid, nudgeDemande, cancelDemande, clientPaymentReply, clientNotServed, clientConfirmServed, clientCloseDemande, clientWaveCanceled, notificationsFor, unreadCount, markNotificationRead, markAllNotificationsRead, availableGerants  , createReport, suspendReasonText, rateDemande, refundAction } from '../services/flowService.js';
 
 const router = Router();
 router.use(requireAuth, requireRole('client'));
@@ -96,6 +96,12 @@ router.post('/demandes/:id/cancel', (req, res) => {
 // ---- Abonnement (mensuel 100 FCFA / annuel 1000 FCFA) ----
 router.get('/subscription', (req, res) => res.json({ subscription: subscriptionFor(req.user) }));
 // Enregistre le paiement d'abonnement déclaré + active l'abonnement (durée).
+// Remboursement (demande indisponible alors que le client avait payé). Body : { kind }
+router.post('/demandes/:id/refund', (req, res, next) => {
+  try { res.json({ demande: refundAction({ id: req.params.id, userId: req.user.id, role: 'client', kind: req.body?.kind }) }); }
+  catch (e) { next(e); }
+});
+
 router.post('/subscribe', (req, res) => {
   const out = paySubscription(req.user, req.body?.plan);
   res.json(out); // { subscription, payment }

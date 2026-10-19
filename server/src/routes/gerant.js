@@ -1,7 +1,7 @@
 import { Router } from 'express';
 import { findOne } from '../db.js';
 import { requireAuth, requireRole } from '../middleware/auth.js';
-import { demandesForGerant, gerantHistory, demandeSummary, decideDemande, markCompleted, markReceived, markNotReceived, markPartial, requestPayment, setGerantAvailability, subscriptionFor, paySubscription, publicProfile, gerantProfile, updateGerantProfile, notificationsFor, unreadCount, markNotificationRead, markAllNotificationsRead  , createReport, suspendReasonText, gerantStats } from '../services/flowService.js';
+import { demandesForGerant, gerantHistory, demandeSummary, decideDemande, markCompleted, markReceived, markNotReceived, markPartial, requestPayment, setGerantAvailability, subscriptionFor, paySubscription, publicProfile, gerantProfile, updateGerantProfile, notificationsFor, unreadCount, markNotificationRead, markAllNotificationsRead  , createReport, suspendReasonText, gerantStats, refundAction } from '../services/flowService.js';
 
 const router = Router();
 router.use(requireAuth, requireRole('gerant'));
@@ -84,6 +84,12 @@ router.post('/notifications/read-all', (req, res) => res.json(markAllNotificatio
 // ---- Abonnement ----
 router.get('/subscription', (req, res) => res.json({ subscription: subscriptionFor(req.user) }));
 // Enregistre le paiement d'abonnement déclaré + active l'abonnement (durée).
+// Remboursement (demande indisponible alors que le client avait payé). Body : { kind }
+router.post('/demandes/:id/refund', (req, res, next) => {
+  try { res.json({ demande: refundAction({ id: req.params.id, userId: req.user.id, role: 'gerant', kind: req.body?.kind }) }); }
+  catch (e) { next(e); }
+});
+
 router.post('/subscribe', (req, res) => {
   const out = paySubscription(req.user, req.body?.plan);
   res.json(out); // { subscription, payment }

@@ -57,7 +57,7 @@ export function WavePayBox({ amount, merchant, merchantName, payLink, mode = 'nu
   const hasLink = isValidPayLink(payLink);
   const pay = () => {
     if (hasLink) {
-      openLink(mode === 'link' ? String(payLink).trim() : payLinkWithAmount(payLink, amount));
+      openLink(mode === 'link' ? String(payLink).trim() : payLinkWithAmount(payLink, (amount || 0) + (includeFees ? waveFee(amount) : 0)));
       setJustOpened(true);
       setTimeout(() => setJustOpened(false), 2500);
       return;
@@ -70,7 +70,10 @@ export function WavePayBox({ amount, merchant, merchantName, payLink, mode = 'nu
   const amt = fmtN(amount);
   // Frais Wave à la charge du client (barème réel, voir src/wave.js) : on affiche le TOTAL à envoyer pour
   // que le gérant reçoive bien le montant exact de la demande.
-  const fees = mode === 'number' && !hasLink && includeFees && amount ? waveFee(amount) : 0;
+  // Frais Wave à la charge du client DANS LES DEUX CAS (numéro : prélevés par Wave sur
+  // le client ; lien marchand : ajoutés au montant, car Wave prélève ~1 % sur le gérant).
+  // Objectif : le gérant reçoit toujours le montant exact de la demande.
+  const fees = mode === 'number' && includeFees && amount ? waveFee(amount) : 0;
   const total = (amount || 0) + fees;
   const btnLabel = amount ? `Payer ${fees ? fmtN(total) : amt} FCFA par Wave` : 'Payer par Wave';
 
@@ -83,7 +86,7 @@ export function WavePayBox({ amount, merchant, merchantName, payLink, mode = 'nu
       </Pressable>
       {hasLink ? (
         <T size={font.xs} weight="600" color={colors.muted} style={{ textAlign: 'center', marginTop: 6 }}>
-          {justOpened ? 'Wave ouvert ✓ — confirmez le paiement, puis revenez appuyer sur « J\'ai payé ».' : mode === 'link' ? 'Ouvre le lien de paiement Wave. Aucun argent ne passe par l\'app.' : `Ouvre Wave avec ${amt} F déjà renseignés — aucun frais pour vous. Ou par transfert au numéro ci-dessous (dans ce cas, frais Wave à votre charge${amount && waveFee(amount) ? ` : envoyez ${fmtN((amount || 0) + waveFee(amount))} F` : ''}) :`}
+          {justOpened ? 'Wave ouvert ✓ — confirmez le paiement, puis revenez appuyer sur « J\'ai payé ».' : mode === 'link' ? 'Ouvre le lien de paiement Wave. Aucun argent ne passe par l\'app.' : (fees ? `Ouvre Wave avec ${fmtN(total)} F déjà renseignés : ${amt} F + ${fmtN(fees)} F de frais Wave, pour que ${merchantName || 'le gérant'} reçoive bien ${amt} F. Ou par transfert du même montant au numéro ci-dessous :` : `Ouvre Wave avec ${amt} F déjà renseignés. Ou par transfert au numéro ci-dessous :`)}
         </T>
       ) : (
         <T size={font.xs} weight="600" color={colors.muted} style={{ textAlign: 'center', marginTop: 6 }}>

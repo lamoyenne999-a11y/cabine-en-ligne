@@ -383,9 +383,10 @@ export function StoreProvider({ children }) {
 
   // Le gérant n'est pas disponible : la demande passe « indisponible », le client est invité à choisir un autre gérant.
   const unavailableDemande = useCallback(async (id, reason) => {
+    const stayOnline = reason === 'nostock' || reason === 'nonetwork';
     dispatch({ type: 'GERANT_UPDATE_DEMANDE', payload: { id, status: 'unavailable', unavailableReason: reason } });
-    dispatch({ type: 'SET_USER_PATCH', payload: { available: false } });
-    if (online) { try { await api.gerant.unavailable(id, reason); } catch {} }
+    if (!stayOnline) dispatch({ type: 'SET_USER_PATCH', payload: { available: false } });
+    if (online) { try { const r = await api.gerant.unavailable(id, reason); if (r?.demande) dispatch({ type: 'GERANT_UPDATE_DEMANDE', payload: r.demande }); } catch {} }
   }, [online]);
 
   // Le gérant demande le paiement avant traitement.
@@ -438,6 +439,18 @@ export function StoreProvider({ children }) {
   }, [online]);
 
   // Le client n'a pas reçu ce qu'il a demandé (gérant a marqué servi à tort).
+  // Remboursement : rôle déduit de l'utilisateur connecté.
+  const refundDemande = useCallback(async (id, kind) => {
+    const isGerant = state.user?.role === 'gerant';
+    const now = Date.now();
+    const local = { refunded: { refundedAt: now, refundNotYetAt: 0, refundDisputedAt: 0 }, not_yet: { refundNotYetAt: now }, request: { refundRequestedAt: now }, received: { refundConfirmedAt: now }, not_received: { refundDisputedAt: now } }[kind] || {};
+    dispatch({ type: isGerant ? 'GERANT_UPDATE_DEMANDE' : 'CLIENT_UPDATE_DEMANDE', payload: { id, ...local } });
+    if (online) {
+      try { const r = await (isGerant ? api.gerant.refund(id, kind) : api.client.refund(id, kind)); if (r?.demande) dispatch({ type: isGerant ? 'GERANT_UPDATE_DEMANDE' : 'CLIENT_UPDATE_DEMANDE', payload: r.demande }); }
+      catch (e) { return { error: e?.message || 'Erreur' }; }
+    }
+    return { ok: true };
+  }, [online, state.user?.role]);
   const notServedDemande = useCallback(async (id) => {
     dispatch({ type: 'CLIENT_UPDATE_DEMANDE', payload: { id, status: 'paid', notServedAt: Date.now() } });
     if (online) { try { const r = await api.client.notServed(id); if (r?.demande) dispatch({ type: 'CLIENT_UPDATE_DEMANDE', payload: r.demande }); } catch {} }
@@ -576,8 +589,8 @@ export function StoreProvider({ children }) {
   }, [state.role]);
 
   const value = useMemo(
-    () => ({ state, dispatch, online, checking, recheck: probe, login, register, logout, refresh, addGerant, removeGerant, createDemande, markPaid, nudgeDemande, cancelDemande, acceptDemande, declineDemande, unavailableDemande, requestPaymentDemande, setAvailability, completeDemande, receiveDemande, notReceiveDemande, partialDemande, paymentReply, notServedDemande, confirmServedDemande, closeDemande, waveCanceledDemande, subscribe, updateGerantProfile, registerPushToken, registerPushSubscription, unregisterPushSubscription, unregisterPushToken, loadNotifications, markNotificationRead, markAllNotificationsRead, loadClientNotifications, markClientNotificationRead, markAllClientNotificationsRead, loadReferral, updateReferralCode }),
-    [state, online, checking, probe, login, register, logout, refresh, addGerant, removeGerant, createDemande, markPaid, cancelDemande, acceptDemande, declineDemande, unavailableDemande, requestPaymentDemande, setAvailability, completeDemande, receiveDemande, notReceiveDemande, partialDemande, paymentReply, notServedDemande, confirmServedDemande, closeDemande, waveCanceledDemande, subscribe, updateGerantProfile, registerPushToken, registerPushSubscription, unregisterPushSubscription, unregisterPushToken, loadNotifications, markNotificationRead, markAllNotificationsRead, loadClientNotifications, markClientNotificationRead, markAllClientNotificationsRead, loadReferral, updateReferralCode],
+    () => ({ state, dispatch, online, checking, recheck: probe, login, register, logout, refresh, addGerant, removeGerant, createDemande, markPaid, nudgeDemande, cancelDemande, acceptDemande, declineDemande, unavailableDemande, requestPaymentDemande, setAvailability, completeDemande, receiveDemande, notReceiveDemande, partialDemande, paymentReply, notServedDemande, refundDemande, confirmServedDemande, closeDemande, waveCanceledDemande, subscribe, updateGerantProfile, registerPushToken, registerPushSubscription, unregisterPushSubscription, unregisterPushToken, loadNotifications, markNotificationRead, markAllNotificationsRead, loadClientNotifications, markClientNotificationRead, markAllClientNotificationsRead, loadReferral, updateReferralCode }),
+    [state, online, checking, probe, login, register, logout, refresh, addGerant, removeGerant, createDemande, markPaid, cancelDemande, acceptDemande, declineDemande, unavailableDemande, requestPaymentDemande, setAvailability, completeDemande, receiveDemande, notReceiveDemande, partialDemande, paymentReply, notServedDemande, refundDemande, confirmServedDemande, closeDemande, waveCanceledDemande, subscribe, updateGerantProfile, registerPushToken, registerPushSubscription, unregisterPushSubscription, unregisterPushToken, loadNotifications, markNotificationRead, markAllNotificationsRead, loadClientNotifications, markClientNotificationRead, markAllClientNotificationsRead, loadReferral, updateReferralCode],
   );
   return <Ctx.Provider value={value}>{children}</Ctx.Provider>;
 }

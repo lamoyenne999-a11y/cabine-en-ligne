@@ -547,6 +547,60 @@ async function main() {
     check('Retrait du lien', clr.status === 200 && clr.json.user.payLink === '');
   }
 
+  // ===== Indisponible : motifs liés à la demande (reste En ligne) =====
+  {
+    const gl = await req('GET', '/client/gerants', null, ct);
+    const gid = (gl.json.gerants || []).find((g) => g.phone === gphone)?.id;
+    await req('POST', '/gerant/availability', { available: true }, gt);
+    const nd = await req('POST', '/client/demandes', { gerantId: gid, gerantName: 'Gérant Test', gerantWave: gphone, type: 'unites', amount: 300, benefName: 'Moi', benefPhone: cphone }, ct);
+    const un = await req('POST', `/gerant/demandes/${nd.json.demande?.id}/unavailable`, { reason: 'nostock' }, gt);
+    check('Indisponible « pas assez d\'unités » accepté', un.status === 200 && un.json.demande?.unavailableReason === 'nostock');
+    const me = await req('GET', '/gerant/profile', null, gt);
+    check('Le gérant reste En ligne pour ce motif', me.json.user && me.json.user.available === true);
+    const cn = await req('GET', '/client/notifications', null, ct);
+    check('Client prévenu avec le motif', (cn.json.notifications || []).some((n) => n.demandeId === nd.json.demande?.id && /pas assez d'unités/.test(n.text)));
+    const nd2 = await req('POST', '/client/demandes', { gerantId: gid, gerantName: 'Gérant Test', gerantWave: gphone, type: 'unites', amount: 300, benefName: 'Moi', benefPhone: cphone }, ct);
+    await req('POST', `/gerant/demandes/${nd2.json.demande?.id}/unavailable`, { reason: 'away' }, gt);
+    const me2 = await req('GET', '/gerant/profile', null, gt);
+    check('Motif « pas à la cabine » : passe Hors ligne', me2.json.user && me2.json.user.available === false);
+    await req('POST', '/gerant/availability', { available: true }, gt);
+  }
+
+  // ===== Remboursement : indisponible après paiement =====
+  {
+    const gl = await req('GET', '/client/gerants', null, ct);
+    const gid = (gl.json.gerants || []).find((g) => g.phone === gphone)?.id;
+    const nd = await req('POST', '/client/demandes', { gerantId: gid, gerantName: 'Gérant Test', gerantWave: gphone, type: 'unites', amount: 700, benefName: 'Moi', benefPhone: cphone }, ct);
+    const did = nd.json.demande?.id;
+    await req('POST', `/client/demandes/${did}/paid`, {}, ct);
+    const un = await req('POST', `/gerant/demandes/${did}/unavailable`, { reason: 'nonetwork' }, gt);
+    check('Indisponible après paiement → remboursement dû', un.status === 200 && un.json.demande?.refundDue > 0);
+    let gn = await req('GET', '/gerant/notifications', null, gt);
+    check('Gérant notifié « À rembourser »', (gn.json.notifications || []).some((n) => n.demandeId === did && /À rembourser/.test(n.text)));
+    const rq = await req('POST', `/client/demandes/${did}/refund`, { kind: 'request' }, ct);
+    check('Client demande le remboursement', rq.status === 200 && rq.json.demande?.refundRequestedAt > 0);
+    const rq2 = await req('POST', `/client/demandes/${did}/refund`, { kind: 'request' }, ct);
+    check('Relance < 1 min refusée (429)', rq2.status === 429);
+    const nr = await req('POST', `/client/demandes/${did}/refund`, { kind: 'not_received' }, ct);
+    check('« Pas reçu » impossible avant « J\'ai remboursé »', nr.status === 400);
+    const ny = await req('POST', `/gerant/demandes/${did}/refund`, { kind: 'not_yet' }, gt);
+    check('Gérant : pas encore pu', ny.status === 200 && ny.json.demande?.refundNotYetAt > 0);
+    const rf = await req('POST', `/gerant/demandes/${did}/refund`, { kind: 'refunded' }, gt);
+    check('Gérant : j\'ai remboursé', rf.status === 200 && rf.json.demande?.refundedAt > 0 && !rf.json.demande?.refundNotYetAt);
+    let cn = await req('GET', '/client/notifications', null, ct);
+    check('Client notifié du remboursement', (cn.json.notifications || []).some((n) => n.demandeId === did && /remboursé 700 F/.test(n.text)));
+    const nr2 = await req('POST', `/client/demandes/${did}/refund`, { kind: 'not_received' }, ct);
+    check('Client : pas reçu → gérant alerté', nr2.status === 200 && nr2.json.demande?.refundDisputedAt > 0);
+    const ok2 = await req('POST', `/client/demandes/${did}/refund`, { kind: 'received' }, ct);
+    check('Client : remboursement reçu → clos', ok2.status === 200 && ok2.json.demande?.refundConfirmedAt > 0);
+    const again = await req('POST', `/gerant/demandes/${did}/refund`, { kind: 'refunded' }, gt);
+    check('Après confirmation : plus d\'action possible', again.status === 400);
+    const nd2 = await req('POST', '/client/demandes', { gerantId: gid, gerantName: 'Gérant Test', gerantWave: gphone, type: 'unites', amount: 200, benefName: 'Moi', benefPhone: cphone }, ct);
+    await req('POST', `/gerant/demandes/${nd2.json.demande?.id}/unavailable`, { reason: 'nostock' }, gt);
+    const no = await req('POST', `/client/demandes/${nd2.json.demande?.id}/refund`, { kind: 'request' }, ct);
+    check('Pas de remboursement si le client n\'avait pas payé', no.status === 400);
+  }
+
   // ===== Signalements + suspension motivée =====
   {
     const A = { 'x-admin-key': 'testkey' };

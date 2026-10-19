@@ -48,6 +48,12 @@ const fmtDT = (t) => (t ? new Date(t).toLocaleString('fr-FR', { day: 'numeric', 
 // Ligne d'état (1 phrase) : dit au gérant où en est la demande.
 function stateLine(d) {
   const amt = `${fmt(d.amount)} XOF`;
+  if (['unavailable', 'declined'].includes(d.status)) {
+    if (d.refundConfirmedAt) return { tone: 'success', icon: 'checkmark-done-circle', text: `Remboursement de ${amt} confirmé par le client.` };
+    if (d.refundDisputedAt && d.refundDisputedAt > (d.refundedAt || 0)) return { tone: 'danger', icon: 'warning', text: `Le client dit NE PAS avoir reçu le remboursement de ${amt}. Vérifiez votre transfert Wave${d.clientPhone ? ' vers le ' + d.clientPhone : ''}, puis « J'ai remboursé ».` };
+    if (d.refundedAt) return { tone: 'info', icon: 'cash', text: `Vous avez indiqué avoir remboursé ${amt}. En attente de la confirmation du client.` };
+    return { tone: 'warn', icon: 'cash', text: `💸 À rembourser : le client ${d.moneyReceived ? 'vous a payé' : 'déclare avoir payé'} ${amt} pour cette demande non servie${d.refundRequestCount ? ' — il vous a relancé ' + d.refundRequestCount + ' fois' : ''}. Remboursez-le par Wave${d.clientPhone ? ' au ' + d.clientPhone : ''}.` };
+  }
   if (d.notServedAt && d.status !== 'completed') return { tone: 'danger', icon: 'alert-circle', text: `PAS une nouvelle demande : demande de ${fmtDT(d.createdAt)} (${ago(d.createdAt)}). Le client dit NE PAS avoir reçu sa recharge (${d.benefPhone}) — signalé ${ago(d.notServedAt)}. Vérifiez le numéro, servez-le puis « J'ai servi ».` };
   if (d.status === 'completed' && d.clientClosedAt) return { tone: 'success', icon: 'checkmark-done-circle', text: 'Terminée — le client a clôturé : servi et payé. Si ce n\'est pas exact, signalez-le depuis l\'Historique.' };
   if (d.moneyReceived && d.status === 'completed' && d.clientConfirmedAt) return { tone: 'success', icon: 'checkmark-done-circle', text: 'Terminée — le client a confirmé la réception.' };
@@ -79,12 +85,21 @@ const TONES = {
 
 export default function GerantDemandes() {
   const {
-    state, acceptDemande, declineDemande, unavailableDemande, requestPaymentDemande,
+    state, acceptDemande, declineDemande, unavailableDemande, requestPaymentDemande, refundDemande,
     completeDemande, receiveDemande, notReceiveDemande, partialDemande, subscribe,
   } = useStore();
   const [confirm, setConfirm] = useState(null); // { id, action }
   const [more, setMore] = useState(null);       // demande ouverte dans le panneau « ⋯ »
   const [unavailReason, setUnavailReason] = useState('away');
+  // Motifs d'indisponibilité : les trois premiers mettent le gérant « Hors ligne » ;
+  // les deux derniers ne concernent que CETTE demande (il reste En ligne).
+  const UNAVAILABLE_REASONS = [
+    { v: 'away', l: 'Je ne suis pas à la cabine' },
+    { v: 'nomaterial', l: "Je n'ai pas mon matériel" },
+    { v: 'later', l: 'Indisponible pour le moment' },
+    { v: 'nostock', l: "Je n'ai pas assez d'unités / de crédit pour ce montant" },
+    { v: 'nonetwork', l: "Je n'ai pas la puce de ce réseau" },
+  ];
   const [showSub, setShowSub] = useState(false);
   const [profile, setProfile] = useState(null);    // demande dont on affiche le profil du client
   const [copiedId, setCopiedId] = useState(null);
@@ -97,9 +112,12 @@ export default function GerantDemandes() {
   // Servie + argent reçu = clôturée pour le gérant → Historique (même si le client
   // n'a pas encore appuyé sur « Bien reçu »). Si le client conteste, la demande
   // repasse en « paid » côté serveur et revient donc ici automatiquement.
+  // Une demande indisponible/refusée avec un remboursement à faire reste ici
+  // jusqu'à ce que le client confirme « Remboursement reçu ».
+  const refundOpen = (d) => ['unavailable', 'declined'].includes(d.status) && !!(d.refundDue || d.paidAt || d.moneyReceived) && !d.refundConfirmedAt;
   const demandes = (state.gerantDemandes || []).filter((d) =>
     d.status === 'pending' || d.status === 'accepted' || d.status === 'paid' ||
-    (d.status === 'completed' && !d.moneyReceived));
+    (d.status === 'completed' && !d.moneyReceived) || refundOpen(d));
 
   const ask = (id, action) => { setMore(null); setConfirm({ id, action }); };
   const doAction = () => {
@@ -112,12 +130,20 @@ export default function GerantDemandes() {
     else if (action === 'received') receiveDemande(id);
     else if (action === 'notreceived') notReceiveDemande(id);
     else if (action === 'partial') partialDemande(id);
+    else if (action === 'refunded') refundDemande(id, 'refunded');
+    else if (action === 'refund_not_yet') refundDemande(id, 'not_yet');
     else if (action === 'complete') completeDemande(id);
     setConfirm(null);
   };
 
   // Boutons PRINCIPAUX (max 2) selon l'étape ; le reste passe dans « ⋯ ».
   const primaryActions = (d) => {
+    if (['unavailable', 'declined'].includes(d.status)) {
+      if (d.refundConfirmedAt) return [];
+      const a = [{ key: 'refunded', title: d.refundedAt ? "J'ai remboursé (à nouveau)" : "J'ai remboursé", icon: 'cash-outline', color: colors.success }];
+      if (!d.refundedAt) a.push({ key: 'refund_not_yet', title: 'Pas encore pu', icon: 'time-outline', color: colors.warn, outline: true });
+      return a;
+    }
     if (d.status === 'pending') return [
       { key: 'accept', title: 'Accepter', icon: 'checkmark', color: colors.primary },
       { key: 'requestpay', title: 'Payer d\'abord', icon: 'card-outline', color: '#2E7BF6', outline: true },
@@ -146,6 +172,7 @@ export default function GerantDemandes() {
   // Actions affichées SOUS les 2 boutons principaux (petites, directes).
   const secondaryActions = (d) => {
     const a = [];
+    if (['unavailable', 'declined'].includes(d.status)) return a;
     if ((d.status === 'paid' || d.status === 'completed') && !d.moneyReceived) {
       a.push({ key: 'partial', title: d.partialAt ? 'Toujours incomplet — relancer le client' : 'Montant reçu incomplet (frais Wave)', icon: 'remove-circle-outline', color: colors.warn });
     }
@@ -157,29 +184,36 @@ export default function GerantDemandes() {
   // Actions SECONDAIRES (panneau « ⋯ »).
   const moreActions = (d) => {
     const a = [];
+    if (['unavailable', 'declined'].includes(d.status)) return a;
     const canServe = d.status !== 'completed' && d.status !== 'pending';
     if (canServe && !d.moneyReceived) a.push({ key: 'complete', title: 'J\'ai servi (sans attendre le paiement)', icon: 'checkmark-done-outline', color: colors.primary });
     if (d.status === 'pending' || d.status === 'accepted') a.push({ key: 'received', title: 'Argent déjà reçu ✓', icon: 'cash-outline', color: colors.success });
-    if (d.status === 'pending' || d.status === 'paid') a.push({ key: 'decline', title: 'Refuser la demande', icon: 'close-circle', color: colors.danger });
     return a;
   };
 
   const cur = demandes.find((d) => d.id === confirm?.id) || {};
   const TITLES = {
-    accept: 'Accepter la demande', decline: 'Refuser la demande', unavailable: 'Je ne suis pas disponible',
+    accept: 'Accepter la demande', decline: 'Refuser la demande', unavailable: 'Je ne peux pas servir cette demande',
     requestpay: 'Demander le paiement', received: "Confirmer l'argent reçu", notreceived: 'Argent non reçu',
     partial: 'Montant incomplet', complete: 'Confirmer le service',
+    refunded: 'Confirmer le remboursement', refund_not_yet: 'Pas encore remboursé',
   };
   const message = () => {
     switch (confirm?.action) {
       case 'accept': return 'Le client sera informé que vous avez bien reçu sa demande et que vous vous en occupez.';
+      case 'refunded': return `Confirmez seulement si vous avez bien renvoyé ${fmt(cur.amount)} XOF par Wave${cur.clientPhone ? ' au ' + cur.clientPhone : ''}. Le client sera invité à vérifier et confirmer la réception.`;
+      case 'refund_not_yet': return 'Le client sera prévenu que le remboursement arrivera dès que possible. Il pourra vous relancer.';
       case 'requestpay': return `Le client sera informé que vous avez bien reçu sa demande et qu'il doit payer ${fmt(cur.amount)} XOF (+ frais Wave) avant que vous ne le serviez.`;
       case 'decline': return cur.status === 'paid'
         ? 'Le client a déjà payé. Si vous refusez, le montant doit lui être remboursé (par Wave).'
         : 'La demande sera signalée comme refusée.';
-      case 'unavailable': return cur.status === 'paid'
-        ? "Le client a déjà payé : il sera informé que vous n'êtes pas disponible et que le montant doit lui être remboursé (par Wave). Vous passerez « Hors ligne »."
-        : "Le client sera informé que vous n'êtes pas disponible (ce n'est pas un refus) et invité à choisir un autre gérant. Vous passerez « Hors ligne » ; remettez-vous en ligne depuis votre Profil.";
+      case 'unavailable': {
+        const stay = unavailReason === 'nostock' || unavailReason === 'nonetwork';
+        const paidPart = (cur.status === 'paid' || cur.paidAt || cur.moneyReceived) ? ' Le client a déjà payé : vous devrez le rembourser par Wave (un bouton « J\'ai remboursé » apparaîtra).' : '';
+        return (stay
+          ? 'Le client sera informé (ce n\'est pas un refus) et invité à choisir un autre gérant. Vous restez En ligne pour vos autres demandes.'
+          : 'Le client sera informé (ce n\'est pas un refus) et invité à choisir un autre gérant. Vous passerez « Hors ligne » ; remettez-vous en ligne depuis votre Profil.') + paidPart;
+      }
       case 'received': return `Vous confirmez avoir reçu ${fmt(cur.amount)} XOF de ${cur.clientName || 'ce client'} sur votre Wave ? Le client sera notifié.`;
       case 'notreceived': return `Vous n'avez PAS reçu ${fmt(cur.amount)} XOF de ${cur.clientName || 'ce client'} ? Il sera notifié et invité à vérifier son transfert Wave.`;
       case 'partial': return `Vous avez reçu moins que ${fmt(cur.amount)} XOF (souvent ${fmt((cur.amount || 0) - waveFee(cur.amount))} XOF : frais Wave déduits). Le client sera invité à compléter ${fmt(waveFee(cur.amount))} XOF.`;
@@ -335,7 +369,7 @@ export default function GerantDemandes() {
         <T size={font.sm} weight="600" color={colors.muted} style={{ textAlign: 'center', marginTop: 6, marginBottom: 6 }}>{message()}</T>
         {confirm?.action === 'unavailable' && (
           <View style={{ marginTop: 6, marginBottom: 4 }}>
-            {[{ v: 'away', l: 'Je ne suis pas à la cabine' }, { v: 'nomaterial', l: "Je n'ai pas mon matériel" }, { v: 'later', l: 'Indisponible pour le moment' }].map((r) => {
+            {UNAVAILABLE_REASONS.map((r) => {
               const on = unavailReason === r.v;
               return (
                 <Pressable key={r.v} onPress={() => setUnavailReason(r.v)} style={[s.reasonRow, on && s.reasonRowOn]}>

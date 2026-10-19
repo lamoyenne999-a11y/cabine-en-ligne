@@ -77,7 +77,8 @@ function matches(d, q) {
 }
 
 export default function ClientHistory() {
-  const { state, markPaid, nudgeDemande, cancelDemande, paymentReply, notServedDemande, confirmServedDemande, closeDemande, waveCanceledDemande, refresh , dispatch } = useStore();
+  const { state, markPaid, nudgeDemande, cancelDemande, paymentReply, notServedDemande, confirmServedDemande, closeDemande, waveCanceledDemande, refresh , dispatch, refundDemande } = useStore();
+  const [refundMsg, setRefundMsg] = useState('');
   const [busyNudge, setBusyNudge] = useState(null);
   const [nudgeMsg, setNudgeMsg] = useState(null); // { id, ok, text }
   const doNudge = async (d) => {
@@ -111,7 +112,7 @@ export default function ClientHistory() {
     { value: 'pending', label: `En attente (${sum.counts.pending})` },
     { value: 'accepted', label: `À payer (${sum.counts.accepted})` },
     { value: 'treated', label: `Traitées (${sum.counts.paid + sum.counts.completed})` },
-    { value: 'declined', label: `Refusées (${sum.counts.declined + sum.counts.unavailable})` },
+    { value: 'declined', label: `Non servies (${sum.counts.declined + sum.counts.unavailable})` },
     { value: 'canceled', label: `Annulées (${sum.counts.canceled})` },
   ];
   const inGroup = (d) => {
@@ -345,8 +346,35 @@ export default function ClientHistory() {
               <View style={[s.timerBox, { backgroundColor: colors.warnBg }]}>
                 <Ionicons name="moon" size={16} color={colors.warn} />
                 <T size={font.sm} weight="700" color={colors.warn} style={{ marginLeft: 8, flex: 1 }}>
-                  {d.gerantName} {({ away: "n'est pas à la cabine.", nomaterial: "n'a pas son matériel.", later: "n'est pas disponible pour le moment." })[d.unavailableReason] || "n'est pas disponible pour le moment."}{d.paidAt ? ' Montant payé à vous faire rembourser.' : ''}
+                  {d.gerantName} {({ away: "n'est pas à la cabine.", nomaterial: "n'a pas son matériel.", later: "n'est pas disponible pour le moment.", nostock: "n'a pas assez d'unités / de crédit pour ce montant.", nonetwork: "n'a pas la puce de ce réseau." })[d.unavailableReason] || "n'est pas disponible pour le moment."} Ce n'est pas un refus : renvoyez votre demande à un autre gérant.
                 </T>
+              </View>
+            )}
+            {/* Remboursement : le client avait payé une demande indisponible / refusée */}
+            {['unavailable', 'declined'].includes(d.status) && !!(d.refundDue || d.paidAt || d.moneyReceived) && (
+              <View style={[s.timerBox, { backgroundColor: d.refundConfirmedAt ? colors.successBg : d.refundedAt ? '#E7F0FE' : colors.warnBg, flexDirection: 'column', alignItems: 'stretch' }]}>
+                <View style={{ flexDirection: 'row', alignItems: 'center' }}>
+                  <Ionicons name={d.refundConfirmedAt ? 'checkmark-circle' : 'cash'} size={16} color={d.refundConfirmedAt ? colors.success : d.refundedAt ? '#2E7BF6' : colors.warn} />
+                  <T size={font.sm} weight="700" color={d.refundConfirmedAt ? colors.success : d.refundedAt ? '#2E7BF6' : colors.warn} style={{ marginLeft: 8, flex: 1 }}>
+                    {d.refundConfirmedAt
+                      ? `Remboursement de ${money(d.amount)} reçu. Dossier clos.`
+                      : d.refundDisputedAt && d.refundDisputedAt > (d.refundedAt || 0)
+                        ? `Vous avez signalé ne pas avoir reçu le remboursement. ${d.gerantName} revérifie son transfert.`
+                        : d.refundedAt
+                          ? `${d.gerantName} indique vous avoir remboursé ${money(d.amount)} sur votre Wave. Vérifiez votre solde.`
+                          : d.refundNotYetAt
+                            ? `${d.gerantName} n'a pas encore pu vous rembourser ${money(d.amount)}. Il le fera dès que possible.`
+                            : `Vous aviez payé ${money(d.amount)} : ${d.gerantName} doit vous rembourser sur votre Wave.`}
+                  </T>
+                </View>
+                {!d.refundConfirmedAt && (
+                  <View style={{ flexDirection: 'row', marginTop: 10 }}>
+                    <Btn title="Remboursement reçu" icon="checkmark" size="sm" color={colors.success} onPress={() => refundDemande(d.id, 'received')} style={{ flex: 1, marginRight: 6 }} />
+                    {d.refundedAt
+                      ? <Btn title="Pas reçu" icon="alert-circle-outline" size="sm" color={colors.danger} outline onPress={() => refundDemande(d.id, 'not_received')} style={{ flex: 1 }} />
+                      : <Btn title={d.refundRequestedAt ? 'Relancer' : 'Demander remboursement'} icon="hand-left-outline" size="sm" outline onPress={async () => { const r = await refundDemande(d.id, 'request'); setRefundMsg(r?.error ? r.error : `${d.gerantName} a été prévenu : remboursement de ${money(d.amount)} demandé.`); }} style={{ flex: 1 }} />}
+                  </View>
+                )}
               </View>
             )}
             {/* Montant incomplet signalé par le gérant : compléter ou affirmer avoir tout payé */}
@@ -515,6 +543,10 @@ export default function ClientHistory() {
           Vous pouvez annuler cette demande de {money(canceling?.amount)} tant que vous n'avez pas encore payé. Le gérant en sera informé.
         </T>
         <DialogButtons cancel="Retour" confirm="Annuler" onCancel={() => setCanceling(null)} onConfirm={() => { if (canceling) cancelDemande(canceling.id); setCanceling(null); }} />
+      </Dialog>
+      <Dialog visible={!!refundMsg}>
+        <T size={font.body} weight="700" color={colors.text} style={{ textAlign: 'center' }}>{refundMsg}</T>
+        <DialogButtons confirm="OK" onConfirm={() => setRefundMsg('')} />
       </Dialog>
     </Page>
   );

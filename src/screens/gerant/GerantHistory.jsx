@@ -67,7 +67,7 @@ export default function GerantHistory() {
     { value: 'pending', label: `En attente (${sum.counts.pending})` },
     { value: 'treated', label: `Servies (${sum.counts.completed})` },
     { value: 'unpaid', label: `À encaisser (${demandes.filter((d) => d.status === 'completed' && !d.moneyReceived).length})` },
-    { value: 'declined', label: `Refusées / indispo (${sum.counts.declined + sum.counts.unavailable})` },
+    { value: 'declined', label: `Non servies (${sum.counts.declined + sum.counts.unavailable})` },
     { value: 'canceled', label: `Annulées (${sum.counts.canceled})` },
   ];
   const inGroup = (d) => {
@@ -100,7 +100,7 @@ export default function GerantHistory() {
         </View>
         <View style={s.sumGrid}>
           <Tile icon="checkmark-done" tone="green" value={served} label="Servies" />
-          <Tile icon="close-circle" tone="red" value={sum.counts.declined + sum.counts.unavailable} label="Refusées" />
+          <Tile icon="close-circle" tone="red" value={sum.counts.declined + sum.counts.unavailable} label="Non servies" />
           <Tile icon="remove-circle" tone="gray" value={sum.counts.canceled} label="Annulées" />
         </View>
       </Card>
@@ -215,7 +215,7 @@ export default function GerantHistory() {
                   paid: d.notServedAt ? `⚠️ Le client dit ne pas avoir reçu sa recharge — à re-servir (voir Demandes).` : d.moneyReceived ? `Argent reçu (${money(d.amount)}) — reste à servir le client.` : `Le client déclare avoir payé ${money(d.amount)} — réception à confirmer.`,
                   completed: d.clientConfirmedAt ? `✅ Le client a confirmé avoir reçu sa recharge${d.moneyReceived ? ' — réglée.' : ' — paiement encore à encaisser.'}` : d.moneyReceived ? `Réglée : ${money(d.amount)} reçus sur votre Wave, client servi.` : `Client servi, paiement de ${money(d.amount)} PAS ENCORE reçu.`,
                   declined: 'Vous avez refusé cette demande.',
-                  unavailable: 'Vous n\'étiez pas disponible.',
+                  unavailable: (d.refundDue || d.paidAt || d.moneyReceived) ? (d.refundConfirmedAt ? `Non servie — remboursement de ${money(d.amount)} confirmé par le client.` : d.refundedAt ? `Non servie — vous avez indiqué avoir remboursé ${money(d.amount)} (confirmation du client en attente).` : `⚠️ Non servie — ${money(d.amount)} À REMBOURSER au client (voir Demandes).`) : 'Vous n\'étiez pas disponible.',
                   canceled: d.waveCanceledAt ? '⚠️ Le client a ANNULÉ son transfert Wave : ne le servez plus. Déjà servi ? Signalez-le.' : 'Annulée par le client.',
                 }[d.status] || 'Payé en direct via Wave.'
               )}

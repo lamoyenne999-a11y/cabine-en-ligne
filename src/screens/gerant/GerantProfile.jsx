@@ -168,7 +168,7 @@ export default function GerantProfile({ onLogout }) {
               />
               {linkErr ? <T size={font.xs} weight="700" color={colors.danger} style={{ marginTop: 4 }}>{linkErr}</T> : null}
               <T size={font.xs} weight="600" color={colors.muted2} style={{ marginTop: 6 }}>
-                Dans votre app Wave Business : « Recevoir un paiement » → « Partager mon lien ». Vos clients paieront en un clic, sans frais pour eux ; Wave prélève environ 1 % sur vous.
+                Dans votre app Wave Business : « Recevoir un paiement » → « Partager mon lien ». Vos clients paieront en un clic ; les frais Wave (~1 %) sont ajoutés à ce qu'ils paient, vous recevez le montant exact de la demande.
               </T>
               <View style={{ flexDirection: 'row', marginTop: 8 }}>
                 <Btn title="Annuler" outline size="sm" onPress={() => { setEditLink(false); setLinkErr(''); }} style={{ flex: 1, marginRight: 6 }} />
@@ -190,8 +190,8 @@ export default function GerantProfile({ onLogout }) {
               <View style={{ flexDirection: 'row', alignItems: 'center', marginTop: 6 }}>
                 <T size={font.xs} weight="600" color={colors.muted2} style={{ flex: 1 }}>
                   {u.payLinkOff
-                    ? 'Vos clients paient par transfert au numéro (frais Wave à leur charge). Réactivez quand votre quota Wave Business est à nouveau disponible.'
-                    : 'Vos clients paient en 1 clic, sans frais pour eux (Wave prélève ~1 % sur vous). Quota atteint ? Désactivez : ils paieront par transfert.'}
+                    ? 'Vos clients paient par transfert au numéro. Réactivez quand votre quota Wave Business est à nouveau disponible.'
+                    : 'Vos clients paient en 1 clic, frais Wave ajoutés à leur paiement : vous recevez le montant exact. Quota atteint ? Désactivez : ils paieront par transfert.'}
                 </T>
               </View>
               {/* Actions bien séparées : Modifier (large, à gauche) / Supprimer (à droite, avec confirmation). */}
@@ -255,7 +255,7 @@ export default function GerantProfile({ onLogout }) {
       <Dialog visible={confirmDelLink}>
         <T size={font.h3} weight="800" color={colors.text} style={{ textAlign: 'center' }}>Supprimer votre lien Wave Business ?</T>
         <T size={font.sm} weight="600" color={colors.muted} style={{ textAlign: 'center', marginTop: 8 }}>
-          Vos clients ne pourront plus payer en 1 clic : ils paieront par transfert au numéro (frais Wave à leur charge). Vous pourrez ajouter un lien à nouveau plus tard.
+          Vos clients ne pourront plus payer en 1 clic : ils paieront par transfert au numéro. Vous pourrez ajouter un lien à nouveau plus tard.
         </T>
         <T size={font.xs} weight="600" color={colors.muted2} style={{ textAlign: 'center', marginTop: 8 }}>
           Astuce : pour une pause (quota atteint), utilisez plutôt l'interrupteur — votre lien est conservé.
