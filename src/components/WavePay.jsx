@@ -83,7 +83,7 @@ export function WavePayBox({ amount, merchant, merchantName, payLink, mode = 'nu
       </Pressable>
       {hasLink ? (
         <T size={font.xs} weight="600" color={colors.muted} style={{ textAlign: 'center', marginTop: 6 }}>
-          {justOpened ? 'Wave ouvert ✓ — confirmez le paiement, puis revenez appuyer sur « J\'ai payé ».' : mode === 'link' ? 'Ouvre le lien de paiement Wave. Aucun argent ne passe par l\'app.' : `Ouvre Wave avec ${amt} F déjà renseignés, sans frais pour vous. Ou par transfert au numéro :`}
+          {justOpened ? 'Wave ouvert ✓ — confirmez le paiement, puis revenez appuyer sur « J\'ai payé ».' : mode === 'link' ? 'Ouvre le lien de paiement Wave. Aucun argent ne passe par l\'app.' : `Ouvre Wave avec ${amt} F déjà renseignés — aucun frais pour vous. Ou par transfert au numéro ci-dessous (dans ce cas, frais Wave à votre charge${amount && waveFee(amount) ? ` : envoyez ${fmtN((amount || 0) + waveFee(amount))} F` : ''}) :`}
         </T>
       ) : (
         <T size={font.xs} weight="600" color={colors.muted} style={{ textAlign: 'center', marginTop: 6 }}>

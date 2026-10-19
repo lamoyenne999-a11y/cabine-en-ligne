@@ -21,11 +21,17 @@ export default function GerantProfile({ onLogout }) {
   const [linkDraft, setLinkDraft] = useState('');
   const [linkErr, setLinkErr] = useState('');
   const [linkBusy, setLinkBusy] = useState(false);
-  const saveLink = async (value) => {
-    const v = String(value || '').trim();
-    if (v && !/^https:\/\/pay\.wave\.com\/m\//i.test(v)) { setLinkErr('Le lien doit commencer par https://pay.wave.com/m/ (copiez-le depuis votre app Wave Business).'); return; }
+  // saveLink(valeur) enregistre/retire le lien ; saveLink(undefined, off) l'active/désactive.
+  const saveLink = async (value, off) => {
+    const patch = {};
+    if (value !== undefined) {
+      const v = String(value || '').trim();
+      if (v && !/^https:\/\/pay\.wave\.com\/m\//i.test(v)) { setLinkErr('Le lien doit commencer par https://pay.wave.com/m/ (copiez-le depuis votre app Wave Business).'); return; }
+      patch.payLink = v;
+    }
+    if (off !== undefined) patch.payLinkOff = !!off;
     setLinkBusy(true); setLinkErr('');
-    try { await updateGerantProfile({ payLink: v }); setEditLink(false); }
+    try { await updateGerantProfile(patch); setEditLink(false); }
     catch (e) { setLinkErr(e?.message || 'Enregistrement impossible.'); }
     finally { setLinkBusy(false); }
   };
@@ -96,14 +102,10 @@ export default function GerantProfile({ onLogout }) {
             <T size={font.body} weight="800" color={colors.text}>{isAvailable ? 'En ligne' : 'Hors ligne'}</T>
             <T size={font.xs} weight="600" color={colors.muted}>{isAvailable ? 'Vous recevez les demandes.' : 'Les clients vous voient « Hors ligne ».'}</T>
           </View>
-          <Btn
-            title={isAvailable ? 'Passer Hors ligne' : 'Me remettre En ligne'}
-            icon={isAvailable ? 'moon-outline' : 'sunny-outline'}
-            color={isAvailable ? colors.warn : colors.success}
-            outline={isAvailable}
-            size="sm"
-            onPress={() => setAvailability(!isAvailable)}
-          />
+          <Pressable onPress={() => setAvailability(!isAvailable)} style={[s.availBtn, isAvailable ? s.availBtnOff : s.availBtnOn]} hitSlop={6}>
+            <Ionicons name={isAvailable ? 'moon-outline' : 'sunny-outline'} size={14} color={isAvailable ? colors.warn : '#fff'} />
+            <T size={font.xs} weight="800" color={isAvailable ? colors.warn : '#fff'} style={{ marginLeft: 5 }}>{isAvailable ? 'Passer Hors ligne' : 'Me remettre En ligne'}</T>
+          </Pressable>
         </View>
       </Card>
 
@@ -151,7 +153,7 @@ export default function GerantProfile({ onLogout }) {
         <View style={s.payLinkBox}>
           {editLink ? (
             <>
-              <T size={font.xs} weight="800" color={colors.text}>Lien Wave Business</T>
+              <T size={font.xs} weight="800" color={colors.text}>Lien de paiement Wave Business (pas votre lien Cabine En Ligne)</T>
               <TextInput
                 value={linkDraft}
                 onChangeText={(t) => { setLinkDraft(t); setLinkErr(''); }}
@@ -172,19 +174,31 @@ export default function GerantProfile({ onLogout }) {
               </View>
             </>
           ) : u?.payLink ? (
-            <View style={{ flexDirection: 'row', alignItems: 'center' }}>
-              <Ionicons name="flash" size={16} color={colors.wave} />
-              <View style={{ flex: 1, marginLeft: 8, minWidth: 0 }}>
-                <T size={font.xs} weight="800" color={colors.text}>Wave Business activé — paiement en 1 clic</T>
-                <T size={font.xs} weight="600" color={colors.muted} numberOfLines={1}>{u.payLink}</T>
+            <>
+              <View style={{ flexDirection: 'row', alignItems: 'center' }}>
+                <Ionicons name="flash" size={16} color={u.payLinkOff ? colors.muted2 : colors.wave} />
+                <View style={{ flex: 1, marginLeft: 8, minWidth: 0 }}>
+                  <T size={font.xs} weight="800" color={colors.text}>Paiement Wave Business {u.payLinkOff ? '— désactivé' : '— activé'}</T>
+                  <T size={font.xs} weight="600" color={colors.muted} numberOfLines={1}>{u.payLink}</T>
+                </View>
+                <Pressable onPress={() => saveLink(undefined, !u.payLinkOff)} hitSlop={8} style={[s.switch, !u.payLinkOff && s.switchOn]}>
+                  <View style={[s.knob, !u.payLinkOff && s.knobOn]} />
+                </Pressable>
               </View>
-              <Pressable onPress={() => { setLinkDraft(u.payLink || ''); setEditLink(true); }} hitSlop={8} style={s.linkIconBtn}><Ionicons name="create-outline" size={18} color={colors.primary} /></Pressable>
-              <Pressable onPress={() => saveLink('')} hitSlop={8} style={[s.linkIconBtn, { marginLeft: 6 }]}><Ionicons name="trash-outline" size={18} color={colors.danger} /></Pressable>
-            </View>
+              <View style={{ flexDirection: 'row', alignItems: 'center', marginTop: 6 }}>
+                <T size={font.xs} weight="600" color={colors.muted2} style={{ flex: 1 }}>
+                  {u.payLinkOff
+                    ? 'Vos clients paient par transfert au numéro (frais Wave à leur charge). Réactivez quand votre quota Wave Business est à nouveau disponible.'
+                    : 'Vos clients paient en 1 clic, sans frais pour eux (Wave prélève ~1 % sur vous). Quota atteint ? Désactivez : ils paieront par transfert.'}
+                </T>
+                <Pressable onPress={() => { setLinkDraft(u.payLink || ''); setEditLink(true); }} hitSlop={8} style={s.linkIconBtn}><Ionicons name="create-outline" size={16} color={colors.primary} /></Pressable>
+                <Pressable onPress={() => saveLink('')} hitSlop={8} style={[s.linkIconBtn, { marginLeft: 6 }]}><Ionicons name="trash-outline" size={16} color={colors.danger} /></Pressable>
+              </View>
+            </>
           ) : (
             <Pressable onPress={() => { setLinkDraft(''); setEditLink(true); }} style={{ flexDirection: 'row', alignItems: 'center' }}>
               <Ionicons name="flash-outline" size={16} color={colors.wave} />
-              <T size={font.xs} weight="800" color={colors.wave} style={{ marginLeft: 8, flex: 1 }}>Ajouter mon lien Wave Business (paiement en 1 clic, facultatif)</T>
+              <T size={font.xs} weight="800" color={colors.wave} style={{ marginLeft: 8, flex: 1 }}>Paiement Wave Business : ajouter mon lien de paiement (facultatif)</T>
               <Ionicons name="chevron-forward" size={16} color={colors.muted2} />
             </Pressable>
           )}
@@ -192,8 +206,8 @@ export default function GerantProfile({ onLogout }) {
       </Card>
 
       <Card style={{ marginTop: space.lg }}>
-        <T size={font.h3} weight="800" color={colors.text} style={{ marginBottom: 6 }}>Mon lien de partage</T>
-        <T size={font.xs} weight="600" color={colors.muted} style={{ marginBottom: 10 }}>Vos clients l'ouvrent pour vous ajouter.</T>
+        <T size={font.h3} weight="800" color={colors.text} style={{ marginBottom: 6 }}>Mon lien Cabine En Ligne</T>
+        <T size={font.xs} weight="600" color={colors.muted} style={{ marginBottom: 10 }}>Pour être ajouté par vos clients (ce n'est pas un lien de paiement).</T>
         <View style={s.linkRow}>
           <Text numberOfLines={1} style={s.linkText}>{shareUrl}</Text>
           <Pressable onPress={copy} style={s.copyBtn}><Ionicons name={copied ? 'checkmark' : 'copy-outline'} size={16} color="#fff" /></Pressable>
@@ -232,6 +246,13 @@ export default function GerantProfile({ onLogout }) {
 }
 
 const s = StyleSheet.create({
+  availBtn: { flexDirection: 'row', alignItems: 'center', borderRadius: 999, paddingHorizontal: 10, paddingVertical: 6 },
+  availBtnOn: { backgroundColor: colors.success },
+  availBtnOff: { borderWidth: 1.5, borderColor: colors.warn, backgroundColor: '#fff' },
+  switch: { width: 44, height: 26, borderRadius: 13, backgroundColor: '#D9D4E3', padding: 3, justifyContent: 'center' },
+  switchOn: { backgroundColor: colors.success },
+  knob: { width: 20, height: 20, borderRadius: 10, backgroundColor: '#fff' },
+  knobOn: { alignSelf: 'flex-end' },
   payLinkBox: { marginTop: 12, paddingTop: 10, borderTopWidth: 1, borderTopColor: colors.border },
   linkIconBtn: { width: 34, height: 34, borderRadius: 17, backgroundColor: colors.bg, alignItems: 'center', justifyContent: 'center' },
   linkInput: { marginTop: 6, backgroundColor: colors.bg, borderRadius: 12, paddingHorizontal: 12, paddingVertical: 10, fontSize: 14, color: colors.text },

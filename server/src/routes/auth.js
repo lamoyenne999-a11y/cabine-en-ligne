@@ -175,7 +175,7 @@ router.post('/push-token/remove', requireAuth, (req, res) => {
 });
 
 function publicUser(u) {
-  return { id: u.id, role: u.role, name: u.name, phone: u.phone, email: u.email, waveNumber: u.waveNumber, payLink: u.payLink || '', referralCode: u.referralCode || '', certified: !!u.certified, official: !!u.official, stars: u.stars || 0,
+  return { id: u.id, role: u.role, name: u.name, phone: u.phone, email: u.email, waveNumber: u.waveNumber, payLink: u.payLink || '', payLinkOff: !!u.payLinkOff, referralCode: u.referralCode || '', certified: !!u.certified, official: !!u.official, stars: u.stars || 0,
     frozen: !!u.frozen, frozenReason: u.frozenReason || '', frozenText: u.frozen ? suspendReasonText(u, u.frozenReason, u.frozenNote) : '' };
 }
 

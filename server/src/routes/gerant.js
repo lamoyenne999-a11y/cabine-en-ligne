@@ -67,8 +67,8 @@ router.get('/stats', (req, res) => res.json({ stats: gerantStats(req.user.id) })
 // Mise à jour du numéro + lien Wave marchand (les clients pourront cliquer pour payer)
 router.post('/profile', (req, res) => {
   try {
-    const { waveNumber, payLink } = req.body || {};
-    const user = updateGerantProfile({ userId: req.user.id, waveNumber, payLink });
+    const { waveNumber, payLink, payLinkOff } = req.body || {};
+    const user = updateGerantProfile({ userId: req.user.id, waveNumber, payLink, payLinkOff });
     res.json({ user });
   } catch (e) { res.status(400).json({ error: e.message }); }
 });

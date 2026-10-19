@@ -549,10 +549,10 @@ export function StoreProvider({ children }) {
         // Refus du serveur (ex. lien Wave Business invalide) : on remonte l'erreur,
         // rien n'est modifié localement. Hors réseau : repli local.
         if (e && e.status && e.status < 500) throw e;
-        updated = { waveNumber: patch.waveNumber, payLink: patch.payLink };
+        updated = { ...patch };
       }
     } else {
-      updated = { waveNumber: patch.waveNumber, payLink: patch.payLink };
+      updated = { ...patch };
     }
     if (updated) {
       dispatch({ type: 'SET_GERANT_PROFILE', payload: updated });

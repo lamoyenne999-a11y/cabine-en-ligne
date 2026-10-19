@@ -1009,7 +1009,7 @@ export function publicProfile(id) {
   { const b = findOne('users', (x) => x.id === id); if (b && isPhoneBlocked(b.phone)) return null; }
   const u = findOne('users', (x) => x.id === id);
   if (!u) return null;
-  return { id: u.id, name: u.name, phone: u.phone, role: u.role, waveNumber: u.waveNumber, payLink: u.payLink || '', certified: !!u.certified, official: !!u.official, stars: u.stars || 0, rating: u.role === 'gerant' ? gerantRating(u.id) : undefined };
+  return { id: u.id, name: u.name, phone: u.phone, role: u.role, waveNumber: u.waveNumber, payLink: activePayLink(u), certified: !!u.certified, official: !!u.official, stars: u.stars || 0, rating: u.role === 'gerant' ? gerantRating(u.id) : undefined };
 }
 
 // ---- Gérants (contacts) d'un client ----
@@ -1025,7 +1025,7 @@ export function gerantsFor(clientId) {
     if (g.userId) {
       const u = findOne('users', (x) => x.id === g.userId);
       if (u) {
-        return { ...g, waveNumber: u.waveNumber || g.waveNumber, payLink: u.payLink || g.payLink || '', suspended: !!u.frozen, certified: !!u.certified, official: !!u.official, stars: u.stars || 0, online: u.available !== false, rating: gerantRating(u.id) };
+        return { ...g, waveNumber: u.waveNumber || g.waveNumber, payLink: activePayLink(u), suspended: !!u.frozen, certified: !!u.certified, official: !!u.official, stars: u.stars || 0, online: u.available !== false, rating: gerantRating(u.id) };
       }
     }
     return g;
@@ -1041,7 +1041,7 @@ export function availableGerants(clientId) {
   const added = gerantsFor(clientId).map((g) => g.userId);
   return find('users', (u) => u.role === 'gerant' && u.passwordHash && !u.frozen && !isPhoneBlocked(u.phone))
     .map((u) => ({
-      userId: u.id, name: u.name, phone: u.phone, waveNumber: u.waveNumber || u.phone, payLink: u.payLink || '',
+      userId: u.id, name: u.name, phone: u.phone, waveNumber: u.waveNumber || u.phone, payLink: activePayLink(u),
       alreadyAdded: added.includes(u.id), online: u.available !== false,
       // "Certifié" : badge attribué UNIQUEMENT par le propriétaire (Espace propriétaire).
       certified: !!u.certified,
@@ -1073,11 +1073,17 @@ export function addGerant({ clientId, phone, name }) {
     name: user.name,
     phone: user.phone,
     waveNumber: user.waveNumber || user.phone,
-    payLink: user.payLink || '',
+    payLink: activePayLink(user),
     rating: 4.0,
     online: true,
   });
   return { gerant, created: true };
+}
+
+// Lien Wave Business EFFECTIF d'un gérant : vide s'il l'a désactivé (quota atteint…).
+// C'est ce lien-là que voient les clients ; le gérant garde son lien enregistré.
+export function activePayLink(u) {
+  return u && u.payLink && !u.payLinkOff ? u.payLink : '';
 }
 
 // ---- Profil gérant (nom, téléphone, numéro + lien Wave marchand) ----
@@ -1087,12 +1093,14 @@ export function gerantProfile(user) {
     phone: user.phone,
     waveNumber: user.waveNumber,
     payLink: user.payLink || '',
+    payLinkOff: !!user.payLinkOff,
     available: user.available !== false,
   };
 }
 
-export function updateGerantProfile({ userId, waveNumber, payLink }) {
+export function updateGerantProfile({ userId, waveNumber, payLink, payLinkOff }) {
   const patch = {};
+  if (payLinkOff !== undefined) patch.payLinkOff = !!payLinkOff;
   if (waveNumber !== undefined) patch.waveNumber = String(waveNumber).replace(/[^0-9]/g, '');
   if (payLink !== undefined) {
     const link = String(payLink).trim();
@@ -1102,13 +1110,16 @@ export function updateGerantProfile({ userId, waveNumber, payLink }) {
       throw Object.assign(new Error('Lien Wave Business invalide : il doit commencer par https://pay.wave.com/m/'), { status: 400 });
     }
     patch.payLink = link.split('?')[0];
+    if (patch.payLink) patch.payLinkOff = false; // un nouveau lien est actif par défaut
   }
 
   if (Object.keys(patch).length) {
     update('users', (u) => u.id === userId, patch);
     // Propage le changement à tous les contacts « gérants » qui le référencent
+    const fresh = findOne('users', (u) => u.id === userId);
+    const cpatch = { ...(patch.waveNumber !== undefined ? { waveNumber: patch.waveNumber } : {}), payLink: activePayLink(fresh) };
     find('gerants', (g) => g.userId === userId).forEach((g) => {
-      update('gerants', (x) => x.id === g.id, patch);
+      update('gerants', (x) => x.id === g.id, cpatch);
     });
   }
   const u = findOne('users', (x) => x.id === userId);
@@ -1139,7 +1150,7 @@ export function createDemande({ client, gerantId, gerantUserId, type, amount, be
       g = findOne('gerants', (x) => x.ownerId === client.id && x.userId === u.id);
       if (!g) g = insert('gerants', {
         ownerId: client.id, userId: u.id, name: u.name, phone: u.phone,
-        waveNumber: u.waveNumber || u.phone, payLink: u.payLink || '', rating: 4.0, online: true,
+        waveNumber: u.waveNumber || u.phone, payLink: activePayLink(u), rating: 4.0, online: true,
       });
     }
   }
@@ -1164,7 +1175,7 @@ export function createDemande({ client, gerantId, gerantUserId, type, amount, be
     const guser = findOne('users', (x) => x.id === g.userId);
     if (guser) {
       liveWave = guser.waveNumber || liveWave;
-      livePayLink = guser.payLink || '';
+      livePayLink = activePayLink(guser);
     }
   }
 

@@ -533,6 +533,16 @@ async function main() {
     const nd = await req('POST', '/client/demandes', { gerantId: gid, gerantName: 'Gérant Test', gerantWave: gphone, type: 'unites', amount: 250, benefName: 'Moi', benefPhone: cphone }, ct);
     check('Nouvelle demande porte le lien du gérant', nd.json.demande?.gerantPayLink === 'https://pay.wave.com/m/M_ci_TEST123/c/ci/');
     await req('POST', `/gerant/demandes/${nd.json.demande?.id}/decline`, {}, gt);
+    const off = await req('POST', '/gerant/profile', { payLinkOff: true }, gt);
+    check('Désactivation du lien (quota atteint) : lien conservé, désactivé', off.status === 200 && off.json.user.payLinkOff === true && off.json.user.payLink !== '');
+    const gl2 = await req('GET', '/client/gerants', null, ct);
+    check('Lien désactivé invisible pour le client', (gl2.json.gerants || []).some((g) => g.phone === gphone && !g.payLink));
+    const nd2 = await req('POST', '/client/demandes', { gerantId: gid, gerantName: 'Gérant Test', gerantWave: gphone, type: 'unites', amount: 250, benefName: 'Moi', benefPhone: cphone }, ct);
+    check('Nouvelle demande sans lien quand désactivé', nd2.json.demande && !nd2.json.demande.gerantPayLink);
+    await req('POST', `/gerant/demandes/${nd2.json.demande?.id}/decline`, {}, gt);
+    const on = await req('POST', '/gerant/profile', { payLinkOff: false }, gt);
+    const gl3 = await req('GET', '/client/gerants', null, ct);
+    check('Réactivation : lien à nouveau visible', on.status === 200 && (gl3.json.gerants || []).some((g) => g.phone === gphone && g.payLink));
     const clr = await req('POST', '/gerant/profile', { payLink: '' }, gt);
     check('Retrait du lien', clr.status === 200 && clr.json.user.payLink === '');
   }
