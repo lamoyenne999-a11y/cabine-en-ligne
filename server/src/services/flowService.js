@@ -1778,6 +1778,7 @@ export function runSubscriptionAlerts(now = Date.now()) {
   let sent = 0;
   for (const u of find('users', () => true)) {
     if (!u.passwordHash) continue;                    // comptes fantômes
+    if (u.role === 'gerant' && u.official) continue;  // cabine officielle : accès illimité, aucune alerte
     const dl = subscriptionDeadline(u);
     if (!dl) continue;
     const s = { ...(u.subscription || {}) };

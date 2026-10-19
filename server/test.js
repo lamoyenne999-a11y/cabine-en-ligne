@@ -657,6 +657,11 @@ async function main() {
     await req('POST', '/admin/set-official', { phone: gphone, official: true }, null, A);
     const sub = await req('GET', '/gerant/subscription', null, gt);
     check('Cabine officielle : abonnement illimité actif', sub.json.subscription?.status === 'active' && sub.json.subscription?.unlimited === true);
+    // Aucune alerte d'abonnement pour une cabine officielle, même à l'échéance.
+    await req('POST', '/admin/debug-set-subscription', { phone: gphone, subscription: { status: 'trial', trialEndsAt: Date.now() + 3600 * 1000, alerts: null } }, null, A);
+    await req('POST', '/admin/run-alerts', {}, null, A);
+    const gnO = await req('GET', '/gerant/notifications', null, gt);
+    check('Officielle : aucune alerte « expire bientôt »', !(gnO.json.notifications || []).some((n) => n.type === 'alert_expiring' && n.createdAt > Date.now() - 5000));
     await req('POST', '/admin/set-official', { phone: gphone, official: false }, null, A);
     const sub2 = await req('GET', '/gerant/subscription', null, gt);
     check('Badge retiré : abonnement normal', !sub2.json.subscription?.unlimited);
