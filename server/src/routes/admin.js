@@ -1,7 +1,7 @@
 import express from 'express';
 import { hashPassword } from '../middleware/auth.js';
 import { config } from '../config.js';
-import { gerantRating, gerantStats, runSubscriptionAlerts, sendAnnouncement, announcementsForAdmin, announcementAudience, reportsForAdmin, resolveReport, openReportsCountFor, SUSPEND_REASONS, pendingSubscriptionPayments, confirmSubscriptionPayment, rejectSubscriptionPayment, setUserCertified, setUserOfficial, setUserStars, adminNudgeDemande, grantFreeTime, grantFreeTimeBulk, giftsForAdmin, demandesForAdmin, subscriptionPayments, subscriptionTotals, subscriptionFor, referralSummary, referredUsersCount, referralPaymentCount, referralRateFor, deleteAccountAll, setUserFrozen, eventsForAdmin, eventsCounters, referralCodeStats, expiredUsers, reconcileExpiredEvents, isPhoneBlocked, blockUser, unblockUser, blockedList, unblockRequestsPending, resolveUnblockRequest, recordEvent, userActionsForAdmin } from '../services/flowService.js';
+import { gerantRating, gerantStats, runSubscriptionAlerts, sendAnnouncement, announcementsForAdmin, announcementAudience, reportsForAdmin, resolveReport, openReportsCountFor, SUSPEND_REASONS, pendingSubscriptionPayments, confirmSubscriptionPayment, rejectSubscriptionPayment, setUserCertified, setUserOfficial, setGerantPayLinkByAdmin, setUserStars, adminNudgeDemande, grantFreeTime, grantFreeTimeBulk, giftsForAdmin, demandesForAdmin, subscriptionPayments, subscriptionTotals, subscriptionFor, referralSummary, referredUsersCount, referralPaymentCount, referralRateFor, deleteAccountAll, setUserFrozen, eventsForAdmin, eventsCounters, referralCodeStats, expiredUsers, reconcileExpiredEvents, isPhoneBlocked, blockUser, unblockUser, blockedList, unblockRequestsPending, resolveUnblockRequest, recordEvent, userActionsForAdmin } from '../services/flowService.js';
 import { find, findOne, update, dbStats } from '../db.js';
 import { registerWebPushSubscription, removeWebPushSubscription, OWNER_ID, ownerPushCount, notifyOwner } from '../services/pushService.js';
 
@@ -105,6 +105,9 @@ router.get('/users', requireAdmin, (req, res) => {
       certified: !!u.certified,
       official: !!u.official,
       stars: u.stars || 0,
+      payLink: u.payLink || '',
+      payLinkOff: !!u.payLinkOff,
+      waveNumber: u.waveNumber || '',
       lastGift: u.lastGift || null,
       blocked: isPhoneBlocked(u.phone),
     }));
@@ -153,6 +156,17 @@ router.post('/set-official', requireAdmin, (req, res) => {
   if (!phone) return res.status(400).json({ error: 'Téléphone requis' });
   try {
     const out = setUserOfficial(phone, !!req.body?.official);
+    if (!out.ok) return res.status(400).json(out);
+    res.json(out);
+  } catch (e) { res.status(e.status || 500).json({ error: e.message }); }
+});
+
+// Lien Wave Business d'un gérant, géré par le propriétaire. Body : { phone, payLink?, payLinkOff? }.
+router.post('/set-paylink', requireAdmin, (req, res) => {
+  const phone = String(req.body?.phone || '').trim();
+  if (!phone) return res.status(400).json({ error: 'Téléphone requis' });
+  try {
+    const out = setGerantPayLinkByAdmin({ phone, payLink: req.body?.payLink, payLinkOff: req.body?.payLinkOff });
     if (!out.ok) return res.status(400).json(out);
     res.json(out);
   } catch (e) { res.status(e.status || 500).json({ error: e.message }); }

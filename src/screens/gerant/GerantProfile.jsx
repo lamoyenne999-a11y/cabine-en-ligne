@@ -68,7 +68,7 @@ export default function GerantProfile({ onLogout }) {
   const fmtDate = (t) => (t ? new Date(t).toLocaleDateString('fr-FR', { day: '2-digit', month: 'short', year: 'numeric' }) : '');
   const subUntilLabel = fmtDate(sub?.subscribedUntil || 0);
 
-  const subLabel = subStatus === 'active'
+  const subLabel = sub?.unlimited ? 'Cabine officielle — accès illimité' : subStatus === 'active'
     ? `Abonnement ${subPlanLabel} payé ✓ — valable jusqu'au ${subUntilLabel || '—'}`
     : subStatus === 'expired'
       ? `Expiré — ${subPriceLabel}`
@@ -112,7 +112,7 @@ export default function GerantProfile({ onLogout }) {
       </Card>
 
       {/* Confirmation de paiement de l'abonnement + période de validité */}
-      {subStatus === 'active' && (
+      {subStatus === 'active' && !sub?.unlimited && (
         <Card style={{ marginTop: space.lg, backgroundColor: colors.successBg }}>
           <View style={{ flexDirection: 'row', alignItems: 'flex-start' }}>
             <View style={s.paidIcon}><Ionicons name="checkmark-done" size={24} color={colors.success} /></View>

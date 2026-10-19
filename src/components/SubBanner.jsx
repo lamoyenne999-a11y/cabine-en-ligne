@@ -30,6 +30,19 @@ export default function SubBanner({ sub, onSubscribe }) {
   const showReminder = isExpired || daysLeft <= 5;
   const isActive = status === 'active';
 
+  const unlimited = !!sub?.unlimited;
+  if (unlimited && !state.user?.frozen) {
+    return (
+      <Card style={[s.subBanner, s.subBannerActive]}>
+        <View style={[s.subIcon, s.subIconActive]}><Ionicons name="ribbon" size={22} color={colors.success} /></View>
+        <View style={{ flex: 1, marginLeft: 12 }}>
+          <T size={font.xs} weight="700" color={colors.success}>CABINE OFFICIELLE</T>
+          <T size={font.body} weight="800" color={colors.text} style={{ marginTop: 1 }}>Accès illimité</T>
+          <T size={font.xs} weight="600" color={colors.muted} style={{ marginTop: 2 }}>Aucun abonnement à payer.</T>
+        </View>
+      </Card>
+    );
+  }
   const title = isActive
     ? (planLabel === 'annuel' ? 'ABONNEMENT ANNUEL ACTIF' : 'ABONNEMENT MENSUEL ACTIF')
     : isExpired ? 'ABONNEMENT EXPIRÉ' : 'ESSAI GRATUIT';

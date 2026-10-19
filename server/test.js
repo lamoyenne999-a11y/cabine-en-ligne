@@ -631,6 +631,37 @@ async function main() {
     check('Mais pas après SA PROPRE confirmation « Argent reçu »', nr2.status === 400);
   }
 
+  // ===== Propriétaire : lien Wave Business d'un gérant + officielle = illimité =====
+  {
+    const A = { 'x-admin-key': 'testkey' };
+    const bad = await req('POST', '/admin/set-paylink', { phone: gphone, payLink: 'https://evil.com/x' }, null, A);
+    check('Admin : lien non Wave refusé', bad.status === 400);
+    const set = await req('POST', '/admin/set-paylink', { phone: gphone, payLink: 'https://pay.wave.com/m/M_ci_ADMIN1/c/ci/' }, null, A);
+    check('Admin : lien Wave Business enregistré et actif', set.status === 200 && set.json.payLink === 'https://pay.wave.com/m/M_ci_ADMIN1/c/ci/' && set.json.payLinkOff === false);
+    let gn = await req('GET', '/gerant/notifications', null, gt);
+    check('Gérant notifié de l\'ajout par Cabine En Ligne', (gn.json.notifications || []).some((n) => /a enregistré votre lien de paiement Wave Business/.test(n.text)));
+    let gl = await req('GET', '/client/gerants', null, ct);
+    check('Client voit le lien', (gl.json.gerants || []).some((g) => g.phone === gphone && g.payLink === 'https://pay.wave.com/m/M_ci_ADMIN1/c/ci/'));
+    const off = await req('POST', '/admin/set-paylink', { phone: gphone, payLinkOff: true }, null, A);
+    check('Admin : désactivé', off.status === 200 && off.json.payLinkOff === true);
+    gl = await req('GET', '/client/gerants', null, ct);
+    check('Client ne voit plus le lien', (gl.json.gerants || []).some((g) => g.phone === gphone && !g.payLink));
+    const on = await req('POST', '/admin/set-paylink', { phone: gphone, payLinkOff: false }, null, A);
+    check('Admin : réactivé', on.status === 200 && on.json.payLinkOff === false);
+    const us = await req('GET', '/admin/users', null, null, A);
+    const me = (us.json.users || []).find((u) => u.phone === gphone);
+    check('Liste admin expose payLink/payLinkOff', me && me.payLink === 'https://pay.wave.com/m/M_ci_ADMIN1/c/ci/' && me.payLinkOff === false);
+    const rm = await req('POST', '/admin/set-paylink', { phone: gphone, payLink: '' }, null, A);
+    check('Admin : retiré', rm.status === 200 && rm.json.payLink === '');
+    // Officielle = abonnement illimité
+    await req('POST', '/admin/set-official', { phone: gphone, official: true }, null, A);
+    const sub = await req('GET', '/gerant/subscription', null, gt);
+    check('Cabine officielle : abonnement illimité actif', sub.json.subscription?.status === 'active' && sub.json.subscription?.unlimited === true);
+    await req('POST', '/admin/set-official', { phone: gphone, official: false }, null, A);
+    const sub2 = await req('GET', '/gerant/subscription', null, gt);
+    check('Badge retiré : abonnement normal', !sub2.json.subscription?.unlimited);
+  }
+
   // ===== Signalements + suspension motivée =====
   {
     const A = { 'x-admin-key': 'testkey' };

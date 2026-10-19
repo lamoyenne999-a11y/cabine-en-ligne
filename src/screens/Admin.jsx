@@ -89,6 +89,7 @@ export default function Admin({ onBack }) {
   const [tx, setTx] = useState({ demandes: [], activity: [] });
   const [txLoading, setTxLoading] = useState(false);
   const [txSearch, setTxSearch] = useState('');
+  const [payLinkEdit, setPayLinkEdit] = useState(null); // lien Wave Business en édition { phone, value }
   const [txStatus, setTxStatus] = useState('all');   // all | open | completed | paid | declined | canceled | problems
   const [txPeriod, setTxPeriod] = useState('30');    // 7 | 30 | all
   const [txType, setTxType] = useState('all');       // all | unites | minutes | internet | forfait
@@ -217,6 +218,7 @@ export default function Admin({ onBack }) {
     user_blocked: { label: 'Compte bloqué', icon: 'ban-outline', color: colors.danger, bg: colors.dangerBg },
     gerant_uncertified: { label: 'Certification retirée', icon: 'shield-outline', color: colors.warn, bg: colors.warnBg },
     gerant_official: { label: 'Cabine officielle', icon: 'ribbon-outline', color: '#B8860B', bg: '#FFF4D6' },
+    gerant_paylink_admin: { label: 'Lien Wave Business (propriétaire)', icon: 'flash-outline', color: colors.wave, bg: '#E7F0FE' },
     gerant_unofficial: { label: 'Badge officielle retiré', icon: 'ribbon-outline', color: colors.warn, bg: colors.warnBg },
     user_stars: { label: 'Étoiles attribuées', icon: 'star', color: '#B8860B', bg: '#FFF4D6' },
     demande_admin_nudged: { label: 'Gérant relancé par le propriétaire', icon: 'megaphone-outline', color: colors.danger, bg: colors.dangerBg },
@@ -250,6 +252,7 @@ export default function Admin({ onBack }) {
   const validityLabel = (u) => {
     if (u.blocked) return 'Bloqué — accès révoqué';
     const s = u.subscription || {};
+    if (s.unlimited) return 'Cabine officielle — accès illimité';
     if (s.status === 'active' && s.subscribedUntil) return `Valable jusqu'au ${fmtDate(s.subscribedUntil)}`;
     if (s.status === 'trial' && s.trialEndsAt) return `Essai jusqu'au ${fmtDate(s.trialEndsAt)}`;
     if (s.status === 'expired') {
@@ -383,6 +386,19 @@ export default function Admin({ onBack }) {
       setTimeout(() => setNudgeMsg(''), 4000);
     } catch (e) { setNudgeTarget(null); setErr(e?.message || 'Relance impossible'); } finally { setBusy(''); }
   };
+  // Lien Wave Business d'un gérant (ajout / activation / retrait par le propriétaire).
+  const doSetPayLink = async (user, body) => {
+    setBusy(user.phone);
+    try {
+      const out = await api.admin.setPayLink(key, user.phone, body);
+      setUsers((prev) => prev.map((u) => u.phone === user.phone ? { ...u, payLink: out.payLink || '', payLinkOff: !!out.payLinkOff } : u));
+      setPayLinkEdit(null);
+    } catch (e) {
+      const msg = e?.message || 'Action impossible';
+      if (body.payLink !== undefined && body.payLink) setPayLinkEdit((cur) => cur && cur.phone === user.phone ? { ...cur, error: msg } : { phone: user.phone, value: body.payLink, error: msg });
+      else setErr(msg);
+    } finally { setBusy(''); }
+  };
   // Étoiles Cabine En Ligne (0-5) : effet immédiat, l'utilisateur est notifié.
   const doSetStars = async (user, stars) => {
     setBusy(user.phone);
@@ -464,6 +480,7 @@ export default function Admin({ onBack }) {
     const validityCsv = (u) => {
       const s = u.subscription || {};
       if (u.blocked) return 'Bloqué';
+      if (s.unlimited) return 'Officielle — illimité';
       if (s.status === 'active' && s.subscribedUntil) return `Valable jusqu'au ${fmtDate(s.subscribedUntil)}`;
       if (s.status === 'trial' && s.trialEndsAt) return `Essai jusqu'au ${fmtDate(s.trialEndsAt)}`;
       if (s.status === 'expired') return s.subscribedUntil ? `Expiré le ${fmtDate(s.subscribedUntil)}` : (s.trialEndsAt ? `Essai expiré le ${fmtDate(s.trialEndsAt)}` : 'Expiré');
@@ -781,7 +798,7 @@ export default function Admin({ onBack }) {
                             ? 'Numéro bloqué : ne peut plus se connecter ni se réinscrire.'
                             : (u.subscription?.subscribedUntil
                                 ? (u.subscription.status === 'active'
-                                    ? `Abonnement actif jusqu'au ${fmtDate(u.subscription.subscribedUntil)}.`
+                                    ? (u.subscription.unlimited ? 'Cabine officielle : accès illimité, aucun abonnement à payer.' : `Abonnement actif jusqu'au ${fmtDate(u.subscription.subscribedUntil)}.`)
                                     : `Abonnement expiré le ${fmtDate(u.subscription.subscribedUntil)}.`)
                                 : 'Aucun abonnement payé.')}
                         </T>
@@ -844,6 +861,47 @@ export default function Admin({ onBack }) {
                               loading={busy === u.phone}
                               style={{ flex: 1 }}
                             />
+                          </View>
+                        )}
+                        {u.role === 'gerant' && (
+                          <View style={s.payLinkBox}>
+                            <View style={{ flexDirection: 'row', alignItems: 'center' }}>
+                              <Ionicons name="flash" size={14} color={colors.wave} />
+                              <T size={font.xs} weight="800" color={colors.wave} style={{ marginLeft: 6, flex: 1 }}>
+                                Lien Wave Business {u.payLink ? (u.payLinkOff ? '— désactivé' : '— activé') : '— aucun'}
+                              </T>
+                              {!!u.payLink && (
+                                <Pressable onPress={() => doSetPayLink(u, { payLinkOff: !u.payLinkOff })} hitSlop={6} style={[s.miniSwitch, !u.payLinkOff && s.miniSwitchOn]}>
+                                  <View style={[s.miniKnob, !u.payLinkOff && s.miniKnobOn]} />
+                                </Pressable>
+                              )}
+                            </View>
+                            {!!u.payLink && payLinkEdit?.phone !== u.phone && (
+                              <T size={font.xs} weight="600" color={colors.muted} numberOfLines={1} style={{ marginTop: 4 }}>{u.payLink}</T>
+                            )}
+                            {payLinkEdit?.phone === u.phone ? (
+                              <>
+                                <TextInput
+                                  value={payLinkEdit.value}
+                                  onChangeText={(v) => setPayLinkEdit({ phone: u.phone, value: v, error: '' })}
+                                  placeholder="https://pay.wave.com/m/M_…"
+                                  placeholderTextColor={colors.muted2}
+                                  autoCapitalize="none" autoCorrect={false} keyboardType="url"
+                                  style={s.payLinkInput}
+                                />
+                                {payLinkEdit.error ? <T size={font.xs} weight="700" color={colors.danger} style={{ marginTop: 4 }}>{payLinkEdit.error}</T> : null}
+                                <T size={font.xs} weight="600" color={colors.muted2} style={{ marginTop: 4 }}>Le gérant le trouve dans son app Wave Business : « Recevoir un paiement » → « Partager mon lien ». Il sera notifié.</T>
+                                <View style={{ flexDirection: 'row', marginTop: 6 }}>
+                                  <Btn title="Annuler" outline size="sm" onPress={() => setPayLinkEdit(null)} style={{ flex: 1, marginRight: 6 }} />
+                                  <Btn title="Enregistrer" icon="checkmark" size="sm" loading={busy === u.phone} onPress={() => doSetPayLink(u, { payLink: payLinkEdit.value })} style={{ flex: 1 }} />
+                                </View>
+                              </>
+                            ) : (
+                              <View style={{ flexDirection: 'row', marginTop: 6 }}>
+                                <Btn title={u.payLink ? 'Modifier le lien' : 'Ajouter son lien Wave Business'} icon={u.payLink ? 'create-outline' : 'add-circle-outline'} outline size="sm" color={colors.wave} onPress={() => setPayLinkEdit({ phone: u.phone, value: u.payLink || '' })} style={{ flex: 1 }} />
+                                {!!u.payLink && <Btn title="Retirer" icon="trash-outline" outline size="sm" color={colors.danger} loading={busy === u.phone} onPress={() => doSetPayLink(u, { payLink: '' })} style={{ marginLeft: 6 }} />}
+                              </View>
+                            )}
                           </View>
                         )}
                         <View style={{ flexDirection: 'row', marginBottom: 8 }}>
@@ -1985,6 +2043,12 @@ export default function Admin({ onBack }) {
 const s = StyleSheet.create({
   nudgeBtn: { flexDirection: 'row', alignItems: 'center', borderWidth: 1, borderColor: colors.danger, borderRadius: 999, paddingHorizontal: 9, paddingVertical: 4, marginLeft: 8 },
   nudgeOk: { flexDirection: 'row', alignItems: 'center', backgroundColor: colors.successBg, borderRadius: 12, padding: 10, marginBottom: 8 },
+  payLinkBox: { backgroundColor: '#F4F7FC', borderRadius: 12, padding: 10, marginBottom: 8 },
+  payLinkInput: { marginTop: 8, borderWidth: 1, borderColor: colors.border, borderRadius: 10, paddingHorizontal: 10, paddingVertical: 8, fontSize: 13, color: colors.text, backgroundColor: '#fff' },
+  miniSwitch: { width: 40, height: 22, borderRadius: 11, backgroundColor: '#C9CED6', justifyContent: 'center', paddingHorizontal: 2 },
+  miniSwitchOn: { backgroundColor: colors.success },
+  miniKnob: { width: 18, height: 18, borderRadius: 9, backgroundColor: '#fff' },
+  miniKnobOn: { alignSelf: 'flex-end' },
   starsRow: { flexDirection: 'row', alignItems: 'center', marginBottom: 8, paddingVertical: 6, paddingHorizontal: 10, borderRadius: 12, backgroundColor: '#FFF8E6' },
   input: { flexDirection: 'row', alignItems: 'center', backgroundColor: colors.bg, borderRadius: radius.md, paddingHorizontal: 14, height: 52 },
   inputText: { flex: 1, fontSize: font.input, color: colors.text, paddingVertical: 0, outlineStyle: 'none' },

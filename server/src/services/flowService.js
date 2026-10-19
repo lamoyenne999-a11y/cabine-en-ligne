@@ -56,6 +56,10 @@ export function subscriptionFor(user) {
     lastPayment: lastPayment ? { reference: lastPayment.reference, amount: lastPayment.amount, priceLabel: lastPayment.priceLabel, paidAt: lastPayment.paidAt, validUntil: lastPayment.validUntil, plan: lastPayment.plan } : null,
     pendingPayment: pending ? { reference: pending.reference, amount: pending.amount, priceLabel: pending.priceLabel, plan: pending.plan, declaredAt: pending.declaredAt } : null,
   };
+  // Cabine officielle : accès illimité, sans abonnement à payer.
+  if (user.role === 'gerant' && user.official) {
+    return { ...base, status: 'active', unlimited: true, daysLeft: 36500, subscribedUntil: now + 100 * 365 * 86400000, pendingPayment: null };
+  }
   if (s.status === 'active' && s.subscribedUntil > now) {
     return { ...base, status: 'active', daysLeft: Math.ceil((s.subscribedUntil - now) / 86400000) };
   }
@@ -496,6 +500,24 @@ export function setUserCertified(phone, certified) {
 
 // Badge « Cabine officielle » : cabine physique reconnue / partenaire de Cabine En Ligne.
 // Indépendant de « Certifié » (gérant vérifié) : une cabine peut avoir les deux badges.
+// Le propriétaire ajoute / modifie / active / désactive / retire le lien Wave Business d'un gérant.
+export function setGerantPayLinkByAdmin({ phone, payLink, payLinkOff }) {
+  const u = findOne('users', (x) => x.phone === String(phone || '').trim() && x.role === 'gerant');
+  if (!u) return { ok: false, error: 'Gérant introuvable' };
+  updateGerantProfile({ userId: u.id, payLink, payLinkOff });
+  const fresh = findOne('users', (x) => x.id === u.id);
+  const action = payLink !== undefined ? (String(payLink || '').trim() ? 'set' : 'removed') : (payLinkOff ? 'off' : 'on');
+  recordEvent({ type: 'gerant_paylink_admin', name: u.name, phone: u.phone, role: u.role, userId: u.id, note: action });
+  createNotification({
+    userId: u.id, type: 'paylink_admin',
+    text: action === 'set' ? 'Cabine En Ligne a enregistré votre lien de paiement Wave Business : vos clients peuvent désormais payer en 1 clic (frais Wave ajoutés à leur paiement, vous recevez le montant exact). Vous pouvez le gérer depuis votre Profil.'
+      : action === 'removed' ? 'Cabine En Ligne a retiré votre lien de paiement Wave Business : vos clients paient par transfert à votre numéro.'
+      : action === 'off' ? 'Cabine En Ligne a désactivé votre lien de paiement Wave Business (vos clients paient par transfert au numéro). Réactivez-le depuis votre Profil quand votre quota est disponible.'
+      : 'Cabine En Ligne a réactivé votre lien de paiement Wave Business : vos clients paient à nouveau en 1 clic.',
+  });
+  return { ok: true, phone: u.phone, name: u.name, payLink: fresh.payLink || '', payLinkOff: !!fresh.payLinkOff };
+}
+
 export function setUserOfficial(phone, official) {
   const u = findOne('users', (x) => x.phone === String(phone).trim());
   if (!u) return { ok: false, error: 'Compte introuvable' };
@@ -827,7 +849,7 @@ export function deleteOwnAccount(userId) {
 //  suppressions, décisions sur les signalements… regroupés par utilisateur pour
 //  voir comment chaque compte évolue.
 // ------------------------------------------------------------------
-export const USER_ACTION_TYPES = ['user_suspended', 'user_reactivated', 'user_blocked', 'user_unblocked', 'unblock_request', 'free_time_granted', 'free_time_granted_bulk', 'gerant_certified', 'gerant_uncertified', 'gerant_official', 'gerant_unofficial', 'user_stars', 'demande_admin_nudged', 'password_reset', 'user_deleted', 'user_self_deleted', 'user_name_changed', 'user_phone_changed', 'report_created', 'report_resolved', 'report_dismissed', 'subscription_paid', 'subscription_rejected', 'referral_code_cleared'];
+export const USER_ACTION_TYPES = ['user_suspended', 'user_reactivated', 'user_blocked', 'user_unblocked', 'unblock_request', 'free_time_granted', 'free_time_granted_bulk', 'gerant_certified', 'gerant_uncertified', 'gerant_official', 'gerant_unofficial', 'gerant_paylink_admin', 'user_stars', 'demande_admin_nudged', 'password_reset', 'user_deleted', 'user_self_deleted', 'user_name_changed', 'user_phone_changed', 'report_created', 'report_resolved', 'report_dismissed', 'subscription_paid', 'subscription_rejected', 'referral_code_cleared'];
 export function userActionsForAdmin({ phone = '', type = '', limit = 300 } = {}) {
   // Un utilisateur = son id (stable même s'il change de numéro) ou son numéro (anciens événements).
   const target = phone ? findOne('users', (x) => x.phone === phone) : null;
