@@ -123,6 +123,7 @@ export const api = {
     runAlerts: (key) => request('POST', '/api/admin/run-alerts', {}, { 'x-admin-key': key }),
     resolveReport: (key, id, decision) => request('POST', '/api/admin/resolve-report', { id, decision }, { 'x-admin-key': key }),
     confirmPayment: (key, id) => request('POST', '/api/admin/confirm-payment', { id }, { 'x-admin-key': key }),
+    refundPayment: (key, id, days) => request('POST', '/api/admin/refund-payment', { id, days }, { 'x-admin-key': key }),
     rejectPayment: (key, id, note) => request('POST', '/api/admin/reject-payment', { id, note }, { 'x-admin-key': key }),
     resetPassword: (key, phone) => request('POST', '/api/admin/reset-password', { phone }, { 'x-admin-key': key }),
     setStars: (key, phone, stars) => request('POST', '/api/admin/set-stars', { phone, stars }, { 'x-admin-key': key }),

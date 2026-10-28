@@ -169,6 +169,39 @@ export function rejectSubscriptionPayment(paymentId, note) {
   return { ok: true, payment };
 }
 
+// Le propriétaire a REMBOURSÉ le paiement d'abonnement (argent reçu puis renvoyé par Wave)
+// et offre une période gratuite en remerciement. Body : { paymentId, days? (défaut : durée du plan) }.
+export function refundSubscriptionPayment(paymentId, days) {
+  const p = findOne('subscriptions', (x) => x.id === paymentId || x.reference === paymentId);
+  if (!p) return { ok: false, error: 'Paiement introuvable.' };
+  if (p.status !== 'pending') return { ok: false, error: 'Ce paiement n\'est plus en attente.' };
+  const u = findOne('users', (x) => x.id === p.userId);
+  if (!u) return { ok: false, error: 'Compte introuvable.' };
+  const n = parseGiftDays(days || (p.plan === 'annual' ? 365 : 30));
+  const now = Date.now();
+  const payment = update('subscriptions', (x) => x.id === p.id, { status: 'refunded', refundedAt: now, giftDays: n });
+  // Période offerte (prolonge l'essai ou l'abonnement en cours) — sans la notification « Cadeau » générique.
+  const cur = subscriptionFor(u);
+  const s = u.subscription || {};
+  const add = n * 86400000;
+  let patch;
+  if (cur.status === 'active' && !cur.unlimited) patch = { ...s, subscribedUntil: (s.subscribedUntil || now) + add, expiryNotified: false, alerts: null };
+  else if (cur.status === 'trial') patch = { ...s, status: 'trial', trialEndsAt: (s.trialEndsAt || now) + add, expiryNotified: false, alerts: null };
+  else if (!cur.unlimited) patch = { ...s, status: 'trial', trialEndsAt: now + add, subscribedUntil: 0, expiryNotified: false, alerts: null };
+  if (patch) update('users', (x) => x.id === u.id, { subscription: patch, lastGift: { days: n, at: now, note: 'Remboursement + remerciement' } });
+  insert('gifts', { userId: u.id, phone: u.phone, name: u.name, role: u.role, days: n, note: `Remboursement du paiement ${p.reference}`, batchId: '', createdAt: now });
+  const fresh = findOne('users', (x) => x.id === u.id);
+  const sub = subscriptionFor(fresh);
+  const until = sub.status === 'active' ? sub.subscribedUntil : sub.trialEndsAt;
+  const untilLabel = until ? new Date(until).toLocaleDateString('fr-FR', { day: 'numeric', month: 'long', year: 'numeric' }) : '';
+  createNotification({
+    userId: u.id, type: 'subscription_refunded',
+    text: `Merci pour votre confiance ! Cabine En Ligne vous a remboursé votre paiement de ${p.amount} F (réf. ${p.reference}) sur votre Wave et vous offre ${giftLabel(n)} d'utilisation gratuite en guise de remerciement${untilLabel ? ' — valable jusqu\'au ' + untilLabel : ''}. Profitez-en !`,
+  });
+  recordEvent({ type: 'subscription_refunded', name: u.name, phone: u.phone, role: u.role, amount: p.amount, reference: p.reference, days: n });
+  return { ok: true, payment, days: n, subscription: sub };
+}
+
 // Le service est autorisé si l'abonnement est en ESSAI (pas expiré) ou ACTIF.
 export function serviceAllowed(subscription) {
   const st = subscription?.status;
@@ -849,7 +882,7 @@ export function deleteOwnAccount(userId) {
 //  suppressions, décisions sur les signalements… regroupés par utilisateur pour
 //  voir comment chaque compte évolue.
 // ------------------------------------------------------------------
-export const USER_ACTION_TYPES = ['user_suspended', 'user_reactivated', 'user_blocked', 'user_unblocked', 'unblock_request', 'free_time_granted', 'free_time_granted_bulk', 'gerant_certified', 'gerant_uncertified', 'gerant_official', 'gerant_unofficial', 'gerant_paylink_admin', 'user_stars', 'demande_admin_nudged', 'password_reset', 'user_deleted', 'user_self_deleted', 'user_name_changed', 'user_phone_changed', 'report_created', 'report_resolved', 'report_dismissed', 'subscription_paid', 'subscription_rejected', 'referral_code_cleared'];
+export const USER_ACTION_TYPES = ['user_suspended', 'user_reactivated', 'user_blocked', 'user_unblocked', 'unblock_request', 'free_time_granted', 'free_time_granted_bulk', 'gerant_certified', 'gerant_uncertified', 'gerant_official', 'gerant_unofficial', 'gerant_paylink_admin', 'user_stars', 'demande_admin_nudged', 'password_reset', 'user_deleted', 'user_self_deleted', 'user_name_changed', 'user_phone_changed', 'report_created', 'report_resolved', 'report_dismissed', 'subscription_paid', 'subscription_rejected', 'subscription_refunded', 'referral_code_cleared'];
 export function userActionsForAdmin({ phone = '', type = '', limit = 300 } = {}) {
   // Un utilisateur = son id (stable même s'il change de numéro) ou son numéro (anciens événements).
   const target = phone ? findOne('users', (x) => x.phone === phone) : null;

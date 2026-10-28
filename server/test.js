@@ -667,6 +667,28 @@ async function main() {
     check('Badge retiré : abonnement normal', !sub2.json.subscription?.unlimited);
   }
 
+  // ===== Remboursement d'un paiement d'abonnement + période offerte =====
+  {
+    const A = { 'x-admin-key': 'testkey' };
+    const ph = '0733' + uniq.slice(-6);
+    const r = await req('POST', '/auth/register', { role: 'client', name: 'Rembourse Moi', phone: ph, password: '1234' });
+    const tk = r.json.token;
+    const before = (await req('GET', '/client/subscription', null, tk)).json.subscription;
+    const dec = await req('POST', '/client/subscribe', { plan: 'monthly' }, tk);
+    const pid = dec.json.payment?.id;
+    check('Paiement déclaré en attente', dec.status === 200 && !!pid);
+    const rf = await req('POST', '/admin/refund-payment', { id: pid }, null, A);
+    check('Admin : remboursé + 30 jours offerts', rf.status === 200 && rf.json.days === 30 && rf.json.payment?.status === 'refunded');
+    const after = (await req('GET', '/client/subscription', null, tk)).json.subscription;
+    check('Essai prolongé de 30 jours, plus de paiement en attente', after.trialEndsAt - before.trialEndsAt >= 29 * 86400000 && !after.pendingPayment);
+    const cn = await req('GET', '/client/notifications', null, tk);
+    check('Client remercié : remboursé + période offerte', (cn.json.notifications || []).some((n) => n.type === 'subscription_refunded' && /remboursé votre paiement de 100 F/.test(n.text) && /1 mois/.test(n.text)));
+    const again = await req('POST', '/admin/refund-payment', { id: pid }, null, A);
+    check('Second remboursement refusé', again.status === 400);
+    const ov = await req('GET', '/admin/summary', null, null, A);
+    check('Plus dans « À vérifier »', ov.status === 200 && !(ov.json.pendingPayments || []).some((x) => x.id === pid));
+  }
+
   // ===== Signalements + suspension motivée =====
   {
     const A = { 'x-admin-key': 'testkey' };

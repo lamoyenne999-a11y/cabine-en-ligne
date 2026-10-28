@@ -1,7 +1,7 @@
 import express from 'express';
 import { hashPassword } from '../middleware/auth.js';
 import { config } from '../config.js';
-import { gerantRating, gerantStats, runSubscriptionAlerts, sendAnnouncement, announcementsForAdmin, announcementAudience, reportsForAdmin, resolveReport, openReportsCountFor, SUSPEND_REASONS, pendingSubscriptionPayments, confirmSubscriptionPayment, rejectSubscriptionPayment, setUserCertified, setUserOfficial, setGerantPayLinkByAdmin, setUserStars, adminNudgeDemande, grantFreeTime, grantFreeTimeBulk, giftsForAdmin, demandesForAdmin, subscriptionPayments, subscriptionTotals, subscriptionFor, referralSummary, referredUsersCount, referralPaymentCount, referralRateFor, deleteAccountAll, setUserFrozen, eventsForAdmin, eventsCounters, referralCodeStats, expiredUsers, reconcileExpiredEvents, isPhoneBlocked, blockUser, unblockUser, blockedList, unblockRequestsPending, resolveUnblockRequest, recordEvent, userActionsForAdmin } from '../services/flowService.js';
+import { gerantRating, gerantStats, runSubscriptionAlerts, sendAnnouncement, announcementsForAdmin, announcementAudience, reportsForAdmin, resolveReport, openReportsCountFor, SUSPEND_REASONS, pendingSubscriptionPayments, confirmSubscriptionPayment, rejectSubscriptionPayment, refundSubscriptionPayment, setUserCertified, setUserOfficial, setGerantPayLinkByAdmin, setUserStars, adminNudgeDemande, grantFreeTime, grantFreeTimeBulk, giftsForAdmin, demandesForAdmin, subscriptionPayments, subscriptionTotals, subscriptionFor, referralSummary, referredUsersCount, referralPaymentCount, referralRateFor, deleteAccountAll, setUserFrozen, eventsForAdmin, eventsCounters, referralCodeStats, expiredUsers, reconcileExpiredEvents, isPhoneBlocked, blockUser, unblockUser, blockedList, unblockRequestsPending, resolveUnblockRequest, recordEvent, userActionsForAdmin } from '../services/flowService.js';
 import { find, findOne, update, dbStats } from '../db.js';
 import { registerWebPushSubscription, removeWebPushSubscription, OWNER_ID, ownerPushCount, notifyOwner } from '../services/pushService.js';
 
@@ -193,6 +193,11 @@ router.post('/reset-password', requireAdmin, async (req, res) => {
 // Wave) ou rejette (rien reçu) une déclaration de paiement. Body : { id, note? }.
 router.post('/confirm-payment', requireAdmin, (req, res) => {
   const out = confirmSubscriptionPayment(String(req.body?.id || ''));
+  if (!out.ok) return res.status(400).json(out);
+  res.json(out);
+});
+router.post('/refund-payment', requireAdmin, (req, res) => {
+  const out = refundSubscriptionPayment(String(req.body?.id || ''), req.body?.days);
   if (!out.ok) return res.status(400).json(out);
   res.json(out);
 });
