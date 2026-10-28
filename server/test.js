@@ -667,7 +667,7 @@ async function main() {
     check('Badge retiré : abonnement normal', !sub2.json.subscription?.unlimited);
   }
 
-  // ===== Remboursement d'un paiement d'abonnement + période offerte =====
+  // ===== Remboursement d'un paiement d'abonnement (sans période offerte) + montants =====
   {
     const A = { 'x-admin-key': 'testkey' };
     const ph = '0733' + uniq.slice(-6);
@@ -676,17 +676,31 @@ async function main() {
     const before = (await req('GET', '/client/subscription', null, tk)).json.subscription;
     const dec = await req('POST', '/client/subscribe', { plan: 'monthly' }, tk);
     const pid = dec.json.payment?.id;
-    check('Paiement déclaré en attente', dec.status === 200 && !!pid);
+    const sm = await req('GET', '/admin/summary', null, null, A);
+    check('À vérifier : indique « en essai »', (sm.json.pendingPayments || []).some((x) => x.id === pid && x.inTrial === true));
     const rf = await req('POST', '/admin/refund-payment', { id: pid }, null, A);
-    check('Admin : remboursé + 30 jours offerts', rf.status === 200 && rf.json.days === 30 && rf.json.payment?.status === 'refunded');
+    check('Admin : remboursé (nouvel utilisateur en essai)', rf.status === 200 && rf.json.inTrial === true && rf.json.payment?.status === 'refunded');
     const after = (await req('GET', '/client/subscription', null, tk)).json.subscription;
-    check('Essai prolongé de 30 jours, plus de paiement en attente', after.trialEndsAt - before.trialEndsAt >= 29 * 86400000 && !after.pendingPayment);
-    const cn = await req('GET', '/client/notifications', null, tk);
-    check('Client remercié : remboursé + période offerte', (cn.json.notifications || []).some((n) => n.type === 'subscription_refunded' && /remboursé votre paiement de 100 F/.test(n.text) && /1 mois/.test(n.text)));
+    check('Aucune période ajoutée, plus de paiement en attente', after.trialEndsAt === before.trialEndsAt && !after.pendingPayment);
+    let cn = await req('GET', '/client/notifications', null, tk);
+    check('Client : remboursé + « profitez de votre essai en cours »', (cn.json.notifications || []).some((n) => n.type === 'subscription_refunded' && /remboursé/.test(n.text) && /essai gratuite est encore en cours/.test(n.text)));
     const again = await req('POST', '/admin/refund-payment', { id: pid }, null, A);
     check('Second remboursement refusé', again.status === 400);
-    const ov = await req('GET', '/admin/summary', null, null, A);
-    check('Plus dans « À vérifier »', ov.status === 200 && !(ov.json.pendingPayments || []).some((x) => x.id === pid));
+    // Ancien utilisateur (essai terminé) : remboursement avec motif
+    await req('POST', '/admin/debug-set-subscription', { phone: ph, subscription: { status: 'trial', trialEndsAt: Date.now() - 86400000 } }, null, A);
+    const dec2 = await req('POST', '/client/subscribe', { plan: 'monthly' }, tk);
+    const rf2 = await req('POST', '/admin/refund-payment', { id: dec2.json.payment?.id, note: 'Paiement en double' }, null, A);
+    check('Ancien utilisateur : remboursé avec motif', rf2.status === 200 && rf2.json.inTrial === false && rf2.json.payment?.refundNote === 'Paiement en double');
+    cn = await req('GET', '/client/notifications', null, tk);
+    check('Client : notification avec le motif', (cn.json.notifications || []).some((n) => n.type === 'subscription_refunded' && /Motif : Paiement en double/.test(n.text)));
+    // Montants des demandes : minimum 100 F, multiples de 50 F
+    const gl = await req('GET', '/client/gerants', null, ct);
+    const gid = (gl.json.gerants || []).find((g) => g.phone === gphone)?.id;
+    const mk = (amount) => req('POST', '/client/demandes', { gerantId: gid, gerantName: 'Gérant Test', gerantWave: gphone, type: 'unites', amount, benefName: 'Moi', benefPhone: cphone }, ct);
+    check('50 F refusé (minimum 100 F)', (await mk(50)).status === 400);
+    check('120 F refusé (multiple de 50)', (await mk(120)).status === 400);
+    check('100 F accepté', (await mk(100)).status === 201 || (await mk(100)).status === 200);
+    check('150 F accepté', [200, 201].includes((await mk(150)).status));
   }
 
   // ===== Signalements + suspension motivée =====
@@ -698,7 +712,7 @@ async function main() {
     const early = await req('POST', '/gerant/reports', { demandeId: id, reason: 'served_not_paid' }, gt);
     check('Signalement refusé si l\'état ne correspond pas (pas encore servi) → 400', early.status === 400);
     // Motif libre : possible quel que soit l'état (ici demande encore en attente)
-    const dmF = await req('POST', '/client/demandes', { gerantId, gerantName: 'Gérant Test', gerantWave: gphone, type: 'unites', amount: 120, benefName: 'Moi', benefPhone: '07' + uniq }, ct);
+    const dmF = await req('POST', '/client/demandes', { gerantId, gerantName: 'Gérant Test', gerantWave: gphone, type: 'unites', amount: 150, benefName: 'Moi', benefPhone: '07' + uniq }, ct);
     const free = await req('POST', '/gerant/reports', { demandeId: dmF.json.demande?.id, reason: 'client_fake_requests', message: 'Annule à chaque fois' }, gt);
     check('Gérant signale un client avec un motif libre, demande en attente → 201', free.status === 201 && free.json.report?.reason === 'client_fake_requests' && free.json.report?.targetRole === 'client');
     const freeC = await req('POST', '/client/reports', { demandeId: dmF.json.demande?.id, reason: 'client_other' }, ct);

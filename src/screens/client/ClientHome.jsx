@@ -59,6 +59,8 @@ export default function ClientHome() {
   const validate = () => {
     const e = {};
     if (amountNum <= 0) e.amount = 'Indiquez le montant à recharger.';
+    else if (amountNum < 100) e.amount = 'Montant minimum : 100 F.';
+    else if (amountNum % 50 !== 0) e.amount = `Le montant doit être un multiple de 50 F (ex. 100, 150, 200…). Proposé : ${Math.max(100, Math.round(amountNum / 50) * 50)} F.`;
     if (!sel) e.gerant = 'Sélectionnez un gérant.';
     if (who === 'autre') {
       if (!benefPhone.trim()) e.benefPhone = 'Indiquez le numéro de la personne à créditer.';
@@ -153,7 +155,9 @@ export default function ClientHome() {
           <View style={[s.input, errors.amount && s.err]}>
             <TextInput value={amount} onChangeText={(t) => { setAmount(t.replace(/[^0-9]/g, '')); clearErr('amount'); }} placeholder="Ex : 2000" placeholderTextColor={colors.muted2} keyboardType="number-pad" style={s.inputText} />
           </View>
-          {errors.amount && <T size={font.sm} weight="600" color={colors.danger} style={s.errText}>{errors.amount}</T>}
+          {errors.amount
+            ? <T size={font.sm} weight="600" color={colors.danger} style={s.errText}>{errors.amount}</T>
+            : <T size={font.xs} weight="600" color={colors.muted2} style={{ marginTop: 6 }}>Minimum 100 F, par palier de 50 F (100, 150, 200…).</T>}
 
           <T size={font.sm} weight="700" color={colors.textSoft} style={{ marginTop: space.lg, marginBottom: 10 }}>Bénéficiaire</T>
           <Segmented value={who} onChange={(v) => { setWho(v); setErrors((prev) => ({ ...prev, benefPhone: undefined })); }} options={[{ value: 'moi', label: 'Pour moi' }, { value: 'autre', label: 'Pour quelqu\'un' }]} />

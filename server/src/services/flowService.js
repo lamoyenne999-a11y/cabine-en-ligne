@@ -169,37 +169,29 @@ export function rejectSubscriptionPayment(paymentId, note) {
   return { ok: true, payment };
 }
 
-// Le propriétaire a REMBOURSÉ le paiement d'abonnement (argent reçu puis renvoyé par Wave)
-// et offre une période gratuite en remerciement. Body : { paymentId, days? (défaut : durée du plan) }.
-export function refundSubscriptionPayment(paymentId, days) {
+// Le propriétaire a REMBOURSÉ le paiement d'abonnement (argent reçu puis renvoyé par Wave).
+//  - Nouvel utilisateur encore en ESSAI GRATUIT : on l'invite simplement à profiter de son
+//    essai en cours (il a payé trop tôt). Aucune période supplémentaire n'est offerte.
+//  - Ancien utilisateur (essai terminé) : remboursement possible, avec un motif facultatif
+//    qui est transmis à l'utilisateur et conservé dans le journal.
+export function refundSubscriptionPayment(paymentId, note = '') {
   const p = findOne('subscriptions', (x) => x.id === paymentId || x.reference === paymentId);
   if (!p) return { ok: false, error: 'Paiement introuvable.' };
   if (p.status !== 'pending') return { ok: false, error: 'Ce paiement n\'est plus en attente.' };
   const u = findOne('users', (x) => x.id === p.userId);
   if (!u) return { ok: false, error: 'Compte introuvable.' };
-  const n = parseGiftDays(days || (p.plan === 'annual' ? 365 : 30));
   const now = Date.now();
-  const payment = update('subscriptions', (x) => x.id === p.id, { status: 'refunded', refundedAt: now, giftDays: n });
-  // Période offerte (prolonge l'essai ou l'abonnement en cours) — sans la notification « Cadeau » générique.
-  const cur = subscriptionFor(u);
-  const s = u.subscription || {};
-  const add = n * 86400000;
-  let patch;
-  if (cur.status === 'active' && !cur.unlimited) patch = { ...s, subscribedUntil: (s.subscribedUntil || now) + add, expiryNotified: false, alerts: null };
-  else if (cur.status === 'trial') patch = { ...s, status: 'trial', trialEndsAt: (s.trialEndsAt || now) + add, expiryNotified: false, alerts: null };
-  else if (!cur.unlimited) patch = { ...s, status: 'trial', trialEndsAt: now + add, subscribedUntil: 0, expiryNotified: false, alerts: null };
-  if (patch) update('users', (x) => x.id === u.id, { subscription: patch, lastGift: { days: n, at: now, note: 'Remboursement + remerciement' } });
-  insert('gifts', { userId: u.id, phone: u.phone, name: u.name, role: u.role, days: n, note: `Remboursement du paiement ${p.reference}`, batchId: '', createdAt: now });
-  const fresh = findOne('users', (x) => x.id === u.id);
-  const sub = subscriptionFor(fresh);
-  const until = sub.status === 'active' ? sub.subscribedUntil : sub.trialEndsAt;
-  const untilLabel = until ? new Date(until).toLocaleDateString('fr-FR', { day: 'numeric', month: 'long', year: 'numeric' }) : '';
-  createNotification({
-    userId: u.id, type: 'subscription_refunded',
-    text: `Merci pour votre confiance ! Cabine En Ligne vous a remboursé votre paiement de ${p.amount} F (réf. ${p.reference}) sur votre Wave et vous offre ${giftLabel(n)} d'utilisation gratuite en guise de remerciement${untilLabel ? ' — valable jusqu\'au ' + untilLabel : ''}. Profitez-en !`,
-  });
-  recordEvent({ type: 'subscription_refunded', name: u.name, phone: u.phone, role: u.role, amount: p.amount, reference: p.reference, days: n });
-  return { ok: true, payment, days: n, subscription: sub };
+  const reason = String(note || '').trim().slice(0, 300);
+  const sub = subscriptionFor(u);
+  const inTrial = sub.status === 'trial';
+  const payment = update('subscriptions', (x) => x.id === p.id, { status: 'refunded', refundedAt: now, refundNote: reason, refundCase: inTrial ? 'trial' : 'former' });
+  const fmt = (t) => (t ? new Date(t).toLocaleDateString('fr-FR', { day: 'numeric', month: 'long', year: 'numeric' }) : '');
+  const text = inTrial
+    ? `Merci pour votre confiance ! Votre paiement de ${p.amount} F (réf. ${p.reference}) vous a été remboursé sur votre Wave : votre période d'essai gratuite est encore en cours${sub.trialEndsAt ? ' jusqu\'au ' + fmt(sub.trialEndsAt) : ''}. Profitez-en, vous pourrez vous abonner ensuite.${reason ? ' Message : ' + reason : ''}`
+    : `Votre paiement de ${p.amount} F (réf. ${p.reference}) vous a été remboursé sur votre Wave par Cabine En Ligne.${reason ? ' Motif : ' + reason : ''} Vous pouvez vous réabonner à tout moment depuis « S'abonner ».`;
+  createNotification({ userId: u.id, type: 'subscription_refunded', text });
+  recordEvent({ type: 'subscription_refunded', name: u.name, phone: u.phone, role: u.role, amount: p.amount, reference: p.reference, reason, note: inTrial ? 'essai en cours' : 'ancien utilisateur' });
+  return { ok: true, payment, inTrial, subscription: sub };
 }
 
 // Le service est autorisé si l'abonnement est en ESSAI (pas expiré) ou ACTIF.
@@ -215,7 +207,8 @@ export function subscriptionPayments() {
   return find('subscriptions', (p) => !p.status || p.status === 'confirmed').sort((a, b) => b.paidAt - a.paidAt);
 }
 export function pendingSubscriptionPayments() {
-  return find('subscriptions', (p) => p.status === 'pending').sort((a, b) => b.declaredAt - a.declaredAt);
+  return find('subscriptions', (p) => p.status === 'pending').sort((a, b) => b.declaredAt - a.declaredAt)
+    .map((p) => { const u = findOne('users', (x) => x.id === p.userId); const sub = u ? subscriptionFor(u) : null; return { ...p, inTrial: sub?.status === 'trial', trialEndsAt: sub?.trialEndsAt || 0 }; });
 }
 export function subscriptionTotals() {
   const rows = subscriptionPayments();
@@ -1221,7 +1214,10 @@ export function createDemande({ client, gerantId, gerantUserId, type, amount, be
     }
   }
   if (!['unites', 'minutes', 'internet', 'forfait'].includes(type)) throw Object.assign(new Error('Type invalide'), { status: 400 });
-  if (!(parseInt(amount, 10) > 0)) throw Object.assign(new Error('Montant invalide'), { status: 400 });
+  const amt = parseInt(amount, 10);
+  if (!(amt > 0)) throw Object.assign(new Error('Montant invalide'), { status: 400 });
+  if (amt < 100) throw Object.assign(new Error('Montant minimum : 100 F'), { status: 400 });
+  if (amt % 50 !== 0) throw Object.assign(new Error('Le montant doit être un multiple de 50 F (ex. 100, 150, 200…)'), { status: 400 });
 
   // Récupère TOUJOURS le lien Wave marchand À JOUR du gérant (pas un instantané figé).
   // Si le gérant a ajouté/modifié son lien après la création du contact, on le reprend.

@@ -48,7 +48,7 @@ const ICONS = {
   report_update: 'flag-outline',
   subscription_confirmed: 'checkmark-done-circle-outline',
   subscription_rejected: 'alert-circle-outline',
-  subscription_refunded: 'gift-outline',
+  subscription_refunded: 'arrow-undo-outline',
   certified: 'shield-checkmark-outline',
   uncertified: 'shield-outline',
   official: 'ribbon-outline',

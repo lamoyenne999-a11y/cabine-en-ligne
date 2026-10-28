@@ -92,6 +92,7 @@ export default function Admin({ onBack }) {
   const [payLinkEdit, setPayLinkEdit] = useState(null); // lien Wave Business en édition { phone, value }
   const [refundTarget, setRefundTarget] = useState(null); // remboursement d'un paiement d'abonnement
   const [refundDone, setRefundDone] = useState('');
+  const [refundNote, setRefundNote] = useState('');
   const [txStatus, setTxStatus] = useState('all');   // all | open | completed | paid | declined | canceled | problems
   const [txPeriod, setTxPeriod] = useState('30');    // 7 | 30 | all
   const [txType, setTxType] = useState('all');       // all | unites | minutes | internet | forfait
@@ -231,7 +232,7 @@ export default function Admin({ onBack }) {
     report_resolved: { label: 'Signalement traité', icon: 'flag', color: colors.success, bg: colors.successBg },
     report_dismissed: { label: 'Signalement classé sans suite', icon: 'flag-outline', color: colors.muted, bg: colors.gray },
     subscription_rejected: { label: 'Paiement d\'abonnement rejeté', icon: 'close-circle-outline', color: colors.danger, bg: colors.dangerBg },
-    subscription_refunded: { label: 'Paiement remboursé + période offerte', icon: 'gift-outline', color: colors.success, bg: colors.successBg },
+    subscription_refunded: { label: 'Paiement d\'abonnement remboursé', icon: 'arrow-undo-outline', color: colors.success, bg: colors.successBg },
     referral_code_cleared: { label: 'Code parrain retiré', icon: 'pricetag-outline', color: colors.warn, bg: colors.warnBg },
     demande_closed_by_client: { label: 'Demande clôturée par le client', icon: 'checkmark-done-outline', color: colors.success, bg: colors.successBg },
     demande_wave_canceled: { label: 'Transfert Wave annulé par le client', icon: 'arrow-undo-outline', color: colors.danger, bg: colors.dangerBg },
@@ -361,13 +362,17 @@ export default function Admin({ onBack }) {
     catch (e) { setErr(e?.message || 'Erreur.'); }
     finally { setBusy(null); }
   };
-  const doRefundPayment = async (p, days) => {
+  const doRefundPayment = async (p) => {
+    const note = refundNote.trim();
     setBusy(p.id); setRefundTarget(null);
     try {
-      const out = await api.admin.refundPayment(key, p.id, days);
+      const out = await api.admin.refundPayment(key, p.id, note);
+      setRefundNote('');
       await reload();
-      setRefundDone(`${p.name} a été prévenu(e) : paiement de ${p.amount} F remboursé, ${out.days} jours offerts.`);
-    } catch (e) { setErr(e?.message || 'Erreur.'); }
+      setRefundDone(out.inTrial
+        ? `${p.name} a été prévenu(e) : paiement de ${p.amount} F remboursé — il/elle profite de sa période d'essai gratuite en cours.`
+        : `${p.name} a été prévenu(e) : paiement de ${p.amount} F remboursé${note ? ' (motif transmis)' : ''}.`);
+    } catch (e) { setRefundDone(`Impossible : ${e?.message || 'erreur'}.`); }
     finally { setBusy(null); }
   };
   const doRejectPayment = async (p) => {
@@ -1725,7 +1730,7 @@ export default function Admin({ onBack }) {
                 <Btn title="Argent reçu — activer" icon="checkmark" color={colors.success} size="sm" loading={busy === p.id} onPress={() => doConfirmPayment(p)} style={{ flex: 1, marginRight: 8 }} />
                 <Btn title="Rien reçu" icon="close" color={colors.danger} outline size="sm" loading={busy === p.id} onPress={() => setRejectTarget(p)} style={{ flex: 1 }} />
               </View>
-              <Btn title="Remboursé — offrir la période" icon="gift-outline" color={colors.primary} outline size="sm" loading={busy === p.id} onPress={() => setRefundTarget(p)} style={{ marginTop: 8 }} />
+              <Btn title="Remboursé" icon="arrow-undo-outline" color={colors.primary} outline size="sm" loading={busy === p.id} onPress={() => { setRefundNote(''); setRefundTarget(p); }} style={{ marginTop: 8 }} />
             </Card>
           ))}
           <T size={font.h3} weight="800" color={colors.text} style={{ marginBottom: space.sm, marginTop: space.md }}>Paiements confirmés</T>
@@ -1876,15 +1881,35 @@ export default function Admin({ onBack }) {
         <Btn title="Retour" outline size="sm" onPress={() => setReportTarget(null)} />
       </Dialog>
 
-      {/* Remboursement d'un paiement déclaré + période offerte */}
+      {/* Remboursement d'un paiement déclaré */}
       <Dialog visible={!!refundTarget}>
         <T size={font.h3} weight="800" color={colors.text} style={{ textAlign: 'center' }}>Remboursé à {refundTarget?.name} ?</T>
-        <T size={font.sm} weight="600" color={colors.muted} style={{ textAlign: 'center', marginTop: 6, marginBottom: 6 }}>
-          Confirmez seulement si vous avez bien renvoyé {refundTarget?.amount} F sur son Wave ({refundTarget?.phone}). {refundTarget?.name} sera remercié(e) pour sa confiance et recevra la période offerte gratuitement.
+        <T size={font.sm} weight="600" color={colors.muted} style={{ textAlign: 'center', marginTop: 6 }}>
+          Confirmez seulement si vous avez bien renvoyé {refundTarget?.amount} F sur son Wave ({refundTarget?.phone}).
         </T>
-        <Btn title={`Offrir ${refundTarget?.plan === 'annual' ? '1 an' : '1 mois'} (durée payée)`} icon="gift-outline" color={colors.success} size="sm" onPress={() => doRefundPayment(refundTarget, refundTarget?.plan === 'annual' ? 365 : 30)} style={{ marginBottom: 8 }} />
-        {refundTarget?.plan === 'annual' && <Btn title="Offrir 1 mois seulement" icon="gift-outline" outline color={colors.success} size="sm" onPress={() => doRefundPayment(refundTarget, 30)} style={{ marginBottom: 8 }} />}
-        <Btn title="Annuler" outline size="sm" onPress={() => setRefundTarget(null)} />
+        {refundTarget?.inTrial ? (
+          <View style={{ backgroundColor: colors.successBg, borderRadius: 12, padding: 10, marginTop: 10 }}>
+            <T size={font.xs} weight="700" color={colors.success} style={{ textAlign: 'center' }}>
+              Nouvel utilisateur : sa période d'essai gratuite est encore en cours{refundTarget?.trialEndsAt ? ` (jusqu'au ${fmtDate(refundTarget.trialEndsAt)})` : ''}. Il/elle sera remercié(e) et invité(e) à en profiter — aucune période supplémentaire n'est ajoutée.
+            </T>
+          </View>
+        ) : (
+          <View style={{ backgroundColor: colors.warnBg, borderRadius: 12, padding: 10, marginTop: 10 }}>
+            <T size={font.xs} weight="700" color={colors.warn} style={{ textAlign: 'center' }}>
+              Ancien utilisateur (essai déjà utilisé) : le remboursement est possible. Motif / justificatif facultatif, transmis à l'utilisateur et conservé dans le journal.
+            </T>
+            <TextInput
+              value={refundNote}
+              onChangeText={setRefundNote}
+              placeholder="Ex : paiement en double, erreur de montant…"
+              placeholderTextColor={colors.muted2}
+              multiline
+              style={[s.payLinkInput, { minHeight: 60, textAlignVertical: 'top' }]}
+            />
+          </View>
+        )}
+        <Btn title="Confirmer le remboursement" icon="checkmark" color={colors.success} size="sm" onPress={() => doRefundPayment(refundTarget)} style={{ marginTop: 12, marginBottom: 8 }} />
+        <Btn title="Annuler" outline size="sm" onPress={() => { setRefundTarget(null); setRefundNote(''); }} />
       </Dialog>
       <Dialog visible={!!refundDone}>
         <T size={font.body} weight="700" color={colors.text} style={{ textAlign: 'center' }}>{refundDone}</T>

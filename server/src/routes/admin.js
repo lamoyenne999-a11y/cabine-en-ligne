@@ -197,7 +197,7 @@ router.post('/confirm-payment', requireAdmin, (req, res) => {
   res.json(out);
 });
 router.post('/refund-payment', requireAdmin, (req, res) => {
-  const out = refundSubscriptionPayment(String(req.body?.id || ''), req.body?.days);
+  const out = refundSubscriptionPayment(String(req.body?.id || ''), req.body?.note);
   if (!out.ok) return res.status(400).json(out);
   res.json(out);
 });
