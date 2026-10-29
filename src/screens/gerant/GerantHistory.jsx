@@ -3,7 +3,7 @@ import { fmtDateTime, finalStep, sortDemandes, isRecent, sortByRecent } from '..
 import { View, Text, TextInput, Pressable, StyleSheet } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { colors, radius, space, font } from '../../theme';
-import { T, Card, Pill, Chip } from '../../components/ui';
+import { T, Card, Pill, Chip, Btn } from '../../components/ui';
 import { Page } from '../../components/Shell';
 import { useStore } from '../../store';
 import SuspendedBanner from '../../components/SuspendedBanner';
@@ -53,8 +53,11 @@ function matches(d, q) {
 }
 
 export default function GerantHistory() {
-  const { state, refresh, notReceiveDemande } = useStore();
+  const { state, refresh, notReceiveDemande, refundDemande } = useStore();
   const [notRecv, setNotRecv] = useState(null);
+  const [refundAsk, setRefundAsk] = useState(null); // { d, kind: 'refunded' | 'served' }
+  // Remboursement encore ouvert (le client a déclaré un paiement sur une demande non servie)
+  const refundOpen = (d) => ['unavailable', 'declined'].includes(d.status) && !!(d.refundDue || d.paidAt || d.moneyReceived) && !d.refundConfirmedAt;
   const [q, setQ] = useState('');
   const [group, setGroup] = useState('all');
   const demandes = state.gerantDemandes || [];
@@ -218,13 +221,19 @@ export default function GerantHistory() {
                   accepted: 'Acceptée — en attente du paiement Wave.',
                   paid: d.notServedAt ? `⚠️ Le client dit ne pas avoir reçu sa recharge — à re-servir (voir Demandes).` : d.moneyReceived ? `Argent reçu (${money(d.amount)}) — reste à servir le client.` : `Le client déclare avoir payé ${money(d.amount)} — réception à confirmer.`,
                   completed: d.clientClosedAt && d.moneyReceivedByClient ? `✅ Le client a terminé : servi et payé (${money(d.amount)}) selon lui. Rien reçu sur votre Wave ? « Argent non reçu ».` : d.clientConfirmedAt ? `✅ Le client a confirmé avoir reçu sa recharge${d.moneyReceived ? ' — réglée.' : ' — paiement encore à encaisser.'}` : d.moneyReceived ? `Réglée : ${money(d.amount)} reçus sur votre Wave, client servi.` : `Client servi, paiement de ${money(d.amount)} PAS ENCORE reçu.`,
-                  declined: 'Annulée (vous ne l\'avez pas servie).',
-                  unavailable: (d.refundDue || d.paidAt || d.moneyReceived) ? (d.refundConfirmedAt ? `Non servie — remboursement de ${money(d.amount)} confirmé par le client.` : d.refundedAt ? `Non servie — vous avez indiqué avoir remboursé ${money(d.amount)} (confirmation du client en attente).` : `⚠️ Non servie — ${money(d.amount)} À REMBOURSER au client (voir Demandes).`) : 'Vous n\'étiez pas disponible.',
+                  declined: (d.refundDue || d.paidAt || d.moneyReceived) ? (d.refundConfirmedAt ? `Annulée — remboursement de ${money(d.amount)} confirmé par le client.` : d.refundedAt ? `Annulée — vous avez indiqué avoir remboursé ${money(d.amount)} (confirmation du client en attente).` : `⚠️ Annulée — le client déclare avoir payé ${money(d.amount)} : À REMBOURSER (ou « Déjà servi » si vous l'aviez servi).`) : 'Annulée (vous ne l\'avez pas servie).',
+                  unavailable: (d.refundDue || d.paidAt || d.moneyReceived) ? (d.refundConfirmedAt ? `Non servie — remboursement de ${money(d.amount)} confirmé par le client.` : d.refundedAt ? `Non servie — vous avez indiqué avoir remboursé ${money(d.amount)} (confirmation du client en attente).` : `⚠️ Non servie — ${money(d.amount)} À REMBOURSER au client.`) : 'Vous n\'étiez pas disponible.',
                   canceled: d.waveCanceledAt ? '⚠️ Le client a ANNULÉ son transfert Wave : ne le servez plus. Déjà servi ? Signalez-le.' : 'Annulée par le client.',
                   expired: 'Expirée : restée plus de 36 h sans votre réponse. Répondez plus vite (Accepter ou Indisponible) pour garder vos clients.',
                 }[d.status] || 'Payé en direct via Wave.'
               )}
             </T>
+            {refundOpen(d) && (
+              <View style={{ marginTop: 10 }}>
+                {!d.refundedAt && <Btn title="J'ai remboursé" icon="cash-outline" size="sm" color={colors.success} onPress={() => setRefundAsk({ d, kind: 'refunded' })} />}
+                <Btn title="Déjà servi — pas de remboursement" icon="checkmark-done-outline" size="sm" outline color={colors.primary} onPress={() => setRefundAsk({ d, kind: 'served' })} style={{ marginTop: 8 }} />
+              </View>
+            )}
             <View style={{ flexDirection: 'row', justifyContent: 'flex-end', alignItems: 'center', marginTop: 8 }}>
               {d.status === 'completed' && d.moneyReceived && d.moneyReceivedByClient && (
                 <Pressable onPress={() => setNotRecv(d)} hitSlop={6} style={{ flexDirection: 'row', alignItems: 'center', marginRight: 14 }}>
@@ -243,6 +252,17 @@ export default function GerantHistory() {
           {notRecv ? `${notRecv.clientName} a terminé cette demande en indiquant avoir payé ${money(notRecv.amount)}. Si rien n'est arrivé sur votre Wave, il sera prévenu et invité à régler.` : ''}
         </T>
         <DialogButtons cancel="Annuler" confirm="Oui, rien reçu" onCancel={() => setNotRecv(null)} onConfirm={() => { if (notRecv) notReceiveDemande(notRecv.id); setNotRecv(null); }} />
+      </Dialog>
+      <Dialog visible={!!refundAsk}>
+        <T size={font.h3} weight="800" color={colors.text} style={{ textAlign: 'center' }}>
+          {refundAsk?.kind === 'served' ? 'Vous aviez bien servi ce client ?' : `Vous avez remboursé ${money(refundAsk?.d?.amount || 0)} ?`}
+        </T>
+        <T size={font.sm} weight="600" color={colors.muted} style={{ textAlign: 'center', marginTop: 6 }}>
+          {refundAsk?.kind === 'served'
+            ? `${refundAsk?.d?.clientName || 'Le client'} sera informé(e) qu'aucun remboursement n'est dû car la demande a été servie.`
+            : `Confirmez seulement si le transfert Wave vers ${refundAsk?.d?.clientName || 'le client'} est bien parti. Il/elle devra ensuite confirmer la réception.`}
+        </T>
+        <DialogButtons cancel="Annuler" confirm={refundAsk?.kind === 'served' ? 'Oui, déjà servi' : 'Oui, remboursé'} onCancel={() => setRefundAsk(null)} onConfirm={async () => { const r = refundAsk; setRefundAsk(null); if (r) { try { await refundDemande(r.d.id, r.kind); } catch {} refresh(); } }} />
       </Dialog>
     </Page>
   );
