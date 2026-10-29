@@ -8,23 +8,29 @@ import { sendWebPushToUser, notifyOwner } from './pushService.js';
 //  - L'app ne stocke AUCUN argent : elle met en relation.
 //  - Le client paie DIRECTEMENT au gérant (Wave marchand) hors app.
 //  - Le gérant accepte / refuse les demandes puis sert le client.
-//  - Abonnement 100 FCFA/mois + 1 mois d'essai gratuit.
+//  - Abonnement 100 FCFA/mois ; essai gratuit 1 mois (client) / 3 mois (gérant).
 // ==================================================================
 
 const MONTH_MS = 30 * 24 * 3600 * 1000;
+// Durée de l'essai gratuit à l'inscription : 1 mois (client), 3 mois (gérant).
+export const TRIAL_MS_CLIENT = MONTH_MS;
+export const TRIAL_MS_GERANT = 3 * MONTH_MS;
+export const trialMsFor = (role) => (role === 'gerant' ? TRIAL_MS_GERANT : TRIAL_MS_CLIENT);
 const YEAR_MS = 365 * 24 * 3600 * 1000;
 
 // Plans d'abonnement DIFFÉRENCIÉS PAR RÔLE.
 //  - Client  : mensuel 100 FCFA / annuel 1000 FCFA
-//  - Gérant  : mensuel 200 FCFA / annuel 2000 FCFA  (ce sont eux qui
+//  - Gérant  : mensuel 100 FCFA / annuel 1000 FCFA  (tarif de lancement,
 //    bénéficient le plus : demandes illimitées + traitement + badge).
 const SUB_PLANS_CLIENT = {
   monthly: { price: 100, ms: MONTH_MS, label: 'mensuel', priceLabel: '100 FCFA / mois' },
   annual: { price: 1000, ms: YEAR_MS, label: 'annuel', priceLabel: '1000 FCFA / an' },
 };
+// Gérants : tarif de lancement 100 F / mois (au lieu de 200 F) tant que
+// l'activité démarre, et 3 mois d'essai gratuit à l'inscription.
 const SUB_PLANS_GERANT = {
-  monthly: { price: 200, ms: MONTH_MS, label: 'mensuel', priceLabel: '200 FCFA / mois' },
-  annual: { price: 2000, ms: YEAR_MS, label: 'annuel', priceLabel: '2000 FCFA / an' },
+  monthly: { price: 100, ms: MONTH_MS, label: 'mensuel', priceLabel: '100 FCFA / mois' },
+  annual: { price: 1000, ms: YEAR_MS, label: 'annuel', priceLabel: '1000 FCFA / an' },
 };
 // Rétro-compat : SUB_PLANS pointe vers les plans client (défaut).
 export const SUB_PLANS = SUB_PLANS_CLIENT;
@@ -43,7 +49,7 @@ export function subscriptionFor(user) {
   const plans = plansFor(user.role);
   const s = user.subscription || { status: 'trial', trialEndsAt: 0, subscribedUntil: 0 };
   const plan = s.plan && plans[s.plan] ? s.plan : SUB_DEFAULT_PLAN;
-  const price = s.price || plans[plan].price;
+  const price = plans[plan].price; // toujours le tarif en vigueur (ex. gérant 200 → 100)
   const periodLabel = plans[plan].label;
   const now = Date.now();
   // Dernier paiement d'abonnement enregistré (reçu affiché à l'utilisateur).
@@ -305,7 +311,19 @@ export function recordReferralCommission(payer, payment) {
 
 // Vue « parrain » : mon code, mes inscrits (palier), mes gains, l'historique
 // des commissions + la liste des inscrits avec leur statut.
+// Qui peut créer un code de parrainage ?
+//  - gérant : toujours ;
+//  - client : seulement s'il a déjà payé au moins 1 mois d'abonnement
+//    (un paiement confirmé par le propriétaire).
+export function referralEligibility(user) {
+  if (user.role === 'gerant') return { canCreate: true, reason: '' };
+  const paid = find('subscriptions', (p) => p.userId === user.id && (!p.status || p.status === 'confirmed')).length > 0;
+  if (paid) return { canCreate: true, reason: '' };
+  return { canCreate: false, reason: 'Réservé aux client(e)s abonné(e)s : payez au moins 1 mois d\'abonnement (100 F) pour créer votre code de parrainage.' };
+}
+
 export function referralInfoFor(user) {
+  const elig = referralEligibility(user);
   const referrals = find('users', (u) => u.referredBy === user.id)
     .map((u) => ({
       id: u.id, name: u.name, phone: u.phone, role: u.role,
@@ -318,6 +336,8 @@ export function referralInfoFor(user) {
   const totalCommission = earnings.reduce((s, r) => s + (r.commission || 0), 0);
   return {
     code: user.referralCode || '',
+    canCreate: elig.canCreate,
+    eligibilityReason: elig.reason,
     registeredCount,           // utilisateurs inscrits avec son code (palier)
     count: registeredCount,    // alias (palier basé sur les inscrits)
     payments: earnings.length, // nombre de paiements d'abonnement générés
@@ -331,6 +351,8 @@ export function referralInfoFor(user) {
 
 // Crée / modifie le code de parrainage personnalisé (unique, libre).
 export function setReferralCode(user, raw) {
+  const elig = referralEligibility(user);
+  if (!elig.canCreate) throw Object.assign(new Error(elig.reason), { status: 403 });
   const c = String(raw || '').trim().toUpperCase();
   if (!/^[A-Z0-9]{6,12}$/.test(c)) {
     throw Object.assign(new Error('Code invalide : 6 à 12 caractères (lettres/chiffres), sans espace ni accent.'), { status: 400 });
@@ -963,6 +985,31 @@ export function reconcileExpiredEvents() {
     update('users', (x) => x.id === u.id, { subscription: s });
   }
   return expired.length;
+}
+
+// ---- Migration ponctuelle : offre de lancement gérants (3 mois d'essai) ----
+// Les gérants déjà inscrits bénéficient aussi des 3 mois : leur essai est
+// porté à inscription + 90 j (s'il n'est pas déjà plus long), sans toucher aux
+// abonnés payants. Idempotent : marqué sur l'utilisateur (launchTrialApplied).
+export function applyGerantLaunchOffer() {
+  const now = Date.now();
+  let n = 0;
+  for (const u of find('users', (x) => x.role === 'gerant' && !x.launchTrialApplied && !x.official)) {
+    const s = u.subscription || { status: 'trial', trialEndsAt: 0, subscribedUntil: 0 };
+    const target = (u.createdAt || now) + TRIAL_MS_GERANT;
+    const patch = { launchTrialApplied: true };
+    const isPaid = (s.subscribedUntil || 0) > now;
+    if (!isPaid && target > (s.trialEndsAt || 0) && target > now) {
+      patch.subscription = { ...s, status: 'trial', trialEndsAt: target, expiryNotified: false, alerts: null };
+      try {
+        createNotification({ userId: u.id, type: 'trial_extended', text: `Bonne nouvelle : pour vous aider à démarrer, votre essai gratuit est prolongé jusqu'au ${new Date(target).toLocaleDateString('fr-FR')} (3 mois offerts). Ensuite, l'abonnement gérant passe à 100 F / mois seulement.` });
+      } catch {}
+      n += 1;
+    }
+    update('users', (x) => x.id === u.id, patch);
+  }
+  if (n) console.log(`[offre gérants] essai porté à 3 mois pour ${n} gérant(s).`);
+  return n;
 }
 
 // ---- Notifications (reçues par les gérants) ----
@@ -1788,7 +1835,7 @@ function subscriptionDeadline(u) {
 }
 function alertTexts(u, kind, stage, at) {
   const plans = plansFor(u.role);
-  const offer = u.role === 'gerant' ? '200 F/mois ou 2000 F/an' : '100 F/mois ou 1000 F/an';
+  const offer = '100 F/mois ou 1000 F/an';
   const date = new Date(at).toLocaleDateString('fr-FR', { day: 'numeric', month: 'long' });
   const what = kind === 'trial' ? 'Votre essai gratuit' : `Votre abonnement ${plans[(u.subscription || {}).plan]?.label || ''}`.trim();
   const consequence = u.role === 'gerant' ? 'vous ne recevrez plus de demandes' : 'vous ne pourrez plus envoyer de demandes';

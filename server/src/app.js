@@ -6,7 +6,7 @@ import { fileURLToPath } from 'node:url';
 import { config } from './config.js';
 import { initDb, dbHealth } from './db.js';
 import { wave } from './services/waveService.js';
-import { startAlertScheduler } from './services/flowService.js';
+import { startAlertScheduler, applyGerantLaunchOffer } from './services/flowService.js';
 import authRoutes from './routes/auth.js';
 import clientRoutes from './routes/client.js';
 import gerantRoutes from './routes/gerant.js';
@@ -22,6 +22,8 @@ const __dirname = path.dirname(fileURLToPath(import.meta.url));
 //                                 S'il est fourni, l'app sert aussi le PWA + fallback SPA.
 export async function createApp(opts = {}) {
   await initDb();
+  // Offre de lancement gérants : 3 mois d'essai pour les gérants déjà inscrits (une seule fois).
+  try { applyGerantLaunchOffer(); } catch (e) { console.error('[offre gérants]', e.message); }
   // Alertes d'abonnement (J-5, J-1, expiration) : vérification horaire, idempotente.
   if (process.env.ALERTS_DISABLED !== 'true') startAlertScheduler();
 

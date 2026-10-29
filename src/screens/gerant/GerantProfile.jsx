@@ -64,7 +64,7 @@ export default function GerantProfile({ onLogout }) {
 
   const subStatus = sub?.status || 'trial';
   const subPlanLabel = sub?.periodLabel ? (sub.periodLabel === 'annuel' ? 'annuel' : 'mensuel') : 'mensuel';
-  const subPriceLabel = sub?.priceLabel || (sub?.price === 2000 ? '2000 FCFA / an' : '200 FCFA / mois');
+  const subPriceLabel = sub?.priceLabel || (sub?.price === 1000 ? '1000 FCFA / an' : '100 FCFA / mois');
   const fmtDate = (t) => (t ? new Date(t).toLocaleDateString('fr-FR', { day: '2-digit', month: 'short', year: 'numeric' }) : '');
   const subUntilLabel = fmtDate(sub?.subscribedUntil || 0);
 
@@ -90,7 +90,7 @@ export default function GerantProfile({ onLogout }) {
         {u?.stars ? <OwnerStars stars={u.stars} size={16} style={{ marginTop: 6, marginLeft: 0 }} /> : null}
         <Pill icon={subPill.icon} color={subPill.color} bg={subPill.bg} style={{ marginTop: 12 }}>{subPill.label}</Pill>
         {subStatus !== 'active' && (
-          <Pressable onPress={() => setShowSub(true)} style={s.subBtn}><T size={font.sm} weight="800" color="#fff">S'abonner — 200 FCFA/mois ou 2000 FCFA/an</T></Pressable>
+          <Pressable onPress={() => setShowSub(true)} style={s.subBtn}><T size={font.sm} weight="800" color="#fff">S'abonner — 100 FCFA/mois ou 1000 FCFA/an</T></Pressable>
         )}
       </Card>
 

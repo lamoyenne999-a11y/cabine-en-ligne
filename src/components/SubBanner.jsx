@@ -11,13 +11,13 @@ import { useStore } from '../store';
 //  - Affiche le statut (essai / actif / expiré).
 //  - Quand actif : montre la date de fin de validité et les jours restants.
 //  - Rappel avant expiration (≤5 j) ou expiré : bouton S'abonner.
-//  Prix selon le rôle : Client 100/1000, Gérant 200/2000.
+//  Prix selon le rôle : Client 100/1000, Gérant 100/1000 (lancement).
 // ============================================================
 
 const fmtDate = (t) => (t ? new Date(t).toLocaleDateString('fr-FR', { day: '2-digit', month: 'short', year: 'numeric' }) : '');
 
 function offer(role) {
-  return role === 'gerant' ? '200 FCFA / mois ou 2000 FCFA / an' : '100 FCFA / mois ou 1000 FCFA / an';
+  return '100 FCFA / mois ou 1000 FCFA / an';
 }
 
 export default function SubBanner({ sub, onSubscribe }) {

@@ -51,6 +51,8 @@ async function main() {
   check('Inscription refusée si numéro < 10 chiffres', phTooShort.status === 400);
   const gphone = '08' + uniq;
   const greg = await req('POST', '/auth/register', { role: 'gerant', name: 'Gérant Test', phone: gphone, password: '123456' });
+  check('Inscription gérant : 3 mois d\'essai (≈90 j)', greg.json.subscription?.status === 'trial' && greg.json.subscription?.daysLeft >= 89 && greg.json.subscription?.daysLeft <= 90);
+  check('Gérant : tarif 100 FCFA / mois', greg.json.subscription?.price === 100 && /100 FCFA/.test(greg.json.subscription?.priceLabel || ''));
   check('Inscription gérant 201', greg.status === 201 && greg.json.user?.role === 'gerant');
   const gt = greg.json.token;
   const gid = greg.json.user.id;
@@ -1017,9 +1019,9 @@ async function main() {
   await req('POST', '/auth/register', { role: 'gerant', name: 'Gérant Pay', phone: gph, password: '123456' });
   const gt2 = (await req('POST', '/auth/login', { phone: gph, password: '123456', role: 'gerant' })).json.token;
   const gm = await subscribeConfirmed('/gerant/subscribe', 'monthly', gt2);
-  check('Abonnement gérant mensuel 200 FCFA', gm.json.subscription?.status === 'active' && gm.json.subscription?.price === 200 && gm.json.subscription?.periodLabel === 'mensuel');
+  check('Abonnement gérant mensuel 100 FCFA (lancement)', gm.json.subscription?.status === 'active' && gm.json.subscription?.price === 100 && gm.json.subscription?.periodLabel === 'mensuel');
   const ga = await subscribeConfirmed('/gerant/subscribe', 'annual', gt2);
-  check('Abonnement gérant annuel 2000 FCFA', ga.json.subscription?.status === 'active' && ga.json.subscription?.price === 2000 && ga.json.subscription?.periodLabel === 'annuel');
+  check('Abonnement gérant annuel 1000 FCFA (lancement)', ga.json.subscription?.status === 'active' && ga.json.subscription?.price === 1000 && ga.json.subscription?.periodLabel === 'annuel');
 
   // ===== Parrainage / aide mutuelle (paliers 100 / 1000 / 10000 inscrits) =====
   const refPhoneA = '05' + uniq;
@@ -1027,7 +1029,17 @@ async function main() {
   // Plus de code auto-généré : l'utilisateur crée le sien.
   check('Parrain : aucun code attribué automatiquement', !refA.json.user?.referralCode);
   const refCodeA = 'REF' + uniq;
-  await req('POST', '/referral/code', { code: refCodeA }, refA.json.token);
+  // Client non abonné : pas de création de code (réservé aux clients ayant payé ≥ 1 mois).
+  const locked = await req('POST', '/referral/code', { code: refCodeA }, refA.json.token);
+  check('Client en essai : création de code refusée (403)', locked.status === 403);
+  const myLocked = await req('GET', '/referral/my', null, refA.json.token);
+  check('Client en essai : canCreate=false + raison', myLocked.json.referral?.canCreate === false && /1 mois/.test(myLocked.json.referral?.eligibilityReason || ''));
+  const gMy = await req('GET', '/referral/my', null, gt);
+  check('Gérant : peut toujours créer son code', gMy.json.referral?.canCreate === true);
+  // Après 1 mois payé → débloqué.
+  await subscribeConfirmed('/client/subscribe', 'monthly', refA.json.token);
+  const unlocked = await req('POST', '/referral/code', { code: refCodeA }, refA.json.token);
+  check('Client abonné (1 mois payé) : code créé', unlocked.status === 200 && unlocked.json.referral?.canCreate === true && unlocked.json.code === refCodeA);
   check('Parrain : 0 inscrit au départ', refA.json.referral?.registeredCount === 0 && refA.json.referral?.rate === 0);
 
   const refPhoneB = '04' + uniq;
@@ -1059,7 +1071,7 @@ async function main() {
   check('Code personnalisé trop court → 400', tooShort.status === 400);
   const setCode = await req('POST', '/referral/code', { code: customCode }, refA.json.token);
   check('Code personnalisé enregistré', setCode.status === 200 && setCode.json.referral?.code === customCode);
-  const dup = await req('POST', '/referral/code', { code: customCode }, refB.json.token);
+  const dup = await req('POST', '/referral/code', { code: customCode }, refB.json.token); // refB a payé → éligible
   check('Code déjà pris par un autre → 409', dup.status === 409);
 
   // Retrait du gérant (ajout/retrait libres)

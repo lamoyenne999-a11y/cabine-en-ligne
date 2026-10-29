@@ -111,7 +111,7 @@ export default function Welcome({ onSelect, onAdmin }) {
             Une application pour recharger vos unités, minutes et internet à distance, en Côte d'Ivoire.
             Vous choisissez un gérant de cabine, vous le payez directement sur son Wave, il vous crédite sans que vous ayez à vous déplacer.
             Les gérants de cabines reçoivent les demandes de leurs clients et fidélisent leur clientèle.
-            Essai gratuit 1 mois, puis 100 F/mois pour les clients et 200 F/mois pour les gérants.
+            Essai gratuit : 1 mois pour les clients, 3 mois pour les gérants. Ensuite 100 F/mois seulement, pour tous.
           </T>
         </View>
 

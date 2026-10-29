@@ -1,7 +1,7 @@
 import { Router } from 'express';
 import { findOne, insert, update } from '../db.js';
 import { signToken, hashPassword, verifyPassword, requireAuth } from '../middleware/auth.js';
-import { sendWelcome, suspendReasonText, subscriptionFor, applyReferral, referralInfoFor, recordEvent, registerPushToken, removePushToken, isPhoneBlocked, accountChangeInfo, changeUserName, changeUserPhone, deleteOwnAccount } from '../services/flowService.js';
+import { sendWelcome, suspendReasonText, subscriptionFor, applyReferral, referralInfoFor, recordEvent, registerPushToken, removePushToken, isPhoneBlocked, accountChangeInfo, changeUserName, changeUserPhone, deleteOwnAccount, trialMsFor } from '../services/flowService.js';
 import { registerWebPushSubscription, removeWebPushSubscription } from '../services/pushService.js';
 import { rateLimit } from '../middleware/rateLimit.js';
 
@@ -29,7 +29,7 @@ router.post('/register', rateLimit({ name: 'register', windowMs: 10 * 60 * 1000,
       // Pas de code de parrainage attribué automatiquement : l'utilisateur
       // crée librement le sien (s'il le souhaite) depuis son profil.
       referralCode: '',
-      subscription: { status: 'trial', trialEndsAt: Date.now() + 30 * 24 * 3600 * 1000, subscribedUntil: 0 },
+      subscription: { status: 'trial', trialEndsAt: Date.now() + trialMsFor(role), subscribedUntil: 0 },
       createdAt: Date.now(),
     });
 

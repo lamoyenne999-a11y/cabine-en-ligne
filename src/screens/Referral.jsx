@@ -65,15 +65,17 @@ export default function Referral({ onBack }) {
   }, [editCode]); // eslint-disable-line
 
   const hasCode = !!r?.code;
+  const noAccess = !!r && r.canCreate === false; // client non abonné : pas de création de code
+  const LOCK_MSG = 'Abonnez-vous (au moins 1 mois) pour débloquer votre code de parrainage.';
   const doCopy = () => {
     const text = r?.code || '';
-    if (!text) { setErr('Créez d\'abord votre code de parrainage ci-dessous.'); return; }
+    if (!text) { setErr(noAccess ? LOCK_MSG : 'Créez d\'abord votre code de parrainage ci-dessous.'); return; }
     if (typeof navigator !== 'undefined' && navigator.clipboard) navigator.clipboard.writeText(text).then(() => { setCopied(true); setTimeout(() => setCopied(false), 2000); });
     else { setCopied(true); setTimeout(() => setCopied(false), 2000); }
   };
   const doShare = () => {
     const code = r?.code || '';
-    if (!code) { setErr('Créez d\'abord votre code de parrainage ci-dessous.'); return; }
+    if (!code) { setErr(noAccess ? LOCK_MSG : 'Créez d\'abord votre code de parrainage ci-dessous.'); return; }
     const url = buildReferralUrl(code);
     if (typeof navigator !== 'undefined' && navigator.share) navigator.share({ title: 'Rejoignez Cabine En Ligne', text: `Inscrivez-vous avec mon code ${code} : ${url}` }).catch(() => {});
     else doCopy();
@@ -119,16 +121,31 @@ export default function Referral({ onBack }) {
           <Text style={[s.codeText, !hasCode && { color: colors.muted2, fontSize: 18, letterSpacing: 1 }]}>{hasCode ? r.code : 'Aucun code'}</Text>
           <Pressable onPress={doCopy} style={s.copyBtn}><Ionicons name={copied ? 'checkmark' : 'copy-outline'} size={18} color="#fff" /></Pressable>
         </View>
-        {!hasCode && <T size={font.xs} weight="600" color={colors.primary} style={{ marginTop: 8 }}>Créez votre code ci-dessous pour commencer à gagner.</T>}
+        {!hasCode && <T size={font.xs} weight="600" color={colors.primary} style={{ marginTop: 8, textAlign: 'center' }}>{r && r.canCreate === false ? 'Abonnez-vous (1 mois) pour débloquer votre code.' : 'Créez votre code ci-dessous pour commencer à gagner.'}</T>}
         {copied && <T size={font.xs} weight="600" color={colors.success} style={{ marginTop: 6 }}>Code copié !</T>}
 
         <View style={{ flexDirection: 'row', marginTop: 14 }}>
           <Btn title="Copier" icon="copy-outline" onPress={doCopy} size="md" style={{ marginRight: 10 }} />
           <Btn title="Partager" icon="share-social-outline" onPress={doShare} size="md" outline color={colors.primary} />
         </View>
+        {err && noAccess ? <T size={font.xs} weight="600" color={colors.danger} style={{ marginTop: 8, textAlign: 'center' }}>{err}</T> : null}
       </Card>
 
-      {/* Personnaliser mon code */}
+      {/* Personnaliser mon code — réservé aux gérants et aux clients abonnés (≥ 1 mois payé) */}
+      {r && r.canCreate === false ? (
+        <Card style={{ marginTop: space.lg, backgroundColor: colors.warnBg }}>
+          <View style={{ flexDirection: 'row', alignItems: 'center' }}>
+            <Ionicons name="lock-closed" size={20} color={colors.warn} style={{ marginRight: 10 }} />
+            <T size={font.h3} weight="800" color={colors.text}>{hasCode ? 'Modifier mon code' : 'Créer mon code'}</T>
+          </View>
+          <T size={font.sm} weight="600" color={colors.text} style={{ marginTop: 6, lineHeight: 20 }}>
+            {r.eligibilityReason || 'Réservé aux client(e)s abonné(e)s : payez au moins 1 mois d\'abonnement (100 F) pour créer votre code de parrainage.'}
+          </T>
+          <T size={font.xs} weight="600" color={colors.muted} style={{ marginTop: 6 }}>
+            Dès que votre premier paiement est validé, cette carte se débloque automatiquement.{hasCode ? ' Votre code actuel reste valable.' : ''}
+          </T>
+        </Card>
+      ) : (
       <Card style={{ marginTop: space.lg }}>
         <T size={font.h3} weight="800" color={colors.text}>Personnaliser mon code</T>
         <T size={font.xs} weight="600" color={colors.muted} style={{ marginTop: 3, marginBottom: 10 }}>
@@ -162,6 +179,7 @@ export default function Referral({ onBack }) {
           style={{ marginTop: space.md }}
         />
       </Card>
+      )}
 
       {/* Stats */}
       <View style={{ flexDirection: 'row', marginTop: space.lg }}>

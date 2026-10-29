@@ -11,14 +11,14 @@ import { useStore } from '../store';
 // ============================================================
 //  Feuille d'abonnement (client & gérant).
 //  Les prix dépendent du rôle : Client 100/1000 FCFA,
-//  Gérant 200/2000 FCFA (ce sont eux qui bénéficient le plus).
+//  Gérant 100/1000 FCFA (tarif de lancement) après 3 mois d'essai.
 // ============================================================
 
 function plansForRole(role) {
   if (role === 'gerant') {
     return [
-      { key: 'monthly', label: 'Mensuel', price: 200, priceLabel: '200 FCFA / mois', note: 'Renouvelé chaque mois' },
-      { key: 'annual', label: 'Annuel', price: 2000, priceLabel: '2000 FCFA / an', note: 'Économisez 400 FCFA (~2 mois offerts)' },
+      { key: 'monthly', label: 'Mensuel', price: 100, priceLabel: '100 FCFA / mois', note: 'Tarif de lancement — renouvelé chaque mois' },
+      { key: 'annual', label: 'Annuel', price: 1000, priceLabel: '1000 FCFA / an', note: 'Économisez 200 FCFA (~2 mois offerts)' },
     ];
   }
   return [
