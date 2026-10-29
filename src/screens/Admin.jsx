@@ -981,6 +981,7 @@ export default function Admin({ onBack }) {
           declined: { label: 'Annulée (gérant)', color: colors.muted, bg: colors.gray },
           unavailable: { label: 'Indisponible', color: colors.warn, bg: colors.warnBg },
           canceled: { label: 'Annulée', color: colors.muted, bg: colors.gray },
+          expired: { label: 'Expirée', color: colors.muted, bg: colors.gray },
         };
         const TX_TYPE = { unites: 'Unités', minutes: 'Minutes', internet: 'Internet', forfait: 'Appel + Internet' };
         const isProblem = (d) => !!(d.partialAt || d.notReceivedAt || d.notServedAt || d.reportedAt || (d.status === 'completed' && !d.moneyReceived) || d.nudgeCount >= 3);

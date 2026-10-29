@@ -18,13 +18,14 @@ const STATUS = {
   paid: { label: 'Payée', color: '#2E7BF6', bg: '#E7F0FE', icon: 'wallet' },
   completed: { label: 'Complétée', color: colors.success, bg: colors.successBg, icon: 'checkmark-done' },
   canceled: { label: 'Annulée', color: colors.muted, bg: colors.gray, icon: 'close-circle-outline' },
+  expired: { label: 'Expirée', color: colors.muted, bg: colors.gray, icon: 'hourglass-outline' },
 };
 
 const TYPE_ICON = { unites: 'phone-portrait-outline', minutes: 'call-outline', internet: 'wifi-outline', forfait: 'layers-outline' };
 const TYPE_LABEL = { unites: 'Unités', minutes: 'Minutes', internet: 'Internet', forfait: 'Appel + Internet' };
 
 function summarize(demandes) {
-  const counts = { pending: 0, accepted: 0, declined: 0, unavailable: 0, paid: 0, completed: 0, canceled: 0 };
+  const counts = { pending: 0, accepted: 0, declined: 0, unavailable: 0, paid: 0, completed: 0, canceled: 0, expired: 0 };
   let totalSpent = 0, totalServed = 0;
   (demandes || []).forEach((d) => {
     if (counts[d.status] !== undefined) counts[d.status] += 1;
@@ -70,14 +71,14 @@ export default function GerantHistory() {
     { value: 'treated', label: `Servies (${sum.counts.completed})` },
     { value: 'unpaid', label: `À encaisser (${demandes.filter((d) => d.status === 'completed' && !d.moneyReceived).length})` },
     { value: 'unavailable', label: `Indisponibles (${sum.counts.unavailable})` },
-    { value: 'canceled', label: `Annulées (${sum.counts.canceled + sum.counts.declined})` },
+    { value: 'canceled', label: `Annulées (${sum.counts.canceled + sum.counts.declined + sum.counts.expired})` },
   ];
   const inGroup = (d) => {
     if (group === 'all') return true;
     if (group === 'recent') return isRecent(d);
     if (group === 'treated') return d.status === 'completed';
     if (group === 'unpaid') return d.status === 'completed' && !d.moneyReceived;
-    if (group === 'canceled') return ['canceled', 'declined'].includes(d.status);
+    if (group === 'canceled') return ['canceled', 'declined', 'expired'].includes(d.status);
     return d.status === group;
   };
   // « Toutes » : les demandes EN COURS en haut, puis les autres de la plus
@@ -103,7 +104,7 @@ export default function GerantHistory() {
         <View style={s.sumGrid}>
           <Tile icon="checkmark-done" tone="green" value={served} label="Servies" />
           <Tile icon="moon" tone="orange" value={sum.counts.unavailable} label="Indispo." />
-          <Tile icon="remove-circle" tone="gray" value={sum.counts.canceled + sum.counts.declined} label="Annulées" />
+          <Tile icon="remove-circle" tone="gray" value={sum.counts.canceled + sum.counts.declined + sum.counts.expired} label="Annulées" />
         </View>
       </Card>
 
@@ -219,6 +220,7 @@ export default function GerantHistory() {
                   declined: 'Annulée (vous ne l\'avez pas servie).',
                   unavailable: (d.refundDue || d.paidAt || d.moneyReceived) ? (d.refundConfirmedAt ? `Non servie — remboursement de ${money(d.amount)} confirmé par le client.` : d.refundedAt ? `Non servie — vous avez indiqué avoir remboursé ${money(d.amount)} (confirmation du client en attente).` : `⚠️ Non servie — ${money(d.amount)} À REMBOURSER au client (voir Demandes).`) : 'Vous n\'étiez pas disponible.',
                   canceled: d.waveCanceledAt ? '⚠️ Le client a ANNULÉ son transfert Wave : ne le servez plus. Déjà servi ? Signalez-le.' : 'Annulée par le client.',
+                  expired: 'Expirée : restée plus de 36 h sans votre réponse. Répondez plus vite (Accepter ou Indisponible) pour garder vos clients.',
                 }[d.status] || 'Payé en direct via Wave.'
               )}
             </T>

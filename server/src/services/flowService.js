@@ -1308,10 +1308,43 @@ export function createDemande({ client, gerantId, gerantUserId, type, amount, be
 }
 
 export function demandesForClient(clientId) {
+  try { expireStaleDemandes(); } catch {}
   return find('demandes', (d) => d.clientId === clientId).sort((a, b) => b.createdAt - a.createdAt);
 }
 
+// ---- Expiration des demandes laissées sans suite (36 h) ----
+// Pour que la liste « Demandes reçues » du gérant ne s'encombre pas :
+//  - une demande EN ATTENTE (jamais acceptée) depuis plus de 36 h, que le
+//    client n'a pas annulée, passe au statut « expired » : elle quitte la liste
+//    du gérant et apparaît « Expirée » dans les deux historiques. Pas de
+//    notification au client (il n'avait rien payé).
+//  - une demande Indisponible/Annulée avec un REMBOURSEMENT laissé sans réponse
+//    par le gérant depuis plus de 36 h quitte sa liste (refundStaleAt) ; le
+//    client ayant déclaré un paiement est prévenu de contacter le gérant.
+export const DEMANDE_EXPIRE_MS = 36 * 3600 * 1000;
+export function expireStaleDemandes(now = Date.now()) {
+  let n = 0;
+  for (const d of find('demandes', (x) => x.status === 'pending' && (x.createdAt || 0) < now - DEMANDE_EXPIRE_MS)) {
+    update('demandes', (x) => x.id === d.id, { status: 'expired', expiredAt: now });
+    n += 1;
+  }
+  const refundOpen = (x) => ['unavailable', 'declined'].includes(x.status) && !!(x.refundDue || x.paidAt || x.moneyReceived) && !x.refundConfirmedAt && !x.refundStaleAt;
+  for (const d of find('demandes', refundOpen)) {
+    const since = Math.max(d.refundDue || 0, d.paidAt || 0, d.acceptedAt || 0, d.createdAt || 0);
+    if (since >= now - DEMANDE_EXPIRE_MS) continue;
+    update('demandes', (x) => x.id === d.id, { refundStaleAt: now });
+    const g = findOne('users', (u) => u.id === d.gerantUserId);
+    try {
+      createNotification({ userId: d.clientId, type: 'refund_stale', demandeId: d.id,
+        text: `Votre remboursement de ${d.amount} F (demande ${TYPE_LABEL[d.type] || d.type} du ${new Date(d.createdAt).toLocaleDateString('fr-FR')}) n'a pas été confirmé par ${g?.name || 'le gérant'} depuis plus de 36 h. Contactez-le directement${g?.phone ? ` au ${g.phone}` : ''}. Sans réponse, signalez-le depuis votre Historique (« Un souci ? »).` });
+    } catch {}
+    n += 1;
+  }
+  return n;
+}
+
 export function demandesForGerant(userId) {
+  try { expireStaleDemandes(); } catch {}
   const rows = find('demandes', (d) => d.gerantUserId === userId).sort((a, b) => b.createdAt - a.createdAt);
   // Badge « Client fiable » calculé une fois par client présent dans la liste.
   const cache = new Map();
@@ -1323,7 +1356,7 @@ export function demandesForGerant(userId) {
 
 // ---- Résumé / historique (v2 : on suit les demandes, pas d'argent stocké) ----
 export function demandeSummary(demandes) {
-  const counts = { pending: 0, accepted: 0, declined: 0, unavailable: 0, paid: 0, completed: 0, canceled: 0 };
+  const counts = { pending: 0, accepted: 0, declined: 0, unavailable: 0, paid: 0, completed: 0, canceled: 0, expired: 0 };
   let totalSpent = 0; // somme payée par le client (paid + completed)
   let totalServed = 0; // somme servie par le gérant (completed)
   let totalReceived = 0; // somme dont le gérant a CONFIRMÉ la réception
@@ -1466,6 +1499,7 @@ export function decideDemande({ id, gerantUserId, decision, reason }) {
     // Le gérant n'est PAS DISPONIBLE (pas à la cabine / pas de matériel) : ce n'est
     // pas un refus. Le client est invité à choisir un autre gérant. Si le client
     // avait déjà payé, on lui rappelle que le montant doit être remboursé.
+    if (d.status === 'expired') throw Object.assign(new Error('Cette demande a expiré (plus de 36 h sans réponse). Le client devra en refaire une.'), { status: 400 });
     if (!['pending', 'paid'].includes(d.status)) throw Object.assign(new Error('Demande déjà traitée'), { status: 400 });
     const wasPaid = d.status === 'paid' || !!d.paidAt || !!d.moneyReceived;
     const REASONS = { away: 'pas à la cabine actuellement', nomaterial: 'sans son matériel pour le moment', later: 'indisponible pour le moment', nostock: 'pas assez d\'unités / de crédit pour ce montant', nonetwork: 'pas la puce de ce réseau' };
@@ -1508,6 +1542,7 @@ export function decideDemande({ id, gerantUserId, decision, reason }) {
     return upd;
   } else {
     // Acceptation possible en attente OU après paiement anticipé du client
+    if (d.status === 'expired') throw Object.assign(new Error('Cette demande a expiré (plus de 36 h sans réponse). Le client devra en refaire une.'), { status: 400 });
     if (!['pending', 'paid'].includes(d.status)) throw Object.assign(new Error('Demande déjà traitée'), { status: 400 });
     update('demandes', (x) => x.id === id, { status: 'accepted', acceptedAt: Date.now() });
     const upd = findOne('demandes', (x) => x.id === id);
@@ -1908,7 +1943,7 @@ export function purgeOldNotifications(now = Date.now()) {
 let alertsTimer = null;
 export function startAlertScheduler() {
   if (alertsTimer) return;
-  const tick = () => { try { runSubscriptionAlerts(); reconcileExpiredEvents(); purgeOldNotifications(); } catch (e) { console.error('[alerts]', e.message); } };
+  const tick = () => { try { runSubscriptionAlerts(); reconcileExpiredEvents(); purgeOldNotifications(); expireStaleDemandes(); } catch (e) { console.error('[alerts]', e.message); } };
   setTimeout(tick, 20 * 1000);                        // 20 s après le démarrage
   alertsTimer = setInterval(tick, 60 * 60 * 1000);
   alertsTimer.unref && alertsTimer.unref();

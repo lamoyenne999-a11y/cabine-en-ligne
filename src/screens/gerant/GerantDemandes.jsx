@@ -27,6 +27,7 @@ const STATUS = {
   paid: { label: 'Payée', color: '#2E7BF6', bg: '#E7F0FE', icon: 'wallet' },
   completed: { label: 'Complétée', color: colors.success, bg: colors.successBg, icon: 'checkmark-done' },
   canceled: { label: 'Annulée', color: colors.muted, bg: colors.gray, icon: 'close-circle-outline' },
+  expired: { label: 'Expirée', color: colors.muted, bg: colors.gray, icon: 'hourglass-outline' },
 };
 const TYPE_ICON = { unites: 'phone-portrait-outline', minutes: 'call-outline', internet: 'wifi-outline', forfait: 'layers-outline' };
 const TYPE_LABEL = { unites: 'Unités', minutes: 'Minutes', internet: 'Internet', forfait: 'Appel + Internet' };
@@ -114,7 +115,7 @@ export default function GerantDemandes() {
   // repasse en « paid » côté serveur et revient donc ici automatiquement.
   // Une demande indisponible/refusée avec un remboursement à faire reste ici
   // jusqu'à ce que le client confirme « Remboursement reçu ».
-  const refundOpen = (d) => ['unavailable', 'declined'].includes(d.status) && !!(d.refundDue || d.paidAt || d.moneyReceived) && !d.refundConfirmedAt;
+  const refundOpen = (d) => ['unavailable', 'declined'].includes(d.status) && !!(d.refundDue || d.paidAt || d.moneyReceived) && !d.refundConfirmedAt && !d.refundStaleAt;
   const demandes = (state.gerantDemandes || []).filter((d) =>
     d.status === 'pending' || d.status === 'accepted' || d.status === 'paid' ||
     (d.status === 'completed' && !d.moneyReceived) || refundOpen(d));

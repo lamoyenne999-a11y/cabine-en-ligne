@@ -705,6 +705,44 @@ async function main() {
     check('150 F accepté', [200, 201].includes((await mk(150)).status));
   }
 
+  // ===== Expiration des demandes sans suite (36 h) =====
+  {
+    const A = { 'x-admin-key': 'testkey' };
+    const gl = await req('GET', '/client/gerants', null, ct);
+    const gid = (gl.json.gerants || []).find((g) => g.phone === gphone)?.id;
+    const mk = () => req('POST', '/client/demandes', { gerantId: gid, gerantName: 'Gérant Test', gerantWave: gphone, type: 'unites', amount: 150, benefName: 'Moi', benefPhone: cphone }, ct);
+    const dOld = (await mk()).json.demande; const dNew = (await mk()).json.demande;
+    // On vieillit artificiellement la 1re demande de 37 h.
+    await req('POST', '/admin/debug-age-demande', { id: dOld.id, ms: 37 * 3600 * 1000 }, null, A);
+    const inbox = await req('GET', '/gerant/demandes', null, gt);
+    const ids = (inbox.json.demandes || []).map((d) => d.id);
+    const old = (inbox.json.demandes || []).find((d) => d.id === dOld.id);
+    check('Demande en attente > 36 h → statut « expired »', old && old.status === 'expired');
+    check('Demande récente toujours en attente', (inbox.json.demandes || []).find((d) => d.id === dNew.id)?.status === 'pending');
+    const acc = await req('POST', `/gerant/demandes/${dOld.id}/accept`, {}, gt);
+    check('Accepter une demande expirée → 400', acc.status === 400 && /expiré/.test(acc.json.error || ''));
+    const ch = await req('GET', '/client/history', null, ct);
+    check('Historique client : demande « Expirée »', (ch.json.demandes || []).find((d) => d.id === dOld.id)?.status === 'expired' && ch.json.summary?.counts?.expired >= 1);
+    const cn0 = (await req('GET', '/client/notifications', null, ct)).json.notifications || [];
+    check('Expiration simple : aucune notification au client', !cn0.some((n) => n.demandeId === dOld.id && n.type === 'refund_stale'));
+    // Remboursement laissé sans réponse > 36 h : le client ayant payé est prévenu.
+    const dR = (await mk()).json.demande;
+    await req('POST', `/client/demandes/${dR.id}/paid`, {}, ct);
+    await req('POST', `/gerant/demandes/${dR.id}/unavailable`, { reason: 'later' }, gt);
+    await req('POST', '/admin/debug-age-demande', { id: dR.id, ms: 37 * 3600 * 1000 }, null, A);
+    const inbox2 = await req('GET', '/gerant/demandes', null, gt);
+    const r2 = (inbox2.json.demandes || []).find((d) => d.id === dR.id);
+    check('Remboursement sans réponse > 36 h : marqué refundStaleAt', r2 && r2.refundStaleAt > 0 && r2.status === 'unavailable');
+    const cn = (await req('GET', '/client/notifications', null, ct)).json.notifications || [];
+    check('Client prévenu de contacter le gérant', cn.some((n) => n.type === 'refund_stale' && n.demandeId === dR.id && /Contactez-le/.test(n.text)));
+    // Annulation par le client avant 36 h : reste « Annulée » (pas expirée).
+    const dC = (await mk()).json.demande;
+    await req('POST', `/client/demandes/${dC.id}/cancel`, {}, ct);
+    await req('POST', '/admin/debug-age-demande', { id: dC.id, ms: 40 * 3600 * 1000 }, null, A);
+    const ch2 = await req('GET', '/client/history', null, ct);
+    check('Annulée par le client : reste « Annulée »', (ch2.json.demandes || []).find((d) => d.id === dC.id)?.status === 'canceled');
+  }
+
   // ===== Signalements + suspension motivée =====
   {
     const A = { 'x-admin-key': 'testkey' };

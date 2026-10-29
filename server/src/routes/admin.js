@@ -230,6 +230,17 @@ router.post('/debug-set-subscription', requireAdmin, (req, res) => {
   const upd = update('users', (x) => x.id === u.id, { subscription: { ...(u.subscription || {}), ...(req.body?.subscription || {}) } });
   res.json({ ok: true, subscription: upd.subscription });
 });
+// Outil de TEST uniquement : vieillit une demande de `ms` millisecondes (toutes ses dates),
+// pour tester l'expiration à 36 h sans attendre. Body : { id, ms }.
+router.post('/debug-age-demande', requireAdmin, (req, res) => {
+  if (config.env === 'production') return res.status(404).json({ error: 'Route introuvable' });
+  const d = findOne('demandes', (x) => x.id === String(req.body?.id || ''));
+  if (!d) return res.status(404).json({ error: 'Demande introuvable' });
+  const ms = Math.max(0, Number(req.body?.ms) || 0);
+  const patch = {};
+  for (const k of ['createdAt', 'acceptedAt', 'paidAt', 'refundDue', 'receivedAt', 'completedAt']) if (d[k]) patch[k] = d[k] - ms;
+  res.json({ ok: true, demande: update('demandes', (x) => x.id === d.id, patch) });
+});
 
 // Offre du temps gratuit à un utilisateur. Body : { phone, days, note }.
 router.post('/grant-free-time', requireAdmin, (req, res) => {

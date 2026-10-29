@@ -39,6 +39,7 @@ const STATUS = {
   paid: { label: 'Payée', color: '#2E7BF6', bg: '#E7F0FE', icon: 'wallet' },
   completed: { label: 'Complétée', color: colors.success, bg: colors.successBg, icon: 'checkmark-circle' },
   canceled: { label: 'Annulée', color: colors.muted, bg: colors.gray, icon: 'close-circle-outline' },
+  expired: { label: 'Expirée', color: colors.muted, bg: colors.gray, icon: 'hourglass-outline' },
 };
 
 const TYPE_ICON = { unites: 'phone-portrait-outline', minutes: 'call-outline', internet: 'wifi-outline', forfait: 'layers-outline' };
@@ -46,7 +47,7 @@ const TYPE_LABEL = { unites: 'Unités', minutes: 'Minutes', internet: 'Internet'
 const CREDIT_LABEL = { unites: 'vos unités', minutes: 'vos minutes', internet: 'vos données internet', forfait: 'votre rechargement Appel + Internet' };
 
 function summarize(demandes) {
-  const counts = { pending: 0, accepted: 0, declined: 0, unavailable: 0, paid: 0, completed: 0, canceled: 0 };
+  const counts = { pending: 0, accepted: 0, declined: 0, unavailable: 0, paid: 0, completed: 0, canceled: 0, expired: 0 };
   let totalSpent = 0, totalServed = 0;
   (demandes || []).forEach((d) => {
     if (counts[d.status] !== undefined) counts[d.status] += 1;
@@ -113,13 +114,13 @@ export default function ClientHistory() {
     { value: 'accepted', label: `À payer (${sum.counts.accepted})` },
     { value: 'treated', label: `Traitées (${sum.counts.paid + sum.counts.completed})` },
     { value: 'unavailable', label: `Indisponibles (${sum.counts.unavailable})` },
-    { value: 'canceled', label: `Annulées (${sum.counts.canceled + sum.counts.declined})` },
+    { value: 'canceled', label: `Annulées (${sum.counts.canceled + sum.counts.declined + sum.counts.expired})` },
   ];
   const inGroup = (d) => {
     if (group === 'all') return true;
     if (group === 'recent') return isRecent(d);
     if (group === 'treated') return ['paid', 'completed'].includes(d.status);
-    if (group === 'canceled') return ['canceled', 'declined'].includes(d.status);
+    if (group === 'canceled') return ['canceled', 'declined', 'expired'].includes(d.status);
     return d.status === group;
   };
   // « Toutes » : les demandes EN COURS (En attente / À payer) en haut, puis les
@@ -146,7 +147,7 @@ export default function ClientHistory() {
         <View style={s.sumGrid}>
           <Tile icon="checkmark-done" tone="green" value={purchases} label="Achats" />
           <Tile icon="time" tone="orange" value={inProgress} label="En cours" />
-          <Tile icon="close-circle" tone="blue" value={sum.counts.declined + sum.counts.canceled + sum.counts.unavailable} label="Non traitées" />
+          <Tile icon="close-circle" tone="blue" value={sum.counts.declined + sum.counts.canceled + sum.counts.unavailable + sum.counts.expired} label="Non traitées" />
         </View>
       </Card>
 
@@ -362,6 +363,8 @@ export default function ClientHistory() {
                         ? `Vous avez signalé ne pas avoir reçu le remboursement. ${d.gerantName} revérifie son transfert.`
                         : d.refundedAt
                           ? `${d.gerantName} indique vous avoir remboursé ${money(d.amount)} sur votre Wave. Vérifiez votre solde.`
+                          : d.refundStaleAt
+                            ? `Sans réponse de ${d.gerantName} depuis plus de 36 h pour votre remboursement de ${money(d.amount)}. Contactez-le directement ; sans suite, touchez « Un souci ? ».`
                           : d.refundNotYetAt
                             ? `${d.gerantName} n'a pas encore pu vous rembourser ${money(d.amount)}. Il le fera dès que possible.`
                             : `Vous aviez payé ${money(d.amount)} : ${d.gerantName} doit vous rembourser sur votre Wave.`}
@@ -489,6 +492,11 @@ export default function ClientHistory() {
                   « Rien reçu » signalé — {d.gerantName} doit vous servir à nouveau.
                 </T>
               </View>
+            )}
+            {d.status === 'expired' && (
+              <T size={font.sm} weight="600" color={colors.muted} style={{ marginTop: 12, textAlign: 'center' }}>
+                Expirée : {d.gerantName || 'le gérant'} n'a pas répondu en 36 h. Refaites une demande, de préférence chez un autre gérant.
+              </T>
             )}
             {d.status === 'canceled' && (
               <T size={font.sm} weight="600" color={d.waveCanceledAt ? colors.danger : colors.muted} style={{ marginTop: 12, textAlign: 'center' }}>
