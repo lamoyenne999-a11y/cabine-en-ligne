@@ -71,14 +71,15 @@ export default function GerantHistory() {
     { value: 'treated', label: `Servies (${sum.counts.completed})` },
     { value: 'unpaid', label: `À encaisser (${demandes.filter((d) => d.status === 'completed' && !d.moneyReceived).length})` },
     { value: 'unavailable', label: `Indisponibles (${sum.counts.unavailable})` },
-    { value: 'canceled', label: `Annulées (${sum.counts.canceled + sum.counts.declined + sum.counts.expired})` },
+    { value: 'canceled', label: `Annulées (${sum.counts.canceled + sum.counts.declined})` },
+    { value: 'expired', label: `Expirées (${sum.counts.expired})` },
   ];
   const inGroup = (d) => {
     if (group === 'all') return true;
     if (group === 'recent') return isRecent(d);
     if (group === 'treated') return d.status === 'completed';
     if (group === 'unpaid') return d.status === 'completed' && !d.moneyReceived;
-    if (group === 'canceled') return ['canceled', 'declined', 'expired'].includes(d.status);
+    if (group === 'canceled') return ['canceled', 'declined'].includes(d.status);
     return d.status === group;
   };
   // « Toutes » : les demandes EN COURS en haut, puis les autres de la plus
@@ -104,7 +105,7 @@ export default function GerantHistory() {
         <View style={s.sumGrid}>
           <Tile icon="checkmark-done" tone="green" value={served} label="Servies" />
           <Tile icon="moon" tone="orange" value={sum.counts.unavailable} label="Indispo." />
-          <Tile icon="remove-circle" tone="gray" value={sum.counts.canceled + sum.counts.declined + sum.counts.expired} label="Annulées" />
+          <Tile icon="remove-circle" tone="gray" value={sum.counts.canceled + sum.counts.declined} label="Annulées" />
         </View>
       </Card>
 

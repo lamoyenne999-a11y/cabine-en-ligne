@@ -114,13 +114,14 @@ export default function ClientHistory() {
     { value: 'accepted', label: `À payer (${sum.counts.accepted})` },
     { value: 'treated', label: `Traitées (${sum.counts.paid + sum.counts.completed})` },
     { value: 'unavailable', label: `Indisponibles (${sum.counts.unavailable})` },
-    { value: 'canceled', label: `Annulées (${sum.counts.canceled + sum.counts.declined + sum.counts.expired})` },
+    { value: 'canceled', label: `Annulées (${sum.counts.canceled + sum.counts.declined})` },
+    { value: 'expired', label: `Expirées (${sum.counts.expired})` },
   ];
   const inGroup = (d) => {
     if (group === 'all') return true;
     if (group === 'recent') return isRecent(d);
     if (group === 'treated') return ['paid', 'completed'].includes(d.status);
-    if (group === 'canceled') return ['canceled', 'declined', 'expired'].includes(d.status);
+    if (group === 'canceled') return ['canceled', 'declined'].includes(d.status);
     return d.status === group;
   };
   // « Toutes » : les demandes EN COURS (En attente / À payer) en haut, puis les
